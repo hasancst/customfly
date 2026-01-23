@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean   @default(false)
+  emailVerified Boolean   @default(false)
+  refreshToken  String?
+  refreshTokenExpires DateTime?
+}
+
+model MerchantConfig {
+  id               String   @id @default(uuid())
+  shop             String
+  shopifyProductId String
+  printArea        Json
+  baseImage        String?
+  masks            Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([shop, shopifyProductId])
+}
+
+model SavedDesign {
+  id               String   @id @default(uuid())
+  shop             String
+  shopifyProductId String?
+  name             String   @default("Untitled Design")
+  designJson       Json
+  previewUrl       String?
+  status           String   @default("draft")
+  shopifyOrderId   String?
+  lineItemId       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([shop, shopifyProductId])
+}
+
+model Asset {
+  id        String   @id @default(uuid())
+  shop      String
+  type      String   // 'font', 'color', 'image'
+  name      String
+  value     String   // Value for font (font family name), color (hex), or image (URL)
+  config    Json?    // Optional config (e.g., font source/URL)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop, type])
+}
