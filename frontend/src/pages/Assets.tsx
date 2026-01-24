@@ -261,21 +261,21 @@ export default function Assets() {
         let media;
         if (asset.type === 'color') {
             const firstLetter = name ? name.charAt(0).toUpperCase() : 'C';
-            media = <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold border border-rose-100 shadow-sm">
+            media = <div className="w-14 h-14 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold border border-rose-100 shadow-sm text-lg">
                 {firstLetter}
             </div>;
         } else if (asset.type === 'gallery') {
             const firstLetter = name ? name.charAt(0).toUpperCase() : 'G';
-            media = <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold border border-emerald-100 shadow-sm">
+            media = <div className="w-14 h-14 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold border border-emerald-100 shadow-sm text-lg">
                 {firstLetter}
             </div>;
         } else if (asset.type === 'option') {
-            media = <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+            media = <div className="w-14 h-14 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
                 <Icon source={SettingsIcon} tone="success" />
             </div>;
         } else {
             const firstLetter = name ? name.charAt(0).toUpperCase() : 'F';
-            media = <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100">
+            media = <div className="w-14 h-14 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100 text-lg">
                 {firstLetter}
             </div>;
         }

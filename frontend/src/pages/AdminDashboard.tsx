@@ -41,7 +41,7 @@ const NO_IMAGE_URL = 'https://cdn.shopify.com/s/files/1/0533/2089/files/placehol
 const SafeThumbnail = ({ source, alt }: { source: string; alt: string }) => {
     const [hasError, setHasError] = useState(false);
     return (
-        <div className="w-12 h-12 rounded border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
+        <div className="w-20 h-20 rounded border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
             <img
                 src={hasError || !source ? NO_IMAGE_URL : source}
                 alt={alt}

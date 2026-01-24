@@ -622,7 +622,7 @@ export default function AssetDetail() {
                                                     </div>
                                                     {asset.type === 'color' && (
                                                         <div
-                                                            className="w-8 h-8 rounded border border-gray-200 shadow-sm"
+                                                            className="w-12 h-12 rounded border border-gray-200 shadow-sm"
                                                             style={{
                                                                 backgroundColor: item.hex,
                                                                 backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
@@ -649,7 +649,7 @@ export default function AssetDetail() {
 
                                                 <div className="flex items-center gap-2">
                                                     {asset.type === 'gallery' && (
-                                                        <div className="w-12 h-12 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center mr-4">
+                                                        <div className="w-20 h-20 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center mr-4">
                                                             <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
                                                         </div>
                                                     )}
@@ -677,10 +677,10 @@ export default function AssetDetail() {
                                             </div>
                                         </Reorder.Item>
                                     ))}
+                                    {localItems.length === 0 && (
+                                        <div className="p-8 text-center text-gray-500">No items to reorder</div>
+                                    )}
                                 </Reorder.Group>
-                                {localItems.length === 0 && (
-                                    <div className="p-8 text-center text-gray-500">No items to reorder</div>
-                                )}
                             </div>
                         ) : (
                             <ResourceList
@@ -695,7 +695,7 @@ export default function AssetDetail() {
                                             <div className="flex items-center gap-3 flex-1">
                                                 {asset.type === 'color' && (
                                                     <div
-                                                        className="w-8 h-8 rounded border border-gray-200 shadow-sm"
+                                                        className="w-12 h-12 rounded border border-gray-200 shadow-sm"
                                                         style={{
                                                             backgroundColor: item.hex,
                                                             backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
@@ -717,7 +717,7 @@ export default function AssetDetail() {
 
                                             {asset.type === 'gallery' && (
                                                 <div className="flex-1 px-8 text-right">
-                                                    <div className="w-16 h-16 ml-auto rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
+                                                    <div className="w-24 h-24 ml-auto rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
                                                         <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
                                                     </div>
                                                 </div>
