@@ -323,21 +323,22 @@ export default function AdminDashboard() {
                         </Text>
                         <div style={{ color: '#637381', fontSize: '13px' }}>{vendor}</div>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px', alignItems: 'center' }}>
-                            <Tooltip content={`Click to ${status === 'ACTIVE' ? 'Draft' : 'Activate'}`}>
-                                <div onClick={(e: MouseEvent) => { e.stopPropagation(); handleToggleStatus(product); }} style={{ cursor: 'pointer' }}>
-                                    {isUpdating === gid ? (
-                                        <Spinner size="small" />
-                                    ) : (
-                                        <Badge tone={status === 'ACTIVE' ? 'success' : 'critical'}>
-                                            {status}
-                                        </Badge>
-                                    )}
-                                </div>
-                            </Tooltip>
+                            {customProducts.some(p => p.id === product.id) && (
+                                <Tooltip content={`Click to ${status === 'ACTIVE' ? 'Draft' : 'Activate'}`}>
+                                    <div onClick={(e: MouseEvent) => { e.stopPropagation(); handleToggleStatus(product); }} style={{ cursor: 'pointer' }}>
+                                        {isUpdating === gid ? (
+                                            <Spinner size="small" />
+                                        ) : (
+                                            <Badge tone={status === 'ACTIVE' ? 'success' : 'critical'}>
+                                                {status === 'ACTIVE' ? 'Designer Active' : 'Designer Disabled'}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </Tooltip>
+                            )}
                             <Badge tone="info">{`${variantCount} Var`}</Badge>
                             {collsCount > 0 && <Badge tone="warning">{`${collsCount} Coll`}</Badge>}
                             {tagsCount > 0 && <Badge tone="attention">{`${tagsCount} Tag`}</Badge>}
-                            {customProducts.some(p => p.id === product.id) && <Badge tone="success">Design Enabled</Badge>}
                         </div>
                     </div>
 
