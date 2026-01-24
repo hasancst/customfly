@@ -15,7 +15,7 @@ interface DraggableElementProps {
   enableBounce?: boolean;
 }
 
-const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom, filter, crop }: {
+const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom, filter, crop, maskShape }: {
   src: string,
   removeBg: boolean,
   removeBgType: 'js' | 'rembg',
@@ -25,7 +25,8 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
   height: number,
   zoom: number,
   filter?: string,
-  crop?: { x: number, y: number, width: number, height: number }
+  crop?: { x: number, y: number, width: number, height: number },
+  maskShape?: string
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -123,25 +124,44 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
 
   return (
     <div style={containerStyle}>
-      <img
-        ref={imgRef}
-        src={src}
-        onLoad={() => setIsLoaded(true)}
-        style={imgStyle}
-        // Only trigger CORS if we actually need it for canvas processing
-        crossOrigin={showProcessed ? "anonymous" : undefined}
-        draggable={false}
-      />
-      {showProcessed && (
-        <canvas
-          ref={canvasRef}
-          style={{
-            width: width * z,
-            height: height * z,
-            filter: filter || 'none'
-          }}
+      <svg width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <clipPath id={`mask-${src.replace(/[^a-z0-9]/gi, '')}-${width}-${height}`} clipPathUnits="objectBoundingBox">
+            {maskShape?.startsWith('M') ? (
+              <path d={maskShape} transform="scale(0.01, 0.01)" />
+            ) : maskShape ? (
+              <polygon points={maskShape} transform="scale(0.01, 0.01)" />
+            ) : (
+              <rect width="1" height="1" />
+            )}
+          </clipPath>
+        </defs>
+      </svg>
+      <div style={{
+        width: '100%',
+        height: '100%',
+        clipPath: maskShape ? `url(#mask-${src.replace(/[^a-z0-9]/gi, '')}-${width}-${height})` : 'none',
+        overflow: 'hidden'
+      }}>
+        <img
+          ref={imgRef}
+          src={src}
+          onLoad={() => setIsLoaded(true)}
+          style={imgStyle}
+          crossOrigin={showProcessed ? "anonymous" : undefined}
+          draggable={false}
         />
-      )}
+        {showProcessed && (
+          <canvas
+            ref={canvasRef}
+            style={{
+              width: width * z,
+              height: height * z,
+              filter: filter || 'none'
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };
@@ -713,6 +733,7 @@ export const DraggableElement = memo(({
               zoom={zoom}
               filter={filterString}
               crop={element.crop}
+              maskShape={element.maskShape}
             />
           </div>
         );

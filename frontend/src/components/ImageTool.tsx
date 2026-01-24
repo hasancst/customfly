@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop } from 'lucide-react';
+import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop, Shapes } from 'lucide-react';
 import { IMAGE_PRESETS } from '../constants/filters';
+import { IMAGE_SHAPES } from '../constants/shapes';
 import {
   Collapsible,
   CollapsibleContent,
@@ -99,6 +100,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
         const toastId = toast.loading(`Processing PSD: ${file.name}...`);
         try {
           const PSD = (await import('psd.js') as any).default;
+          // Use a URL instead of file to avoid buffer issues in some environments
           const psd = await PSD.fromURL(URL.createObjectURL(file));
           url = psd.image.toBase64();
           toast.success("PSD imported successfully", { id: toastId });
@@ -285,6 +287,44 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             </div>
           </div>
 
+          {/* Image Shapes */}
+          <Collapsible className="space-y-2" defaultOpen>
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 w-full rounded-xl bg-orange-50 border border-orange-100 cursor-pointer group">
+                <div className="flex items-center gap-3">
+                  <Shapes className="w-4 h-4 text-orange-600" />
+                  <span className="text-sm font-bold text-orange-900 uppercase">Image Shapes</span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-orange-400 group-data-[state=open]:rotate-180 transition-transform" />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1">
+              <div className="grid grid-cols-4 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
+                {IMAGE_SHAPES.map((shape) => (
+                  <button
+                    key={shape.id}
+                    onClick={() => handleUpdate({ maskShape: shape.path })}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-[10px] font-bold ${selectedElement.maskShape === shape.path
+                      ? 'bg-orange-600 border-orange-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-orange-400'
+                      }`}
+                  >
+                    <div className="w-8 h-8 mb-1 flex items-center justify-center">
+                      {shape.id === 'none' ? (
+                        <ImageIcon className="w-5 h-5 opacity-40" />
+                      ) : (
+                        <svg viewBox={shape.viewBox || "0 0 100 100"} className={`w-6 h-6 ${selectedElement.maskShape === shape.path ? 'fill-white' : 'fill-orange-600'}`}>
+                          {shape.path.startsWith('M') ? <path d={shape.path} /> : <polygon points={shape.path} />}
+                        </svg>
+                      )}
+                    </div>
+                    <span className="truncate w-full text-center">{shape.name}</span>
+                  </button>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Filters Presets */}
           <Collapsible className="space-y-2" defaultOpen>
             <CollapsibleTrigger asChild>
@@ -425,7 +465,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold text-gray-700">Enable Filter</Label>
                   <Switch
-                    checked={selectedElement.removeBg && selectedElement.removeBgType === 'js'}
+                    checked={!!(selectedElement.removeBg && selectedElement.removeBgType === 'js')}
                     onCheckedChange={(checked: boolean) => {
                       handleUpdate({ removeBg: checked, removeBgType: 'js' });
                     }}
@@ -457,7 +497,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                         <SelectTrigger className="h-8 text-[10px] bg-white border-gray-100">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent shadow-none className="z-[10000]">
+                        <SelectContent className="z-[10000]">
                           <SelectItem value="light">Remove Whites/Light</SelectItem>
                           <SelectItem value="dark">Remove Blacks/Dark</SelectItem>
                         </SelectContent>
@@ -483,20 +523,20 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               </TabsContent>
             </Tabs>
           </div>
+
+          <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 mt-auto">
+            <h4 className="text-sm font-semibold text-purple-900 mb-2 leading-none flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+              Image Tips
+            </h4>
+            <ul className="text-[11px] text-purple-700 space-y-1.5">
+              <li>• High resolution (300 DPI) recommended</li>
+              <li>• PNG supports transparency for best results</li>
+              <li>• Keep file sizes under 10MB to ensure stability</li>
+            </ul>
+          </div>
         </div>
       )}
-
-      <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 mt-auto">
-        <h4 className="text-sm font-semibold text-purple-900 mb-2 leading-none flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-          Image Tips
-        </h4>
-        <ul className="text-[11px] text-purple-700 space-y-1.5">
-          <li>• High resolution (300 DPI) recommended</li>
-          <li>• PNG supports transparency for best results</li>
-          <li>• Keep file sizes under 10MB to ensure stability</li>
-        </ul>
-      </div>
     </div>
   );
 }

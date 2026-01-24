@@ -63,6 +63,7 @@ export interface CanvasElement {
     width: number;
     height: number;
   };
+  maskShape?: string; // Path/SVG for masking
 
   // Field specific
   fieldType?: 'text' | 'email' | 'number' | 'textarea';
