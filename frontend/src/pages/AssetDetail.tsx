@@ -530,7 +530,7 @@ export default function AssetDetail() {
     return (
         <Page
             fullWidth
-            backAction={{ content: 'Assets', url: '/assets' }}
+            backAction={{ content: 'Assets', onAction: () => navigate('/assets') }}
             title={asset.name}
             primaryAction={{
                 content: asset.type === 'font' ? 'Add Font' :
