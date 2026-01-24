@@ -1028,6 +1028,7 @@ export const DraggableElement = memo(({
         transform: `rotate(${element.rotation}deg)`,
         opacity: element.opacity / 100,
         zIndex: element.zIndex,
+        willChange: (isDragging || isResizing || isRotating) ? 'transform, left, top' : 'auto',
       }}
     >
       {content}
