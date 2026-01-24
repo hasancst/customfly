@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Toolbar } from '../components/Toolbar';
 import { Canvas } from '../components/Canvas';
 import { Summary } from '../components/Summary';
@@ -41,7 +41,7 @@ interface PageData {
 }
 
 export default function App() {
-  console.log("Designer component initializing...");
+  // console.log("Designer component initializing...");
   const [searchParams] = useSearchParams();
   const { productId: routeProductId } = useParams();
   const productId = routeProductId || searchParams.get('productId');
@@ -80,9 +80,11 @@ export default function App() {
   const hasFetchedProduct = useRef(false);
 
   // Helper to get active page and sync elements
-  const activePageIndex = pages.findIndex(p => p.id === activePageId);
-  const activePage = pages[activePageIndex] || pages[0];
-  const elements = activePage.elements;
+  const elements = useMemo(() => {
+    const activePageIndex = pages.findIndex(p => p.id === activePageId);
+    const activePage = pages[activePageIndex] || pages[0];
+    return activePage.elements;
+  }, [pages, activePageId]);
 
   const setElements = (newElements: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[])) => {
     setPages(prev => {
@@ -365,13 +367,13 @@ export default function App() {
     }
   };
 
-  const deleteElement = (id: string) => {
+  const deleteElement = useCallback((id: string) => {
     const newEls = elements.filter(el => el.id !== id);
     setElements(newEls);
     setSelectedElement(null);
     const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: newEls } : p);
     addToHistory(updatedPages);
-  };
+  }, [elements, pages, activePageId]);
 
   const duplicateElement = (id: string) => {
     const element = elements.find(el => el.id === id);
@@ -500,7 +502,7 @@ export default function App() {
           <div className="h-10 bg-white border-b border-gray-200 flex items-center px-4 gap-3 z-30 shrink-0">
             <div className="flex items-center gap-1.5 py-1 px-2.5 bg-gray-50 rounded-md border border-gray-100">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Side:</span>
-              <span className="text-xs font-bold text-indigo-600">{activePageIndex + 1}/{pages.length}</span>
+              <span className="text-xs font-bold text-indigo-600">{pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
             </div>
 
             <div className="w-px h-5 bg-gray-200" />
