@@ -188,7 +188,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                     userSelect: 'none',
                                     WebkitUserDrag: 'none',
                                     pointerEvents: 'auto',
-                                }}
+                                } as any}
                             />
                         </ReactCrop>
                     </div>
