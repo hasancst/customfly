@@ -1017,11 +1017,11 @@ export const DraggableElement = memo(({
     }
   }, [element, zoom]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (isResizing || isRotating) return;
 
     e.stopPropagation();
-    e.preventDefault(); // Prevent text selection/ghosting
+    // e.preventDefault(); // Removing preventDefault to allow focus if needed, though usually drag handles it
     setIsDragging(true);
     onSelect();
 
@@ -1030,38 +1030,69 @@ export const DraggableElement = memo(({
     const startElementX = element.x;
     const startElementY = element.y;
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = (moveEvent.clientX - startX) / (zoom / 100);
-      const deltaY = (moveEvent.clientY - startY) / (zoom / 100);
-
-      onUpdate({
-        x: startElementX + deltaX,
-        y: startElementY + deltaY,
-      }, true); // Skip history during drag
+    interactionRef.current = {
+      ...interactionRef.current,
+      startX,
+      startY,
     };
 
-    const handleMouseUp = (upEvent: MouseEvent) => {
-      const deltaX = (upEvent.clientX - startX) / (zoom / 100);
-      const deltaY = (upEvent.clientY - startY) / (zoom / 100);
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (interactionRef.current.rafId) return;
 
-      onUpdate({
-        x: startElementX + deltaX,
-        y: startElementY + deltaY,
-      }, false); // Commit to history
+      interactionRef.current.rafId = requestAnimationFrame(() => {
+        const dx = (moveEvent.clientX - startX) / (zoom / 100);
+        const dy = (moveEvent.clientY - startY) / (zoom / 100);
+
+        const newX = startElementX + dx;
+        const newY = startElementY + dy;
+
+        setLocalState(prev => ({
+          ...prev,
+          x: newX,
+          y: newY
+        }));
+
+        // Optional: Still sync to parent but with skipHistory to keep context-aware UI (like coordinates) updated.
+        // If it's still laggy, we can comment this out and only sync on PointerUp.
+        onUpdate({ x: newX, y: newY }, true);
+
+        interactionRef.current.rafId = null;
+      });
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      if (interactionRef.current.rafId) {
+        cancelAnimationFrame(interactionRef.current.rafId);
+        interactionRef.current.rafId = null;
+      }
+
+      const dx = (upEvent.clientX - startX) / (zoom / 100);
+      const dy = (upEvent.clientY - startY) / (zoom / 100);
+
+      const finalX = startElementX + dx;
+      const finalY = startElementY + dy;
+
+      setLocalState(prev => ({
+        ...prev,
+        x: finalX,
+        y: finalY
+      }));
+
+      onUpdate({ x: finalX, y: finalY }, false); // Commit to history
 
       setIsDragging(false);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
   };
 
   return (
     <div
       ref={elementRef}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onClick={onSelect}
       className={`absolute cursor-move ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
       style={{
