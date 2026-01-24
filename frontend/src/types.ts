@@ -71,6 +71,11 @@ export interface CanvasElement {
   longitude?: number;
   // Monogram specific
   monogramType?: MonogramType;
+
+  // Gallery specific
+  galleryMode?: 'categorized' | 'all';
+  galleryCategories?: string[]; // Array of category names
+  galleryMaxImages?: number;
 }
 
 export interface ProductVariant {

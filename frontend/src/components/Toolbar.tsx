@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TextTool } from '@/components/TextTool';
 import { ImageTool } from '@/components/ImageTool';
+import { GalleryTool } from '@/components/GalleryTool';
 import { CanvasElement } from '@/types';
 
 interface ToolbarProps {
@@ -136,7 +137,14 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
                 onUpdateElement={onUpdateElement}
               />
             )}
-            {!['text', 'image'].includes(selectedElement.type) && (
+            {selectedElement.type === 'gallery' && (
+              <GalleryTool
+                onAddElement={onAddElement}
+                selectedElement={selectedElement}
+                onUpdateElement={onUpdateElement}
+              />
+            )}
+            {!['text', 'image', 'gallery'].includes(selectedElement.type) && (
               <div className="py-20 text-center">
                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Settings2 className="w-8 h-8 text-gray-300" />
