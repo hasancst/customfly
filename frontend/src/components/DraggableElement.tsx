@@ -2,6 +2,7 @@ import { useRef, useState, useMemo, memo, useEffect } from 'react';
 import { CanvasElement } from '../types';
 import { Input } from './ui/input';
 import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2, Images, UploadCloud, Palette, ChevronDown, CheckCircle2, Hash, Clock } from 'lucide-react';
+import { IMAGE_PRESETS } from '../constants/filters';
 
 interface DraggableElementProps {
   element: CanvasElement;
@@ -14,7 +15,7 @@ interface DraggableElementProps {
   enableBounce?: boolean;
 }
 
-const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom }: {
+const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom, filter }: {
   src: string,
   removeBg: boolean,
   removeBgType: 'js' | 'rembg',
@@ -22,7 +23,8 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
   mode: 'light' | 'dark',
   width: number,
   height: number,
-  zoom: number
+  zoom: number,
+  filter?: string
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -79,6 +81,7 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
     objectFit: 'contain' as const,
     userSelect: 'none' as const,
     pointerEvents: 'none' as const,
+    filter: filter || 'none',
   };
 
   const showProcessed = removeBg && removeBgType === 'js';
@@ -411,7 +414,7 @@ export const DraggableElement = memo(({
         ...prev,
         width: newWidth,
         height: newHeight,
-        fontSize: updates.fontSize || prev.fontSize
+        fontSize: updates.fontSize || (prev as any).fontSize
       }));
 
       onUpdate(updates, false); // Commit to history
@@ -477,6 +480,38 @@ export const DraggableElement = memo(({
     };
   };
 
+  const filterString = useMemo(() => {
+    if (element.type !== 'image') return 'none';
+
+    let baseFilter = '';
+
+    // Apply Preset first if exists
+    if (element.imageFilters?.preset) {
+      const preset = IMAGE_PRESETS.find(p => p.id === element.imageFilters?.preset);
+      if (preset && preset.filter !== 'none') {
+        baseFilter = preset.filter;
+      }
+    }
+
+    // Add Adjustments
+    const adj = element.imageFilters;
+    if (adj) {
+      const parts = [];
+      if (adj.brightness !== undefined && adj.brightness !== 100) parts.push(`brightness(${adj.brightness}%)`);
+      if (adj.contrast !== undefined && adj.contrast !== 100) parts.push(`contrast(${adj.contrast}%)`);
+      if (adj.saturate !== undefined && adj.saturate !== 100) parts.push(`saturate(${adj.saturate}%)`);
+      if (adj.hueRotate !== undefined && adj.hueRotate !== 0) parts.push(`hue-rotate(${adj.hueRotate}deg)`);
+      if (adj.sepia !== undefined && adj.sepia !== 0) parts.push(`sepia(${adj.sepia}%)`);
+      if (adj.grayscale !== undefined && adj.grayscale !== 0) parts.push(`grayscale(${adj.grayscale}%)`);
+
+      if (parts.length > 0) {
+        baseFilter = (baseFilter === 'none' ? '' : baseFilter) + ' ' + parts.join(' ');
+      }
+    }
+
+    return baseFilter || 'none';
+  }, [element.imageFilters]);
+
   const content = useMemo(() => {
     switch (element.type) {
       case 'text':
@@ -501,6 +536,8 @@ export const DraggableElement = memo(({
                 fontSize: scaledFontSize,
                 fontFamily: element.fontFamily || 'Inter',
                 fontWeight: element.fontWeight || 400,
+                fontStyle: element.italic ? 'italic' : 'normal',
+                textDecoration: element.underline ? 'underline' : 'none',
                 textAlign: element.textAlign || 'center',
                 whiteSpace: 'nowrap',
                 userSelect: 'none',
@@ -583,7 +620,6 @@ export const DraggableElement = memo(({
         // Default to 'shrink' if no mode is specified (prevents overflow on old designs)
         const mode = element.textMode || 'shrink';
         const isWrap = mode === 'wrap';
-        const isShrink = mode === 'shrink';
 
         return (
           <div
@@ -603,29 +639,21 @@ export const DraggableElement = memo(({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden',
-              paddingLeft: 4 * (zoom / 100),
-              paddingRight: 4 * (zoom / 100),
+              overflow: 'visible',
             }}
           >
             <div
               ref={contentRef}
               style={{
-                transform: isShrink ? `scale(${textScale})` : 'none',
-                transformOrigin: 'center',
-                display: 'inline-block',
+                transform: `scale(${textScale})`,
+                transformOrigin: 'center center',
                 width: isWrap ? '100%' : 'auto',
-              }}
-            >
-              <span style={{
                 ...getGradientStyle(),
                 ...getStrokeStyle(),
                 color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
-                display: 'inline-block',
-                width: isWrap ? '100%' : 'auto',
-              }}>
-                {element.text}
-              </span>
+              }}
+            >
+              {element.text}
             </div>
           </div>
         );
@@ -642,6 +670,7 @@ export const DraggableElement = memo(({
               width={localState.width}
               height={localState.height}
               zoom={zoom}
+              filter={filterString}
             />
           </div>
         );
@@ -753,23 +782,14 @@ export const DraggableElement = memo(({
             )}
             <div className="relative">
               <Input
-                type="text"
-                value={element.dateValue || ''}
-                placeholder={element.dateFormat || 'MM/DD/YYYY'}
-                className="rounded-lg pointer-events-none"
+                placeholder="MM/DD/YYYY"
+                className="rounded-lg pr-10 pointer-events-none"
                 style={{
                   height: 40 * (zoom / 100),
                   fontSize: (element.fontSize || 14) * (zoom / 100),
-                  paddingRight: 35 * (zoom / 100),
                 }}
               />
-              <Calendar
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                style={{
-                  width: 16 * (zoom / 100),
-                  height: 16 * (zoom / 100),
-                }}
-              />
+              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             </div>
           </div>
         );
@@ -851,9 +871,8 @@ export const DraggableElement = memo(({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: size * 0.05,
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: size * 0.02 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: size * 0.05 }}>
                 <div style={{
                   fontFamily: 'Stacked-Top-Left',
                   fontSize: size * 0.4,
@@ -915,29 +934,6 @@ export const DraggableElement = memo(({
           </div>
         );
 
-      case 'gallery':
-        const galleryCount = element.gallerySourceIds?.length || 0;
-        const gMode = element.galleryMode || 'all';
-        return (
-          <div className="flex flex-col items-center justify-center bg-pink-50 border-2 border-pink-200 rounded-2xl overflow-hidden group/opt p-4" style={{ width: (element.width || 300) * (zoom / 100), height: (element.height || 150) * (zoom / 100) }}>
-            <Images className="w-10 h-10 text-pink-500 mb-2 group-hover/opt:scale-110 transition-transform" />
-            <p className="text-xs font-bold text-pink-700 uppercase tracking-wider">{element.label || 'Gallery'}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="px-2 py-0.5 bg-pink-100 rounded-full">
-                <span className="text-[9px] font-bold text-pink-600 uppercase tracking-tight">
-                  {gMode === 'all' ? 'All Images' : `By Gallery (${galleryCount})`}
-                </span>
-              </div>
-              <div className="px-2 py-0.5 bg-white rounded-full border border-pink-200">
-                <span className="text-[9px] font-bold text-pink-500 uppercase tracking-tight">
-                  Max: {element.galleryMaxImages || 10}
-                </span>
-              </div>
-            </div>
-          </div>
-        );
-
-
       case 'file_upload':
         return (
           <div className="bg-emerald-50 border-2 border-emerald-200 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2" style={{ width: (element.width || 200) * (zoom / 100) }}>
@@ -991,12 +987,11 @@ export const DraggableElement = memo(({
           <div className="bg-white border-2 border-teal-100 rounded-xl p-3 space-y-2 shadow-sm" style={{ width: (element.width || 180) * (zoom / 100) }}>
             <p className="text-[10px] font-bold text-teal-600 uppercase flex items-center gap-1.5">
               <Hash className="w-3 h-3" />
-              {element.label || 'Quantity'}
+              Weight
             </p>
-            <div className="flex items-center justify-between h-8 bg-gray-50 rounded-lg px-3">
-              <span className="text-gray-400 font-bold">-</span>
-              <span className="text-xs font-bold">1</span>
-              <span className="text-gray-400 font-bold">+</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-800">0.00</span>
+              <span className="text-[10px] text-gray-400 font-bold">KG</span>
             </div>
           </div>
         );
@@ -1015,7 +1010,7 @@ export const DraggableElement = memo(({
       default:
         return null;
     }
-  }, [element, zoom]);
+  }, [element, zoom, textScale, filterString]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isResizing || isRotating) return;
@@ -1149,4 +1144,3 @@ export const DraggableElement = memo(({
     </div>
   );
 });
-

@@ -48,6 +48,15 @@ export interface CanvasElement {
   removeBgDeep?: number;
   removeBgMode?: 'light' | 'dark';
   removeBgType?: 'js' | 'rembg';
+  imageFilters?: {
+    brightness?: number; // 0 to 200, default 100
+    contrast?: number;   // 0 to 200, default 100
+    saturate?: number;   // 0 to 200, default 100
+    hueRotate?: number;  // 0 to 360, default 0
+    sepia?: number;      // 0 to 100, default 0
+    grayscale?: number;  // 0 to 100, default 0
+    preset?: string;     // 'bnw', 'vintage', etc.
+  };
 
   // Field specific
   fieldType?: 'text' | 'email' | 'number' | 'textarea';
