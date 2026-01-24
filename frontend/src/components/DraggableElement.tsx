@@ -915,15 +915,25 @@ export const DraggableElement = memo(({
       case 'gallery':
         const galleryCount = element.gallerySourceIds?.length || 0;
         const gMode = element.galleryMode || 'all';
+        const hasSub = element.gallerySubCategories;
         return (
           <div className="flex flex-col items-center justify-center bg-pink-50 border-2 border-pink-200 rounded-2xl overflow-hidden group/opt p-4" style={{ width: (element.width || 300) * (zoom / 100), height: (element.height || 150) * (zoom / 100) }}>
             <Images className="w-10 h-10 text-pink-500 mb-2 group-hover/opt:scale-110 transition-transform" />
             <p className="text-xs font-bold text-pink-700 uppercase tracking-wider">{element.label || 'Gallery'}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="px-2 py-0.5 bg-pink-100 rounded-full">
-                <span className="text-[9px] font-bold text-pink-600 uppercase tracking-tight">
-                  {gMode === 'all' ? 'All Images' : `By Gallery (${galleryCount})`}
-                </span>
+            <div className="mt-2 flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2">
+                <div className="px-2 py-0.5 bg-pink-100 rounded-full">
+                  <span className="text-[9px] font-bold text-pink-600 uppercase tracking-tight">
+                    {gMode === 'all' ? 'All Images' : `By Gallery (${galleryCount})`}
+                  </span>
+                </div>
+                {gMode === 'categorized' && hasSub && (
+                  <div className="px-2 py-0.5 bg-purple-100 rounded-full">
+                    <span className="text-[9px] font-bold text-purple-600 uppercase tracking-tight">
+                      Nested
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="px-2 py-0.5 bg-white rounded-full border border-pink-200">
                 <span className="text-[9px] font-bold text-pink-500 uppercase tracking-tight">

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Images, Plus, Database, FolderOpen, Grid3x3 } from 'lucide-react';
+import { Images, Plus, Database, FolderOpen, Grid3x3, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CanvasElement } from '@/types';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Switch } from '@/components/ui/switch';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
 interface GalleryToolProps {
@@ -22,6 +23,9 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
     const [selectedGalleries, setSelectedGalleries] = useState<string[]>(
         selectedElement?.gallerySourceIds || []
     );
+    const [subCategories, setSubCategories] = useState<boolean>(
+        selectedElement?.gallerySubCategories || false
+    );
     const fetch = useAuthenticatedFetch();
 
     useEffect(() => {
@@ -29,6 +33,7 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
             setGalleryMode(selectedElement.galleryMode || 'all');
             setMaxImages(selectedElement.galleryMaxImages || 10);
             setSelectedGalleries(selectedElement.gallerySourceIds || []);
+            setSubCategories(selectedElement.gallerySubCategories || false);
         }
     }, [selectedElement]);
 
@@ -63,6 +68,7 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
             galleryMode,
             galleryMaxImages: maxImages,
             gallerySourceIds: selectedGalleries,
+            gallerySubCategories: subCategories,
         };
         onAddElement(newElement);
     };
@@ -114,6 +120,27 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                         ? 'Show all images in a single grid view'
                         : 'Organize images into tabs based on gallery names'}
                 </p>
+
+                {galleryMode === 'categorized' && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 px-1">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-purple-500" />
+                                <div className="flex flex-col">
+                                    <Label className="text-xs font-bold text-gray-700">Enable Sub-Categories</Label>
+                                    <span className="text-[10px] text-gray-400">Support 2-level nested navigation</span>
+                                </div>
+                            </div>
+                            <Switch
+                                checked={subCategories}
+                                onCheckedChange={(val) => {
+                                    setSubCategories(val);
+                                    if (selectedElement) handleUpdate({ gallerySubCategories: val });
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Gallery Selection - Always show */}
@@ -212,7 +239,8 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                         <ul className="list-disc list-inside space-y-0.5 ml-1">
                             <li>Images from selected galleries</li>
                             <li>Thumbnail grid with lightbox view</li>
-                            <li>Optional category tabs based on gallery names</li>
+                            <li>Category tabs based on gallery names</li>
+                            <li>Nested sub-category drilldown (if enabled)</li>
                         </ul>
                     </div>
                 </div>
