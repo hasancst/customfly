@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Images, Plus, X, FolderOpen, Grid3x3, Database, Layers } from 'lucide-react';
+import { Images, Plus, X, FolderOpen, Grid3x3, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
     const [galleryMode, setGalleryMode] = useState<'categorized' | 'all'>(
         selectedElement?.galleryMode || 'all'
     );
-    const [gallerySource, setGallerySource] = useState<'predefined' | 'both'>(
-        (selectedElement?.gallerySource as 'predefined' | 'both') || 'predefined'
-    );
     const [categories, setCategories] = useState<string[]>(
         selectedElement?.galleryCategories || []
     );
@@ -35,7 +32,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
     useEffect(() => {
         if (selectedElement?.type === 'gallery') {
             setGalleryMode(selectedElement.galleryMode || 'all');
-            setGallerySource((selectedElement.gallerySource as 'predefined' | 'both') || 'predefined');
             setCategories(selectedElement.galleryCategories || []);
             setMaxImages(selectedElement.galleryMaxImages || 10);
             setSelectedGalleries(selectedElement.gallerySourceIds || []);
@@ -73,7 +69,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
             galleryMode,
             galleryCategories: categories,
             galleryMaxImages: maxImages,
-            gallerySource,
             gallerySourceIds: selectedGalleries,
         };
         onAddElement(newElement);
@@ -144,47 +139,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                     {galleryMode === 'all'
                         ? 'Show all images in a single grid view'
                         : 'Organize images into category tabs'}\n                </p>
-            </div>
-
-            {/* Gallery Source Selection */}
-            <div className="px-1 space-y-3">
-                <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-purple-500" />
-                    <Label className="text-sm font-bold text-gray-700">Image Source</Label>
-                </div>
-
-                <ToggleGroup
-                    type="single"
-                    value={gallerySource}
-                    onValueChange={(val: any) => {
-                        if (val) {
-                            setGallerySource(val);
-                            if (selectedElement) handleUpdate({ gallerySource: val });
-                        }
-                    }}
-                    className="w-full bg-gray-50 p-1 rounded-xl border border-gray-100"
-                >
-                    <ToggleGroupItem
-                        value="predefined"
-                        className="flex-1 gap-1.5 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm"
-                    >
-                        <Database className="w-3.5 h-3.5" />
-                        From Galleries
-                    </ToggleGroupItem>
-                    <ToggleGroupItem
-                        value="both"
-                        className="flex-1 gap-1.5 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm"
-                    >
-                        <Layers className="w-3.5 h-3.5" />
-                        Galleries + Upload
-                    </ToggleGroupItem>
-                </ToggleGroup>
-
-                <p className="text-[10px] text-gray-500 italic px-1">
-                    {gallerySource === 'predefined'
-                        ? 'Show images from selected galleries only'
-                        : 'Show images from galleries + allow customer uploads'}
-                </p>
             </div>
 
             {/* Gallery Selection - Always show */}

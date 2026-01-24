@@ -76,7 +76,6 @@ export interface CanvasElement {
   galleryMode?: 'categorized' | 'all';
   galleryCategories?: string[]; // Array of category names
   galleryMaxImages?: number;
-  gallerySource?: 'predefined' | 'both'; // Source of images
   gallerySourceIds?: string[]; // IDs of selected gallery assets
 }
 
