@@ -230,14 +230,6 @@ export default function App() {
     fetchDesigns();
   }, [productId]);
 
-  // Sync elements with active page
-  useEffect(() => {
-    const activePage = pages.find(p => p.id === activePageId);
-    if (activePage) {
-      setElements(activePage.elements);
-    }
-  }, [activePageId, pages]);
-
   const loadDesign = (design: any) => {
     setCurrentDesignId(design.id);
     setDesignName(design.name);
