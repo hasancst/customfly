@@ -465,11 +465,14 @@ export default function App() {
   const handleCropComplete = (croppedAreaPixels: { x: number, y: number, width: number, height: number }) => {
     const el = elements.find(e => e.id === selectedElement);
     if (el && el.type === 'image') {
+      const currentWidth = el.width || 200;
+      const aspectRatio = croppedAreaPixels.width / croppedAreaPixels.height;
+
       updateElement(el.id, {
         crop: croppedAreaPixels,
-        width: croppedAreaPixels.width,
-        height: croppedAreaPixels.height
-      });
+        width: currentWidth,
+        height: currentWidth / aspectRatio
+      }, false);
     }
   };
 

@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Crop as CropIcon, Check, X, RotateCcw, AlignCenter, AlignVerticalJustifyCenter, Square, Maximize } from 'lucide-react';
+import { Crop as CropIcon, Check, RotateCcw, AlignCenter, AlignVerticalJustifyCenter, Square, Maximize } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ImageCropModalProps {
@@ -15,7 +14,7 @@ interface ImageCropModalProps {
     initialCrop?: { x: number; y: number; width: number; height: number };
 }
 
-export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, initialCrop: savedCrop }: ImageCropModalProps) {
+export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete }: ImageCropModalProps) {
     const [crop, setCrop] = useState<Crop>();
     const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
     const [aspect, setAspect] = useState<number | undefined>(undefined);
@@ -31,7 +30,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                     width: 80,
                     height: 80,
                 },
-                aspect,
+                aspect || 0,
                 width,
                 height
             ),
@@ -70,7 +69,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
             if (imgRef.current) {
                 const { width, height } = imgRef.current;
                 const newCrop = centerCrop(
-                    makeAspectCrop({ unit: '%', width: 80 }, 1, width, height),
+                    makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.8 }, 1, width, height),
                     width, height
                 );
                 setCrop(newCrop);
@@ -90,12 +89,16 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     };
 
     const handleSave = () => {
-        if (completedCrop) {
+        if (completedCrop && imgRef.current) {
+            const img = imgRef.current;
+            const scaleX = img.naturalWidth / img.width;
+            const scaleY = img.naturalHeight / img.height;
+
             onCropComplete({
-                x: completedCrop.x,
-                y: completedCrop.y,
-                width: completedCrop.width,
-                height: completedCrop.height
+                x: completedCrop.x * scaleX,
+                y: completedCrop.y * scaleY,
+                width: completedCrop.width * scaleX,
+                height: completedCrop.height * scaleY
             });
             onClose();
         }
@@ -105,11 +108,10 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         if (imgRef.current) {
             const { width, height } = imgRef.current;
             const newCrop = centerCrop(
-                makeAspectCrop({ unit: '%', width: 80, height: 80 }, undefined, width, height),
+                makeAspectCrop({ unit: 'px', width: width * 0.8, height: height * 0.8 }, aspect || 0, width, height),
                 width, height
             );
             setCrop(newCrop);
-            setAspect(undefined);
         }
     };
 

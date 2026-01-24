@@ -30,6 +30,11 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
+  const z = zoom / 100;
+
+  // Calculate the scale between the natural pixels and the displayed size
+  // width/height passed here are the element's dimensions (which are the crop dimensions if crop exists)
+
   useEffect(() => {
     if (!removeBg || removeBgType !== 'js') return;
 
@@ -40,9 +45,17 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
     if (!canvas || !ctx || !img) return;
 
     const process = () => {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      ctx.drawImage(img, 0, 0);
+      // If cropped, we only want to process the cropped area or handle positioning
+      // Simplest: Draw the whole image correctly scaled/shifted or draw just the crop
+      if (crop) {
+        canvas.width = crop.width;
+        canvas.height = crop.height;
+        ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      } else {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+      }
 
       if (deep > 0) {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -74,34 +87,14 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
     } else {
       img.onload = process;
     }
-  }, [src, removeBg, deep, mode]);
-
-  const z = zoom / 100;
-
-  const style = {
-    width: width * z,
-    height: height * z,
-    objectFit: (crop ? 'none' : 'contain') as any,
-    objectPosition: crop ? `-${crop.x * z}px -${crop.y * z}px` : 'center',
-    userSelect: 'none' as const,
-    pointerEvents: 'none' as const,
-    filter: filter || 'none',
-    // If cropped, we might need to ensure the image itself doesn't scale down automatically
-    // But object-fit: none handles that by showing natural size.
-    // However, we want the natural size to be relative to the zoom.
-    ...(crop ? { width: crop.width * z, height: crop.height * z } : {})
-  };
-
-
-  // Wait, transform scale is better for precision.
-  // Actually, let's keep it simple for now and just use a container.
+  }, [src, removeBg, deep, mode, crop]);
 
   const showProcessed = removeBg && removeBgType === 'js';
 
   return (
     <div style={{
-      width: (crop ? crop.width : width) * z,
-      height: (crop ? crop.height : height) * z,
+      width: width * z,
+      height: height * z,
       overflow: 'hidden',
       position: 'relative'
     }}>
@@ -109,14 +102,19 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
         ref={imgRef}
         src={src}
         style={{
-          ...style,
           display: showProcessed ? 'none' : 'block',
-          position: crop ? 'absolute' : 'relative',
-          left: crop ? -crop.x * z : 0,
-          top: crop ? -crop.y * z : 0,
-          width: crop ? 'auto' : (width * z),
-          height: crop ? 'auto' : (height * z),
-          maxWidth: crop ? 'none' : '100%',
+          position: 'absolute',
+          width: 'auto',
+          height: 'auto',
+          maxWidth: 'none',
+          // Use transform for better performance and clarity
+          transform: crop
+            ? `scale(${(width / crop.width) * z}) translate(${-crop.x}px, ${-crop.y}px)`
+            : `scale(${(width / (imgRef.current?.naturalWidth || width)) * z})`,
+          transformOrigin: '0 0',
+          filter: filter || 'none',
+          userSelect: 'none',
+          pointerEvents: 'none',
         }}
         crossOrigin="anonymous"
         draggable={false}
@@ -125,12 +123,9 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
         <canvas
           ref={canvasRef}
           style={{
-            ...style,
-            position: crop ? 'absolute' : 'relative',
-            left: crop ? -crop.x * z : 0,
-            top: crop ? -crop.y * z : 0,
-            width: crop ? 'auto' : (width * z),
-            height: crop ? 'auto' : (height * z),
+            width: width * z,
+            height: height * z,
+            filter: filter || 'none'
           }}
         />
       )}
