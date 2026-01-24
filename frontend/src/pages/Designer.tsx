@@ -339,21 +339,35 @@ export default function App() {
   };
 
   const addElement = (element: CanvasElement) => {
-    const nextZ = elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 1;
-    const newElements = [...elements, { ...element, zIndex: nextZ }];
-    setElements(newElements);
+    setPages(prevPages => {
+      const updatedPages = prevPages.map(p => {
+        if (p.id === activePageId || (activePageId === 'default' && prevPages.length === 1)) {
+          const nextZ = p.elements.length > 0 ? Math.max(...p.elements.map(e => e.zIndex)) + 1 : 1;
+          const newElements = [...p.elements, { ...element, zIndex: nextZ }];
+          setElements(newElements);
+          return { ...p, elements: newElements };
+        }
+        return p;
+      });
+      addToHistory(updatedPages);
+      return updatedPages;
+    });
     setSelectedElement(element.id);
-    const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: newElements } : p);
-    addToHistory(updatedPages);
   };
 
   const updateElement = (id: string, updates: Partial<CanvasElement>, skipHistory = false) => {
-    const newEls = elements.map(el => el.id === id ? { ...el, ...updates } : el);
-    setElements(newEls);
-    if (!skipHistory) {
-      const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: newEls } : p);
-      addToHistory(updatedPages);
-    }
+    setPages(prevPages => {
+      const updatedPages = prevPages.map(p => {
+        if (p.id === activePageId || (activePageId === 'default' && prevPages.length === 1)) {
+          const newEls = p.elements.map(el => el.id === id ? { ...el, ...updates } : el);
+          setElements(newEls);
+          return { ...p, elements: newEls };
+        }
+        return p;
+      });
+      if (!skipHistory) addToHistory(updatedPages);
+      return updatedPages;
+    });
   };
 
   const deleteElement = (id: string) => {

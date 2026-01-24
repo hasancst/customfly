@@ -3,7 +3,6 @@ import { Plus, Type, ChevronDown, Layers, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { CanvasElement, MonogramType } from '@/types';
 import {
   Collapsible,
@@ -11,7 +10,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Shrink, WrapText, CaseSensitive, CaseUpper, CaseLower, Hash, Type as TypeIcon, Info } from 'lucide-react';
+import { Shrink, WrapText, CaseSensitive, CaseUpper, CaseLower, Hash, Type as TypeIcon } from 'lucide-react';
 
 const TEXT_SHAPES = [
   {
@@ -115,20 +114,6 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
   const [textCase, setTextCase] = useState<'none' | 'uppercase' | 'lowercase'>(selectedElement?.textCase || 'none');
   const [textType, setTextType] = useState<'all' | 'numbers'>(selectedElement?.textType || 'all');
 
-  const [userFonts, setUserFonts] = useState<any[]>([]);
-  const fetch = useAuthenticatedFetch();
-
-  useEffect(() => {
-    async function fetchFonts() {
-      try {
-        const res = await fetch('/imcst_api/assets?type=font');
-        if (res.ok) setUserFonts(await res.json());
-      } catch (err) {
-        console.error("Failed to fetch fonts in TextTool:", err);
-      }
-    }
-    fetchFonts();
-  }, [fetch]);
 
   useEffect(() => {
     if (selectedElement) {
@@ -154,14 +139,6 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
       setText(finalText);
       if (shape) setSelectedMonogram(shape);
 
-      let monogramText = finalText;
-      if (shape.id === 'Vine') {
-        // Vine font usually maps the combined monogram to specific characters
-        // or uses a specific middle-only font.
-        // For the specific SZInterlocking.ttf provided, it often uses 
-        // a 3-part layout or a single char.
-        // Assuming it's a 3-part style like the others for consistency.
-      }
 
       if (selectedElement && selectedElement.type === 'monogram') {
         onUpdateElement(selectedElement.id, {
@@ -187,15 +164,6 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
         color,
       };
       onAddElement(newElement);
-      return;
-    }
-
-    if (selectedElement && selectedElement.type === 'text') {
-      onUpdateElement(selectedElement.id, {
-        bridge: bridge || null,
-        text: finalText,
-        fontFamily: selectedFont
-      });
       return;
     }
 
