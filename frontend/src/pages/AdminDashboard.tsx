@@ -322,16 +322,7 @@ export default function AdminDashboard() {
                             {title}
                         </Text>
                         <div style={{ color: '#637381', fontSize: '13px' }}>{vendor}</div>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-                            <Badge tone="info">{`${variantCount} Var`}</Badge>
-                            {collsCount > 0 && <Badge tone="warning">{`${collsCount} Coll`}</Badge>}
-                            {tagsCount > 0 && <Badge tone="attention">{`${tagsCount} Tag`}</Badge>}
-                            {customProducts.some(p => p.id === product.id) && <Badge tone="success">Design Enabled</Badge>}
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                        <div style={{ width: '96px', display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px', alignItems: 'center' }}>
                             <Tooltip content={`Click to ${status === 'ACTIVE' ? 'Draft' : 'Activate'}`}>
                                 <div onClick={(e: MouseEvent) => { e.stopPropagation(); handleToggleStatus(product); }} style={{ cursor: 'pointer' }}>
                                     {isUpdating === gid ? (
@@ -343,7 +334,14 @@ export default function AdminDashboard() {
                                     )}
                                 </div>
                             </Tooltip>
+                            <Badge tone="info">{`${variantCount} Var`}</Badge>
+                            {collsCount > 0 && <Badge tone="warning">{`${collsCount} Coll`}</Badge>}
+                            {tagsCount > 0 && <Badge tone="attention">{`${tagsCount} Tag`}</Badge>}
+                            {customProducts.some(p => p.id === product.id) && <Badge tone="success">Design Enabled</Badge>}
                         </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
 
                         <div style={{ display: 'flex', alignItems: 'center' }} onClick={(e: MouseEvent) => e.stopPropagation()}>
                             <InlineStack gap="200">
