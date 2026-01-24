@@ -52,6 +52,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
         fontFamily: 'Inter',
         fontWeight: 400,
         textAlign: 'left',
+        textMode: 'wrap',
         label: 'Text Area'
       });
     } else {
@@ -136,7 +137,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
           </div>
 
           <Card className="border-0 shadow-none bg-transparent">
-            {selectedElement.type === 'text' && (
+            {['text', 'textarea'].includes(selectedElement.type) && (
               <TextTool
                 onAddElement={onAddElement}
                 selectedElement={selectedElement}

@@ -237,7 +237,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
       <div className="px-1 space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-bold text-gray-700">
-            {isLockedTo3 ? 'Monogram Initials' : 'Text Content'}
+            {isLockedTo3 ? 'Monogram Initials' : (selectedElement?.type === 'textarea' ? 'Note Details' : 'Text Content')}
           </Label>
           <div className="flex items-center gap-2">
             {maxChars > 0 && !isLockedTo3 && (
@@ -250,32 +250,46 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
             </span>
           </div>
         </div>
-        <Input
-          value={text}
-          maxLength={isLockedTo3 ? 3 : (maxChars > 0 ? maxChars : 100)}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            const val = e.target.value;
-            let finalVal = val;
+        {selectedElement?.type === 'textarea' ? (
+          <textarea
+            value={text}
+            onChange={(e) => {
+              const val = e.target.value;
+              const finalVal = formatText(val, textType, textCase, maxChars);
+              setText(finalVal);
+              handleUpdate({ text: finalVal });
+            }}
+            placeholder="Type your notes here..."
+            className="w-full min-h-[120px] rounded-xl bg-white border border-gray-200 p-3 font-medium text-sm focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+          />
+        ) : (
+          <Input
+            value={text}
+            maxLength={isLockedTo3 ? 3 : (maxChars > 0 ? maxChars : 100)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const val = e.target.value;
+              let finalVal = val;
 
-            if (isLockedTo3) {
-              finalVal = val.toUpperCase().substring(0, 3);
-            } else {
-              finalVal = formatText(val, textType, textCase, maxChars);
-            }
+              if (isLockedTo3) {
+                finalVal = val.toUpperCase().substring(0, 3);
+              } else {
+                finalVal = formatText(val, textType, textCase, maxChars);
+              }
 
-            setText(finalVal);
-            if (selectedElement) handleUpdate({ text: finalVal });
-          }}
-          placeholder={isLockedTo3 ? "Initials" : (textType === 'numbers' ? "0-9" : "Enter text here...")}
-          className={`rounded-xl h-12 bg-white border-gray-200 font-bold text-center focus:ring-indigo-500 focus:border-indigo-500 transition-all ${isLockedTo3 ? 'text-lg tracking-widest' : 'text-base'
-            }`}
-        />
+              setText(finalVal);
+              if (selectedElement) handleUpdate({ text: finalVal });
+            }}
+            placeholder={isLockedTo3 ? "Initials" : (textType === 'numbers' ? "0-9" : "Enter text here...")}
+            className={`rounded-xl h-12 bg-white border-gray-200 font-bold text-center focus:ring-indigo-500 focus:border-indigo-500 transition-all ${isLockedTo3 ? 'text-lg tracking-widest' : 'text-base'
+              }`}
+          />
+        )}
         <Button
           onClick={() => handleAddText()}
           className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
         >
           <Plus className="w-5 h-5" />
-          Add New Text
+          {selectedElement?.type === 'textarea' ? 'Duplicate Area' : 'Add New Text'}
         </Button>
 
         <div className="mt-4 space-y-2">
@@ -397,113 +411,111 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
         </Collapsible>
       </div>
 
-      <div className="h-px bg-gray-100 mx-2" />
-
-      {/* Text Shapes Section */}
-      {/* Text Shapes Section */}
-      <Collapsible defaultOpen={false} className="space-y-2">
-
-        <CollapsibleTrigger asChild>
-          <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
-              <Type className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div className="flex flex-col items-start flex-1">
-              <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Text Shapes</span>
-              <span className="text-[10px] text-gray-500 font-medium">Add curved or warped text</span>
-            </div>
-            <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
-          </div>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent className="space-y-2">
-          <div className="grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
-            {TEXT_SHAPES.map((shape, i) => (
-              <button
-                key={i}
-                onClick={() => handleAddText(shape.bridge)}
-                className="group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-colors shadow-sm"
-              >
-                {shape.img ? (
-                  <img src={shape.img} alt={shape.name} className="h-10 object-contain mb-1" />
-                ) : (
-                  <div className="h-10 w-full flex items-center justify-center mb-1 text-[10px] font-bold text-gray-400">ABC</div>
-                )}
-                <span className="text-[10px] text-gray-500">{shape.name}</span>
-              </button>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* Monogram Section */}
-      {/* Monogram Section */}
-      <Collapsible defaultOpen={false} className="space-y-2">
-        <CollapsibleTrigger asChild>
-          <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
-              <Layers className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div className="flex flex-col items-start flex-1">
-              <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Monogram Styles</span>
-              <span className="text-[10px] text-gray-500 font-medium">Classic 3-letter designs</span>
-            </div>
-            <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
-          </div>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent className="space-y-2 pt-2">
-          <div className="grid grid-cols-3 gap-2">
-            {MONOGRAM_SHAPES.map((shape) => (
-              <button
-                key={shape.id}
-                onClick={() => {
-                  setSelectedMonogram(shape);
-                  const limitedText = text.substring(0, 3).toUpperCase();
-                  setText(limitedText);
-                  handleAddText(shape.bridge, true, shape);
-                }}
-                className={`group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border transition-all shadow-sm ${selectedMonogram?.id === shape.id ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-indigo-400'
-                  }`}
-              >
-                <div className="h-10 w-full flex items-center justify-center mb-1">
-                  {shape.id === 'Circle' && (
-                    <div className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>
-                  )}
-                  {shape.id === 'Diamond' && (
-                    <div className="w-8 h-8 rotate-45 border border-gray-300 flex items-center justify-center text-[7px] font-bold text-gray-600">
-                      <span className="-rotate-45">ABC</span>
-                    </div>
-                  )}
-                  {shape.id === 'Vine' && (
-                    <div className="text-[14px] italic font-serif text-gray-600 flex items-center tracking-tighter">
-                      <span className="translate-x-1 opacity-60">A</span>
-                      <span className="text-lg z-10 scale-125">B</span>
-                      <span className="-translate-x-1 opacity-60">C</span>
-                    </div>
-                  )}
-                  {shape.id === 'Scallop' && (
-                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>
-                  )}
-                  {shape.id === 'Stacked' && (
-                    <div className="flex items-center gap-1">
-                      <div className="flex flex-col text-[6px] gap-0.5">
-                        <span>A</span>
-                        <span>B</span>
-                      </div>
-                      <div className="text-sm font-bold">C</div>
-                    </div>
-                  )}
-                  {shape.id === 'Round' && (
-                    <div className="w-8 h-8 rounded-full border-2 border-double border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>
-                  )}
+      {!selectedElement && (
+        <>
+          <div className="h-px bg-gray-100 mx-2" />
+          {/* Text Shapes Section */}
+          <Collapsible defaultOpen={false} className="space-y-2">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
+                  <Type className="w-4 h-4 text-indigo-600" />
                 </div>
-                <span className="text-[8px] text-gray-500 font-medium truncate w-full text-center">{shape.name}</span>
-              </button>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+                <div className="flex flex-col items-start flex-1">
+                  <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Text Shapes</span>
+                  <span className="text-[10px] text-gray-500 font-medium">Add curved or warped text</span>
+                </div>
+                <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2">
+              <div className="grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
+                {TEXT_SHAPES.map((shape, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleAddText(shape.bridge)}
+                    className="group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-colors shadow-sm"
+                  >
+                    {shape.img ? (
+                      <img src={shape.img} alt={shape.name} className="h-10 object-contain mb-1" />
+                    ) : (
+                      <div className="h-10 w-full flex items-center justify-center mb-1 text-[10px] font-bold text-gray-400">ABC</div>
+                    )}
+                    <span className="text-[10px] text-gray-500">{shape.name}</span>
+                  </button>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Monogram Section */}
+          <Collapsible defaultOpen={false} className="space-y-2">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="flex flex-col items-start flex-1">
+                  <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Monogram Styles</span>
+                  <span className="text-[10px] text-gray-500 font-medium">Classic 3-letter designs</span>
+                </div>
+                <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2 pt-2">
+              <div className="grid grid-cols-3 gap-2">
+                {MONOGRAM_SHAPES.map((shape) => (
+                  <button
+                    key={shape.id}
+                    onClick={() => {
+                      setSelectedMonogram(shape);
+                      const limitedText = text.substring(0, 3).toUpperCase();
+                      setText(limitedText);
+                      handleAddText(shape.bridge, true, shape);
+                    }}
+                    className={`group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border transition-all shadow-sm ${selectedMonogram?.id === shape.id ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-indigo-400'
+                      }`}
+                  >
+                    <div className="h-10 w-full flex items-center justify-center mb-1">
+                      {shape.id === 'Circle' && (
+                        <div className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>
+                      )}
+                      {shape.id === 'Diamond' && (
+                        <div className="w-8 h-8 rotate-45 border border-gray-300 flex items-center justify-center text-[7px] font-bold text-gray-600">
+                          <span className="-rotate-45">ABC</span>
+                        </div>
+                      )}
+                      {shape.id === 'Vine' && (
+                        <div className="text-[14px] italic font-serif text-gray-600 flex items-center tracking-tighter">
+                          <span className="translate-x-1 opacity-60">A</span>
+                          <span className="text-lg z-10 scale-125">B</span>
+                          <span className="-translate-x-1 opacity-60">C</span>
+                        </div>
+                      )}
+                      {shape.id === 'Scallop' && (
+                        <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>
+                      )}
+                      {shape.id === 'Stacked' && (
+                        <div className="flex items-center gap-1">
+                          <div className="flex flex-col text-[6px] gap-0.5">
+                            <span>A</span>
+                            <span>B</span>
+                          </div>
+                          <div className="text-sm font-bold">C</div>
+                        </div>
+                      )}
+                      {shape.id === 'Round' && (
+                        <div className="w-8 h-8 rounded-full border-2 border-double border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>
+                      )}
+                    </div>
+                    <span className="text-[8px] text-gray-500 font-medium truncate w-full text-center">{shape.name}</span>
+                  </button>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </>
+      )}
     </div>
   );
 }
