@@ -424,14 +424,24 @@ export default function AssetDetail() {
                 newListStr = [...currentList, ...newItems].join('\n');
             } else if (asset.type === 'option') {
                 if (!newColorName) return;
-                const valToStore = `${newColorName}|enabled`;
 
-                if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
-                    alert("Option name already exists in this group");
+                const namesToAdd = newColorName.split(/[,\n]/).map(n => n.trim()).filter(Boolean);
+                const newItems: string[] = [];
+
+                for (const name of namesToAdd) {
+                    if (!currentList.some(p => p.split('|')[0].toLowerCase() === name.toLowerCase()) &&
+                        !newItems.some(p => p.split('|')[0].toLowerCase() === name.toLowerCase())) {
+                        newItems.push(`${name}|enabled`);
+                    }
+                }
+
+                if (newItems.length === 0) {
+                    alert("All entered options already exist in this group");
                     setIsSubmitting(false);
                     return;
                 }
-                newListStr = [...currentList, valToStore].join('\n');
+
+                newListStr = [...currentList, ...newItems].join('\n');
             }
 
             // ... same update logic ...
@@ -918,11 +928,13 @@ export default function AssetDetail() {
                         {asset.type === 'option' && (
                             <BlockStack gap="400">
                                 <TextField
-                                    label="Option Name"
+                                    label="Option Names"
                                     value={newColorName}
                                     onChange={setNewColorName}
                                     autoComplete="off"
-                                    placeholder="e.g. Mirror Effect, Double Sided, etc."
+                                    placeholder="e.g. Mirror Effect&#10;Double Sided&#10;Waterproof"
+                                    multiline={3}
+                                    helpText="You can enter multiple options separated by commas or newlines to add them all at once."
                                 />
                             </BlockStack>
                         )}
