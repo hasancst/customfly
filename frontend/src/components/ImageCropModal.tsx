@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -20,16 +20,14 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     const [aspect, setAspect] = useState<number | undefined>(undefined);
     const imgRef = useRef<HTMLImageElement>(null);
 
-    function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-        const { width, height } = e.currentTarget;
-        const img = e.currentTarget;
+    const initializeCrop = (img: HTMLImageElement) => {
+        const { width, height } = img;
+        if (width <= 0 || height <= 0) return;
 
         // If we have a saved crop, try to restore it
         if (initialCrop && initialCrop.width > 0 && img.naturalWidth > 0) {
             const backScaleX = width / img.naturalWidth;
             const backScaleY = height / img.naturalHeight;
-
-            // Only apply pixel-based restore if we have valid dimensions
             if (backScaleX > 0 && backScaleY > 0) {
                 setCrop({
                     unit: 'px',
@@ -42,30 +40,30 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
             }
         }
 
-        // Fallback or Initial: Use Percentage for robustness
-        const initial = centerCrop(
+        // Default: 80% centered box using the PERCENTAGE method for stability
+        const percentCrop = centerCrop(
             makeAspectCrop(
-                {
-                    unit: '%',
-                    width: 80,
-                },
-                aspect || undefined as any,
-                width || 100,
-                height || 100
+                { unit: '%', width: 80 },
+                aspect || (undefined as any),
+                width,
+                height
             ),
-            width || 100,
-            height || 100
+            100,
+            100
         );
+        setCrop(percentCrop);
+    };
 
-        setCrop(initial);
-    }
+    useEffect(() => {
+        if (isOpen && imgRef.current && imgRef.current.complete) {
+            initializeCrop(imgRef.current);
+        }
+    }, [isOpen, imageUrl]);
 
     const centerHorizontal = () => {
-        if (!imgRef.current || !crop) return;
-        const { width } = imgRef.current;
         setCrop((c) => {
             if (!c) return c;
-            const containerWidth = c.unit === '%' ? 100 : width;
+            const containerWidth = c.unit === '%' ? 100 : (imgRef.current?.width || 100);
             return {
                 ...c,
                 x: (containerWidth - (c.width || 0)) / 2,
@@ -74,11 +72,9 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     };
 
     const centerVertical = () => {
-        if (!imgRef.current || !crop) return;
-        const { height } = imgRef.current;
         setCrop((c) => {
             if (!c) return c;
-            const containerHeight = c.unit === '%' ? 100 : height;
+            const containerHeight = c.unit === '%' ? 100 : (imgRef.current?.height || 100);
             return {
                 ...c,
                 y: (containerHeight - (c.height || 0)) / 2,
@@ -87,18 +83,17 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     };
 
     const toggleSquare = () => {
-        if (aspect === 1) {
-            setAspect(undefined);
-        } else {
-            setAspect(1);
-            if (imgRef.current) {
-                const { width, height } = imgRef.current;
-                const newCrop = centerCrop(
-                    makeAspectCrop({ unit: '%', width: 80 }, 1, width, height),
-                    width, height
-                );
-                setCrop(newCrop);
-            }
+        const newAspect = aspect === 1 ? undefined : 1;
+        setAspect(newAspect);
+
+        if (imgRef.current) {
+            const { width, height } = imgRef.current;
+            const percentCrop = centerCrop(
+                makeAspectCrop({ unit: '%', width: 80 }, newAspect || (undefined as any), width, height),
+                100,
+                100
+            );
+            setCrop(percentCrop);
         }
     };
 
@@ -134,11 +129,12 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     const resetCrop = () => {
         if (imgRef.current) {
             const { width, height } = imgRef.current;
-            const newCrop = centerCrop(
-                makeAspectCrop({ unit: '%', width: 80 }, aspect || undefined as any, width, height),
-                width, height
+            const percentCrop = centerCrop(
+                makeAspectCrop({ unit: '%', width: 80 }, aspect || (undefined as any), width, height),
+                100,
+                100
             );
-            setCrop(newCrop);
+            setCrop(percentCrop);
         }
     };
 
@@ -166,7 +162,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                         <img
                             ref={imgRef}
                             src={imageUrl}
-                            onLoad={onImageLoad}
+                            onLoad={(e) => initializeCrop(e.currentTarget)}
                             className="max-w-full block"
                             crossOrigin="anonymous"
                         />
