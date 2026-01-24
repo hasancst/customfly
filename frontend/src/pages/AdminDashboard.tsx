@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, Icon, Toast } from '@shopify/polaris';
-import { ViewIcon, PlusIcon, MinusIcon, SandboxIcon, ExternalIcon } from '@shopify/polaris-icons';
+import { ViewIcon, PlusIcon, MinusIcon, SandboxIcon, StoreIcon } from '@shopify/polaris-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
@@ -399,7 +399,7 @@ export default function AdminDashboard() {
                                         <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
                                             <Button
                                                 variant="plain"
-                                                icon={<Icon source={ExternalIcon} />}
+                                                icon={<Icon source={StoreIcon} />}
                                                 onClick={() => window.open(adminUrl, '_blank')}
                                             />
                                         </div>
