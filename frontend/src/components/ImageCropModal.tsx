@@ -14,7 +14,7 @@ interface ImageCropModalProps {
     initialCrop?: { x: number; y: number; width: number; height: number };
 }
 
-export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete }: ImageCropModalProps) {
+export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, initialCrop }: ImageCropModalProps) {
     const [crop, setCrop] = useState<Crop>();
     const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
     const [aspect, setAspect] = useState<number | undefined>(undefined);
@@ -22,18 +22,27 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete }: Im
 
     function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
         const { width, height } = e.currentTarget;
+        const img = e.currentTarget;
+
+        if (initialCrop && initialCrop.width > 0) {
+            // Convert natural pixels back to display pixels
+            const backScaleX = img.width / img.naturalWidth;
+            const backScaleY = img.height / img.naturalHeight;
+
+            setCrop({
+                unit: 'px',
+                x: initialCrop.x * backScaleX,
+                y: initialCrop.y * backScaleY,
+                width: initialCrop.width * backScaleX,
+                height: initialCrop.height * backScaleY
+            });
+            return;
+        }
 
         const initial = centerCrop(
-            makeAspectCrop(
-                {
-                    unit: '%',
-                    width: 80,
-                    height: 80,
-                },
-                aspect || 0,
-                width,
-                height
-            ),
+            aspect
+                ? makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.8 }, aspect, width, height)
+                : { unit: 'px', width: width * 0.8, height: height * 0.8 },
             width,
             height
         );
@@ -108,8 +117,11 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete }: Im
         if (imgRef.current) {
             const { width, height } = imgRef.current;
             const newCrop = centerCrop(
-                makeAspectCrop({ unit: 'px', width: width * 0.8, height: height * 0.8 }, aspect || 0, width, height),
-                width, height
+                aspect
+                    ? makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.8 }, aspect, width, height)
+                    : { unit: 'px', width: width * 0.8, height: height * 0.8 },
+                width,
+                height
             );
             setCrop(newCrop);
         }
