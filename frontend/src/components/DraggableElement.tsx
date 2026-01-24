@@ -129,12 +129,14 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
   const maskTransform = useMemo(() => {
     if (!maskShape) return "";
     if (!maskViewBox) return "scale(0.01, 0.01)";
-    const parts = maskViewBox.split(/[ ,]+/).map(Number);
+    const parts = maskViewBox.split(/[ ,]+/).filter(Boolean).map(Number);
     if (parts.length !== 4) return "scale(0.01, 0.01)";
     const [minX, minY, vbWidth, vbHeight] = parts;
 
-    // Safety margin to prevent edge clipping (5% buffer)
-    const margin = 0.05;
+    if (!vbWidth || !vbHeight) return "scale(0.01, 0.01)";
+
+    // Small margin to prevent edge clipping (2% buffer)
+    const margin = 0.02;
     const s = 1 - (margin * 2);
 
     const sx = s / vbWidth;
@@ -160,13 +162,20 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
 
   return (
     <div style={containerStyle}>
+      {/* 
+        The SVG needs to be in the DOM to be referencable. 
+        Positioning it far away ensures it doesn't interfere but remains active.
+      */}
       <svg
         style={{
-          position: 'absolute',
+          position: 'fixed',
           width: 0,
           height: 0,
+          top: 0,
+          left: 0,
           pointerEvents: 'none',
-          visibility: 'hidden'
+          opacity: 0,
+          zIndex: -1
         }}
         aria-hidden="true"
       >
@@ -182,7 +191,7 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
           </clipPath>
         </defs>
       </svg>
-      <div style={clipPathStyle}>
+      <div style={clipPathStyle} key={maskId + (maskShape || '')}>
         <img
           ref={imgRef}
           src={src}
