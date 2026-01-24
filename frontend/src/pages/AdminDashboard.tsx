@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
-import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, ButtonGroup, Icon, Toast } from '@shopify/polaris';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, Icon, Toast } from '@shopify/polaris';
 import { ViewIcon, PlusIcon, MinusIcon, SandboxIcon, ExternalIcon } from '@shopify/polaris-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
@@ -347,13 +347,14 @@ export default function AdminDashboard() {
 
                         <div style={{ display: 'flex', alignItems: 'center' }} onClick={(e: MouseEvent) => e.stopPropagation()}>
                             <InlineStack gap="200">
-                                <ButtonGroup variant="segmented">
+                                <div className="flex gap-2">
                                     {customProducts.some(p => p.id === product.id) ? (
                                         <>
                                             <Tooltip content="Edit Design">
-                                                <div onClick={(e) => e.stopPropagation()}>
+                                                <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-indigo-50 transition-colors">
                                                     <Button
-                                                        icon={<Icon source={SandboxIcon} />}
+                                                        variant="plain"
+                                                        icon={<Icon source={SandboxIcon} tone="info" />}
                                                         onClick={() => {
                                                             navigate(`/designer/${product.id}${location.search}`);
                                                         }}
@@ -361,8 +362,9 @@ export default function AdminDashboard() {
                                                 </div>
                                             </Tooltip>
                                             <Tooltip content="Remove and Disable Design">
-                                                <div onClick={(e) => e.stopPropagation()}>
+                                                <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-red-50 transition-colors">
                                                     <Button
+                                                        variant="plain"
                                                         icon={<Icon source={MinusIcon} tone="critical" />}
                                                         onClick={() => {
                                                             removeFromCustom(product);
@@ -373,9 +375,10 @@ export default function AdminDashboard() {
                                         </>
                                     ) : (
                                         <Tooltip content="Add to Designer">
-                                            <div onClick={(e) => e.stopPropagation()}>
+                                            <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-green-50 transition-colors">
                                                 <Button
-                                                    icon={<Icon source={PlusIcon} />}
+                                                    variant="plain"
+                                                    icon={<Icon source={PlusIcon} tone="success" />}
                                                     onClick={() => {
                                                         addToCustom(product);
                                                     }}
@@ -384,22 +387,24 @@ export default function AdminDashboard() {
                                         </Tooltip>
                                     )}
                                     <Tooltip content="View on Storefront">
-                                        <div onClick={(e) => e.stopPropagation()}>
+                                        <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
                                             <Button
+                                                variant="plain"
                                                 icon={<Icon source={ViewIcon} />}
                                                 onClick={() => window.open(storefrontUrl, '_blank')}
                                             />
                                         </div>
                                     </Tooltip>
                                     <Tooltip content="Edit in Shopify Admin">
-                                        <div onClick={(e) => e.stopPropagation()}>
+                                        <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
                                             <Button
+                                                variant="plain"
                                                 icon={<Icon source={ExternalIcon} />}
                                                 onClick={() => window.open(adminUrl, '_blank')}
                                             />
                                         </div>
                                     </Tooltip>
-                                </ButtonGroup>
+                                </div>
                             </InlineStack>
                         </div>
                     </div>
