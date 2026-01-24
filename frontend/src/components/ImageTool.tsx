@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Upload, RotateCw, Image as ImageIcon, Sparkles, Wand2, Sliders, ChevronDown } from 'lucide-react';
+import { Plus, Upload, RotateCw, Image as ImageIcon, Sparkles, Wand2, Sliders, ChevronDown, Crop } from 'lucide-react';
 import { IMAGE_PRESETS } from '../constants/filters';
+import { ImageCropModal } from './ImageCropModal';
 import {
   Collapsible,
   CollapsibleContent,
@@ -31,6 +32,7 @@ interface ImageToolProps {
 export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: ImageToolProps) {
   const [removeBgType, setRemoveBgType] = useState<'js' | 'rembg'>(selectedElement?.removeBgType || 'js');
   const [isRemovingBg, setIsRemovingBg] = useState(false);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [userImages, setUserImages] = useState<any[]>([]);
   const fetch = useAuthenticatedFetch();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +150,16 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
     }
   };
 
+  const handleCropComplete = (croppedAreaPixels: { x: number, y: number, width: number, height: number }) => {
+    if (!selectedElement) return;
+
+    handleUpdate({
+      crop: croppedAreaPixels,
+      width: croppedAreaPixels.width,
+      height: croppedAreaPixels.height
+    });
+  };
+
   const updateFilters = (filterUpdates: Partial<NonNullable<CanvasElement['imageFilters']>>) => {
     if (!selectedElement) return;
     const currentFilters = selectedElement.imageFilters || {
@@ -207,7 +219,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
                 Asset Gallery
               </Label>
               <div className="grid grid-cols-3 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100 max-h-48 overflow-y-auto">
-                {userImages.map((img) => (
+                {userImages.map((img: any) => (
                   <button
                     key={img.id}
                     onClick={() => handleAddFromGallery(img.value)}
@@ -249,13 +261,34 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
         <div className="space-y-4">
           <div className="flex flex-col gap-1 mb-2">
             <Label className="text-sm font-bold text-gray-900 uppercase tracking-tight">Active Image</Label>
-            <div className="h-20 w-fit aspect-video bg-gray-100 rounded-lg border border-gray-200 overflow-hidden relative group">
-              <img src={selectedElement.src} className="w-full h-full object-contain" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <Button variant="ghost" size="sm" className="text-white hover:text-white" onClick={() => fileInputRef.current?.click()}>Replace</Button>
+            <div className="flex items-start gap-4">
+              <div className="h-24 w-fit aspect-square bg-gray-100 rounded-xl border border-gray-200 overflow-hidden relative group shadow-sm">
+                <img src={selectedElement.src} className="w-full h-full object-contain" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Button variant="ghost" size="xs" className="text-white hover:text-white text-[10px] h-7" onClick={() => fileInputRef.current?.click()}>Replace</Button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                <Button
+                  variant="outline"
+                  className="h-11 rounded-xl font-bold border-indigo-100 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 shadow-none gap-2 px-4"
+                  onClick={() => setIsCropModalOpen(true)}
+                >
+                  <Crop className="w-4 h-4" />
+                  Crop Image
+                </Button>
+                <p className="text-[10px] text-gray-500 leading-tight">Cut unwanted parts or change the aspect ratio.</p>
               </div>
             </div>
           </div>
+
+          <ImageCropModal
+            isOpen={isCropModalOpen}
+            onClose={() => setIsCropModalOpen(false)}
+            imageUrl={selectedElement.src || ''}
+            onCropComplete={handleCropComplete}
+            initialCrop={selectedElement.crop}
+          />
 
           {/* Filters Presets */}
           <Collapsible className="space-y-2" defaultOpen>

@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, memo, useEffect } from 'react';
 import { CanvasElement } from '../types';
 import { Input } from './ui/input';
-import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2, Images, UploadCloud, Palette, ChevronDown, CheckCircle2, Hash, Clock } from 'lucide-react';
+import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2, UploadCloud, Palette, ChevronDown, CheckCircle2, Hash, Clock } from 'lucide-react';
 import { IMAGE_PRESETS } from '../constants/filters';
 
 interface DraggableElementProps {
@@ -15,7 +15,7 @@ interface DraggableElementProps {
   enableBounce?: boolean;
 }
 
-const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom, filter }: {
+const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom, filter, crop }: {
   src: string,
   removeBg: boolean,
   removeBgType: 'js' | 'rembg',
@@ -24,7 +24,8 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
   width: number,
   height: number,
   zoom: number,
-  filter?: string
+  filter?: string,
+  crop?: { x: number, y: number, width: number, height: number }
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -75,33 +76,65 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
     }
   }, [src, removeBg, deep, mode]);
 
+  const z = zoom / 100;
+
   const style = {
-    width: width * (zoom / 100),
-    height: height * (zoom / 100),
-    objectFit: 'contain' as const,
+    width: width * z,
+    height: height * z,
+    objectFit: (crop ? 'none' : 'contain') as any,
+    objectPosition: crop ? `-${crop.x * z}px -${crop.y * z}px` : 'center',
     userSelect: 'none' as const,
     pointerEvents: 'none' as const,
     filter: filter || 'none',
+    // If cropped, we might need to ensure the image itself doesn't scale down automatically
+    // But object-fit: none handles that by showing natural size.
+    // However, we want the natural size to be relative to the zoom.
+    ...(crop ? { width: crop.width * z, height: crop.height * z } : {})
   };
+
+
+  // Wait, transform scale is better for precision.
+  // Actually, let's keep it simple for now and just use a container.
 
   const showProcessed = removeBg && removeBgType === 'js';
 
   return (
-    <>
+    <div style={{
+      width: (crop ? crop.width : width) * z,
+      height: (crop ? crop.height : height) * z,
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
       <img
         ref={imgRef}
         src={src}
-        style={{ ...style, display: showProcessed ? 'none' : 'block' }}
+        style={{
+          ...style,
+          display: showProcessed ? 'none' : 'block',
+          position: crop ? 'absolute' : 'relative',
+          left: crop ? -crop.x * z : 0,
+          top: crop ? -crop.y * z : 0,
+          width: 'auto',
+          height: 'auto',
+          maxWidth: 'none',
+        }}
         crossOrigin="anonymous"
         draggable={false}
       />
       {showProcessed && (
         <canvas
           ref={canvasRef}
-          style={style}
+          style={{
+            ...style,
+            position: crop ? 'absolute' : 'relative',
+            left: crop ? -crop.x * z : 0,
+            top: crop ? -crop.y * z : 0,
+            width: 'auto',
+            height: 'auto',
+          }}
         />
       )}
-    </>
+    </div>
   );
 };
 
@@ -671,6 +704,7 @@ export const DraggableElement = memo(({
               height={localState.height}
               zoom={zoom}
               filter={filterString}
+              crop={element.crop}
             />
           </div>
         );

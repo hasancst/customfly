@@ -57,6 +57,12 @@ export interface CanvasElement {
     grayscale?: number;  // 0 to 100, default 0
     preset?: string;     // 'bnw', 'vintage', etc.
   };
+  crop?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 
   // Field specific
   fieldType?: 'text' | 'email' | 'number' | 'textarea';
