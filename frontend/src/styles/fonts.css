@@ -1,0 +1,71 @@
+@font-face {
+  font-family: 'Vine';
+  src: url('/SZInterlocking.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Diamond-Left';
+  src: url('/Diamondmonogramleft-left.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Diamond-Mid';
+  src: url('/Diamondmonogrammid-mid.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Diamond-Right';
+  src: url('/Diamondmonogramright-right.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Circle-Left';
+  src: url('/Master-circle-left.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Circle-Mid';
+  src: url('/MASTER-CIRCLE-MIDDLE.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Circle-Right';
+  src: url('/Master-circle-right.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Round-Left';
+  src: url('/Szroundmono-left.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Round-Mid';
+  src: url('/SZRoundMono-Center.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Round-Right';
+  src: url('/Szroundmono-right.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Scallop-Left';
+  src: url('/Szscalroundmono-left.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Scallop-Mid';
+  src: url('/Szscalroundmono-center.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Scallop-Right';
+  src: url('/Szscalroundmono-right.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Stacked-Top-Left';
+  src: url('/Stacked-top-left.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Stacked-Bottom-Left';
+  src: url('/Stacked-bottom-left.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Stacked-Tall-Right';
+  src: url('/Stacked-tall-right.ttf') format('truetype');
+}

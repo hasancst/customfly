@@ -1,0 +1,965 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
+import { DeleteIcon, PlusIcon, SearchIcon, EditIcon } from '@shopify/polaris-icons';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
+import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
+
+const PATTERN_LIBRARY = [
+    { name: 'Carbon Fiber', url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=300&auto=format&fit=crop' },
+    { name: 'White Marble', url: 'https://images.unsplash.com/photo-1533154683836-84ea5a6bc3b0?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Wood Grain', url: 'https://images.unsplash.com/photo-1542435503-956c469947f6?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Camouflage', url: 'https://images.unsplash.com/photo-1532635241-17e820acc59f?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Floral Vintage', url: 'https://images.unsplash.com/photo-1505330373305-64d88e0c3b88?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Geometric Gold', url: 'https://images.unsplash.com/photo-1614850715649-1d0106293bd1?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Denim Texture', url: 'https://images.unsplash.com/photo-1541270590-07ea008e6459?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Leather Black', url: 'https://images.unsplash.com/photo-1517146702568-1c448d0bc261?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Polka Dots', url: 'https://images.unsplash.com/photo-1614852206758-0caebaba337a?q=80&w=300&auto=format&fit=crop' },
+    { name: 'Honey Comb', url: 'https://images.unsplash.com/photo-1581093458791-9f3c3900df4b?q=80&w=300&auto=format&fit=crop' },
+];
+
+interface Asset {
+    id: string;
+    type: 'font' | 'color' | 'gallery' | 'option';
+    name: string;
+    value: string;
+    config?: any;
+    createdAt: string;
+}
+
+interface ListItem {
+    id: string;
+    name: string;
+    hex?: string;
+    isPattern?: boolean;
+    patternUrl?: string;
+    url?: string; // For gallery images
+    originalIndex?: number;
+}
+
+export default function AssetDetail() {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const fetch = useAuthenticatedFetch();
+
+    const [asset, setAsset] = useState<Asset | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [previewItem, setPreviewItem] = useState<any>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [newFontType, setNewFontType] = useState<'google' | 'custom' | 'upload'>('google');
+    const [colorItemType, setColorItemType] = useState<'color' | 'pattern'>('color');
+    const [patternSource, setPatternSource] = useState<'library' | 'upload'>('library');
+    const [selectedLibraryPattern, setSelectedLibraryPattern] = useState<string | null>(null);
+    const [newColorName, setNewColorName] = useState('');
+    const [newColorHex, setNewColorHex] = useState('#000000');
+    const [patternFile, setPatternFile] = useState<File | null>(null);
+    const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+    const [newName, setNewName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+    const [itemToRename, setItemToRename] = useState<ListItem | null>(null);
+    const [newItemName, setNewItemName] = useState('');
+    const [toastActive, setToastActive] = useState(false);
+    const [toastContent, setToastContent] = useState('');
+
+    // Autocomplete states
+    const [googleFontOptions, setGoogleFontOptions] = useState(POPULAR_GOOGLE_FONTS);
+
+    const showToast = useCallback((content: string) => {
+        setToastContent(content);
+        setToastActive(true);
+    }, []);
+    const [inputValue, setInputValue] = useState('');
+    const [selectedGoogleFonts, setSelectedGoogleFonts] = useState<string[]>([]);
+
+    // Search & Pagination states
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortOrder, setSortOrder] = useState('original');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    const fetchDetail = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/imcst_api/assets`);
+            if (response.ok) {
+                const data = await response.json();
+                const found = data.find((a: Asset) => a.id === id);
+                setAsset(found || null);
+            }
+        } catch (error) {
+            console.error("Failed to fetch asset detail:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetch, id]);
+
+    useEffect(() => {
+        fetchDetail();
+    }, [fetchDetail]);
+
+    const safeSplit = (val: string) => {
+        if (!val) return [];
+        const lines = val.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length === 1 && !lines[0].includes('base64,')) {
+            return lines[0].split(',').map(s => s.trim()).filter(Boolean);
+        }
+        return lines;
+    };
+
+    // Process items list
+    const items = useMemo((): ListItem[] => {
+        if (!asset) return [];
+
+        if (asset.type === 'font') {
+            if (asset.config?.fontType === 'google' && asset.config?.googleConfig === 'all') {
+                return POPULAR_GOOGLE_FONTS.map(n => ({ name: n, id: n }));
+            }
+            return safeSplit(asset.value).map(n => ({ name: n, id: n }));
+        }
+
+        if (asset.type === 'color') {
+            return safeSplit(asset.value).map(pair => {
+                const [name, val] = pair.split('|');
+                const isPattern = val?.startsWith('pattern:');
+                return {
+                    name: name?.trim() || '',
+                    hex: isPattern ? undefined : (val?.trim() || ''),
+                    isPattern,
+                    patternUrl: isPattern ? val.replace('pattern:', '').trim() : undefined,
+                    id: pair
+                };
+            }).filter(i => i.name);
+        }
+
+        if (asset.type === 'gallery') {
+            return safeSplit(asset.value).map(pair => {
+                const [name, url] = pair.split('|');
+                return { name: name?.trim() || '', url: url?.trim() || '', id: pair };
+            }).filter(i => i.name);
+        }
+
+        return [];
+    }, [asset]);
+
+    const filteredItems = items
+        .map((f, i) => ({ ...f, originalIndex: i }))
+        .filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        .sort((a, b) => {
+            if (sortOrder === 'az') return a.name.localeCompare(b.name);
+            if (sortOrder === 'za') return b.name.localeCompare(a.name);
+            if (sortOrder === 'newest') return (b.originalIndex || 0) - (a.originalIndex || 0);
+            return (a.originalIndex || 0) - (b.originalIndex || 0); // oldest/original
+        });
+
+    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+    const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    // Load fonts for preview
+    useEffect(() => {
+        if (asset?.type === 'font' && items.length > 0) {
+            const googleFamilies = items
+                .filter(() => asset?.config?.fontType === 'google')
+                .map(f => f.name.replace(/ /g, '+'))
+                .join('|');
+            /* ... snippet omitted for brevity in thought, fully replaced in call ... */
+
+            if (googleFamilies) {
+                const linkId = 'detail-google-fonts';
+                let link = document.getElementById(linkId) as HTMLLinkElement;
+                if (!link) {
+                    link = document.createElement('link');
+                    link.id = linkId;
+                    link.rel = 'stylesheet';
+                    document.head.appendChild(link);
+                }
+                link.href = `https://fonts.googleapis.com/css?family=${googleFamilies}&display=swap`;
+            }
+
+            if (asset?.config?.fontType === 'custom' && asset.value) {
+                const styleId = 'detail-custom-font';
+                let style = document.getElementById(styleId) as HTMLStyleElement;
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = styleId;
+                    document.head.appendChild(style);
+                }
+                style.textContent = `@font-face { font-family: "${asset.name}"; src: url("${asset.value}"); font-display: swap; }`;
+            }
+        }
+    }, [items, asset]);
+
+    const handleDeleteItem = async (itemName: string) => {
+        if (!asset || !confirm(`Delete item "${itemName}" from this group?`)) return;
+
+        let newListStr = '';
+        const currentList = safeSplit(asset.value);
+        if (asset.type === 'font') {
+            newListStr = currentList.filter(n => n !== itemName).join('\n');
+        } else if (asset.type === 'color') {
+            newListStr = currentList.filter(pair => pair.split('|')[0] !== itemName).join('\n');
+        } else if (asset.type === 'gallery') {
+            newListStr = currentList.filter(pair => pair.split('|')[0] !== itemName).join('\n');
+        }
+
+        try {
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: newListStr,
+                    config: { ...asset.config, specificFonts: asset.type === 'font' ? newListStr : asset.config.specificFonts }
+                })
+            });
+
+            if (response.ok) {
+                showToast(`Deleted "${itemName}"`);
+                fetchDetail();
+            } else {
+                alert("Failed to delete item");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleRenameItem = async () => {
+        if (!asset || !itemToRename || !newItemName) return;
+
+        const currentList = safeSplit(asset.value);
+        const nameChangedList = currentList.map(pair => {
+            const parts = pair.split('|');
+            if (parts[0] === itemToRename.name) {
+                // Keep the value/url part, only change the name
+                return parts.length > 1 ? `${newItemName}|${parts[1]}` : newItemName;
+            }
+            return pair;
+        });
+
+        const newListStr = nameChangedList.join('\n');
+
+        setIsSubmitting(true);
+        try {
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: newListStr,
+                    config: asset.config
+                })
+            });
+
+            if (response.ok) {
+                showToast(`Renamed to "${newItemName}"`);
+                fetchDetail();
+                setIsRenameModalOpen(false);
+                setItemToRename(null);
+                setNewItemName('');
+            } else {
+                alert("Failed to rename item");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleUpdateConfig = async (key: string, value: any) => {
+        if (!asset) return;
+        const newConfig = { ...asset.config, [key]: value };
+
+        try {
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: asset.value,
+                    config: newConfig
+                })
+            });
+
+            if (response.ok) {
+                showToast('Settings saved');
+                setAsset({ ...asset, config: newConfig });
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleUpdateFontPrice = async (fontName: string, price: string) => {
+        if (!asset) return;
+        const fontPrices = asset.config.fontPrices || {};
+        const updatedPrices = { ...fontPrices, [fontName]: price };
+        handleUpdateConfig('fontPrices', updatedPrices);
+    };
+
+
+    const updateText = useCallback(
+        async (value: string) => {
+            setInputValue(value);
+            setNewName(value);
+
+            try {
+                const response = await fetch(`/imcst_api/font-library?query=${encodeURIComponent(value)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setGoogleFontOptions(data);
+                }
+            } catch (e) {
+                console.error("Font search error:", e);
+            }
+        },
+        [fetch],
+    );
+
+    useEffect(() => {
+        if (isAddModalOpen && asset?.type === 'font' && newFontType === 'google') {
+            updateText('');
+        }
+    }, [isAddModalOpen, asset?.type, newFontType, updateText]);
+
+    const removeTag = (tag: string) => {
+        setSelectedGoogleFonts((prev) => prev.filter((p) => p !== tag));
+    };
+
+    const compressImage = (file: File, maxWidth: number = 1200): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        height = (maxWidth / width) * height;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.onerror = reject;
+            };
+            reader.onerror = reject;
+        });
+    };
+
+    const handleAddItem = async () => {
+        if (!asset) return;
+        setIsSubmitting(true);
+        setUploadProgress(0);
+
+        try {
+            let newListStr = '';
+            const currentList = safeSplit(asset.value);
+
+            if (asset.type === 'font') {
+                let fontsToAdd: string[] = [];
+                if (newFontType === 'google') {
+                    fontsToAdd = selectedGoogleFonts.length > 0 ? selectedGoogleFonts : [newName];
+                } else {
+                    fontsToAdd = [newName];
+                }
+                const uniqueToAdd = fontsToAdd.filter(f => !currentList.some(c => c.toLowerCase() === f.toLowerCase()));
+                newListStr = [...currentList, ...uniqueToAdd].join('\n');
+            } else if (asset.type === 'color') {
+                if (!newColorName) return;
+
+                let valToStore = '';
+                if (colorItemType === 'color') {
+                    if (!newColorHex) return;
+                    valToStore = `${newColorName}|${newColorHex}`;
+                } else {
+                    if (patternSource === 'upload') {
+                        if (!patternFile) return;
+                        const compressedBase64 = await compressImage(patternFile);
+                        valToStore = `${newColorName}|pattern:${compressedBase64}`;
+                    } else {
+                        if (!selectedLibraryPattern) return;
+                        valToStore = `${newColorName}|pattern:${selectedLibraryPattern}`;
+                    }
+                }
+
+                if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
+                    alert("Name already exists in this group");
+                    setIsSubmitting(false);
+                    return;
+                }
+                newListStr = [...currentList, valToStore].join('\n');
+            } else if (asset.type === 'gallery') {
+                if (galleryFiles.length === 0) return;
+
+                const newItems: string[] = [];
+                for (let i = 0; i < galleryFiles.length; i++) {
+                    const file = galleryFiles[i];
+                    try {
+                        const name = file.name.split('.')[0];
+                        const compressedBase64 = await compressImage(file);
+                        newItems.push(`${name}|${compressedBase64}`);
+                        setUploadProgress(Math.round(((i + 1) / galleryFiles.length) * 100));
+                    } catch (err) {
+                        console.error(`Failed to process ${file.name}:`, err);
+                    }
+                }
+                newListStr = [...currentList, ...newItems].join('\n');
+            }
+
+            // ... same update logic ...
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: newListStr,
+                    config: { ...asset.config, specificFonts: asset.type === 'font' ? newListStr : asset.config.specificFonts }
+                })
+            });
+
+            if (response.ok) {
+                showToast('Items added successfully');
+                fetchDetail();
+                setIsAddModalOpen(false);
+                setNewName('');
+                setNewColorName('');
+                setNewColorHex('#000000');
+                setPatternFile(null);
+                setSelectedGoogleFonts([]);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+
+    if (isLoading) return <Page><Layout><Layout.Section><Card>Loading...</Card></Layout.Section></Layout></Page>;
+    if (!asset) return <Page><Layout><Layout.Section><Card>Asset not found</Card></Layout.Section></Layout></Page>;
+
+    return (
+        <Page
+            backAction={{ content: 'Assets', onAction: () => navigate('/assets') }}
+            title={asset.name}
+            primaryAction={{
+                content: asset.type === 'font' ? 'Add Font' : asset.type === 'gallery' ? 'Add Image' : 'Add Color',
+                onAction: () => setIsAddModalOpen(true),
+                icon: PlusIcon
+            }}
+        >
+            <Layout>
+                <Layout.Section variant="oneThird">
+                    <Card>
+                        <BlockStack gap="400">
+                            <Text variant="headingMd" as="h2">Pricing Settings</Text>
+                            <Checkbox
+                                label={`Enable ${asset.type} pricing`}
+                                checked={!!asset.config?.enablePricing}
+                                onChange={(val) => handleUpdateConfig('enablePricing', val)}
+                            />
+
+                            {asset.config?.enablePricing && (
+                                <BlockStack gap="300">
+                                    <Select
+                                        label="Pricing Type"
+                                        options={[
+                                            { label: 'Global', value: 'group' },
+                                            { label: 'Individual', value: 'single' },
+                                        ]}
+                                        value={asset.config?.pricingType || 'group'}
+                                        onChange={(val) => handleUpdateConfig('pricingType', val)}
+                                    />
+
+                                    {(asset.config?.pricingType === 'group' || !asset.config?.pricingType) && (
+                                        <TextField
+                                            label="Price"
+                                            type="number"
+                                            value={asset.config?.groupPrice || '0'}
+                                            onChange={(val) => handleUpdateConfig('groupPrice', val)}
+                                            autoComplete="off"
+                                            prefix="$"
+                                        />
+                                    )}
+                                </BlockStack>
+                            )}
+                        </BlockStack>
+                    </Card>
+                </Layout.Section>
+                <Layout.Section>
+                    <Card padding="0">
+                        <Box padding="400">
+                            <BlockStack gap="400">
+                                <Text variant="headingMd" as="h2">{asset.type === 'font' ? 'Fonts' : asset.type === 'gallery' ? 'Images' : 'Colors'} in this Group ({items.length})</Text>
+                                <div className="flex gap-4">
+                                    <div className="flex-1">
+                                        <Filters
+                                            queryValue={searchQuery}
+                                            filters={[]}
+                                            onQueryChange={(val) => { setSearchQuery(val); setCurrentPage(1); }}
+                                            onQueryClear={() => setSearchQuery('')}
+                                            onClearAll={() => setSearchQuery('')}
+                                            hideQueryField={false}
+                                        />
+                                    </div>
+                                    <div className="w-48">
+                                        <Select
+                                            labelInline
+                                            label="Sort"
+                                            options={[
+                                                { label: 'Oldest Added', value: 'original' },
+                                                { label: 'Newest Added', value: 'newest' },
+                                                { label: 'Name (A-Z)', value: 'az' },
+                                                { label: 'Name (Z-A)', value: 'za' },
+                                            ]}
+                                            value={sortOrder}
+                                            onChange={setSortOrder}
+                                        />
+                                    </div>
+                                </div>
+                            </BlockStack>
+                        </Box>
+
+                        <ResourceList
+                            resourceName={{
+                                singular: asset.type === 'gallery' ? 'image' : asset.type,
+                                plural: asset.type === 'gallery' ? 'images' : `${asset.type}s`
+                            }}
+                            items={paginatedItems}
+                            renderItem={(item) => (
+                                <ResourceItem id={item.id} onClick={() => setPreviewItem(item)}>
+                                    <div className="flex items-center justify-between w-full">
+                                        <div className="flex items-center gap-3 flex-1">
+                                            {asset.type === 'color' && (
+                                                <div
+                                                    className="w-8 h-8 rounded border border-gray-200 shadow-sm"
+                                                    style={{
+                                                        backgroundColor: item.hex,
+                                                        backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
+                                                        backgroundSize: 'cover'
+                                                    }}
+                                                />
+                                            )}
+                                            <div className="flex flex-col gap-1">
+                                                <Text variant="bodyMd" fontWeight="bold" as="span">
+                                                    {item.name}
+                                                </Text>
+                                                {asset.type === 'color' && (
+                                                    <Text variant="bodySm" tone="subdued" as="span">
+                                                        {item.isPattern ? 'Pattern' : item.hex}
+                                                    </Text>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {asset.type === 'gallery' && (
+                                            <div className="flex-1 px-8 text-right">
+                                                <div className="w-16 h-16 ml-auto rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
+                                                    <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {asset.type === 'font' && (
+                                            <div className="flex-1 px-8 text-right">
+                                                <span style={{ fontFamily: item.name, fontSize: '16px' }}>
+                                                    Customfly 123
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {asset.config?.enablePricing && asset.config?.pricingType === 'single' && (
+                                            <div className="w-24 mr-4">
+                                                <TextField
+                                                    label="Price"
+                                                    labelHidden
+                                                    type="number"
+                                                    value={asset.config?.fontPrices?.[item.name] || '0'}
+                                                    onChange={(val) => handleUpdateFontPrice(item.name, val)}
+                                                    autoComplete="off"
+                                                    prefix="$"
+                                                    size="slim"
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div className="shrink-0 ml-4 flex gap-1">
+                                            <Button
+                                                icon={EditIcon}
+                                                variant="plain"
+                                                onClick={(e?: any) => {
+                                                    e?.stopPropagation();
+                                                    setItemToRename(item);
+                                                    setNewItemName(item.name);
+                                                    setIsRenameModalOpen(true);
+                                                }}
+                                            />
+                                            <Button
+                                                icon={DeleteIcon}
+                                                variant="plain"
+                                                tone="critical"
+                                                onClick={(e?: any) => {
+                                                    e?.stopPropagation();
+                                                    handleDeleteItem(item.name);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </ResourceItem>
+                            )}
+                        />
+
+                        {totalPages > 1 && (
+                            <Box padding="400" borderBlockStartWidth="025" borderColor="border">
+                                <div className="flex justify-center">
+                                    <Pagination
+                                        hasPrevious={currentPage > 1}
+                                        hasNext={currentPage < totalPages}
+                                        onPrevious={() => setCurrentPage(p => p - 1)}
+                                        onNext={() => setCurrentPage(p => p + 1)}
+                                        label={`Page ${currentPage} of ${totalPages}`}
+                                    />
+                                </div>
+                            </Box>
+                        )}
+                    </Card>
+                </Layout.Section>
+
+            </Layout>
+
+            <Modal
+                open={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                title={`Add New ${asset.type === 'font' ? 'Font' : 'Color'}`}
+                primaryAction={{
+                    content: 'Add',
+                    onAction: handleAddItem,
+                    loading: isSubmitting
+                }}
+                secondaryActions={[{ content: 'Cancel', onAction: () => setIsAddModalOpen(false) }]}
+            >
+                <Modal.Section>
+                    <FormLayout>
+                        {asset.type === 'font' && (
+                            <>
+                                <Select
+                                    label="Font Source"
+                                    options={[
+                                        { label: 'Google Fonts', value: 'google' },
+                                        { label: 'Custom Font (URL)', value: 'custom' },
+                                        { label: 'Upload Font File', value: 'upload' },
+                                    ]}
+                                    value={newFontType}
+                                    onChange={(v: any) => setNewFontType(v)}
+                                />
+                                {newFontType === 'google' ? (
+                                    <BlockStack gap="200">
+                                        <Combobox
+                                            activator={
+                                                <Combobox.TextField
+                                                    prefix={<Icon source={SearchIcon} />}
+                                                    onChange={updateText}
+                                                    label="Font Name"
+                                                    value={inputValue}
+                                                    placeholder="Search Google Font..."
+                                                    autoComplete="off"
+                                                />
+                                            }
+                                        >
+                                            {googleFontOptions.length > 0 || inputValue ? (
+                                                <Listbox onSelect={(option) => {
+                                                    if (!selectedGoogleFonts.includes(option)) {
+                                                        setSelectedGoogleFonts([...selectedGoogleFonts, option]);
+                                                    }
+                                                    setInputValue('');
+                                                    setNewName('');
+                                                    updateText('');
+                                                }}>
+                                                    {inputValue.length > 0 && !googleFontOptions.some(o => o.toLowerCase() === inputValue.toLowerCase()) && (
+                                                        <Listbox.Option value={inputValue} accessibilityLabel={`Add ${inputValue}`}>
+                                                            Add "{inputValue}"
+                                                        </Listbox.Option>
+                                                    )}
+                                                    {googleFontOptions.slice(0, 50).map((option) => (
+                                                        <Listbox.Option
+                                                            key={option}
+                                                            value={option}
+                                                            selected={selectedGoogleFonts.includes(option)}
+                                                            accessibilityLabel={option}
+                                                        >
+                                                            {option}
+                                                        </Listbox.Option>
+                                                    ))}
+                                                </Listbox>
+                                            ) : null}
+                                        </Combobox>
+                                        {selectedGoogleFonts.length > 0 && (
+                                            <InlineStack gap="200">
+                                                {selectedGoogleFonts.map(tag => (
+                                                    <Tag key={tag} onRemove={() => removeTag(tag)}>{tag}</Tag>
+                                                ))}
+                                            </InlineStack>
+                                        )}
+                                    </BlockStack>
+                                ) : (
+                                    <TextField
+                                        label="Font Name"
+                                        value={newName}
+                                        onChange={setNewName}
+                                        autoComplete="off"
+                                        placeholder="e.g. MyCustomFont"
+                                    />
+                                )}
+                            </>
+                        )}
+
+                        {asset.type === 'color' && (
+                            <BlockStack gap="400">
+                                <Select
+                                    label="Item Type"
+                                    options={[
+                                        { label: 'Solid Color', value: 'color' },
+                                        { label: 'Pattern Image', value: 'pattern' },
+                                    ]}
+                                    value={colorItemType}
+                                    onChange={(v: any) => setColorItemType(v)}
+                                />
+                                <TextField
+                                    label="Name"
+                                    value={newColorName}
+                                    onChange={setNewColorName}
+                                    autoComplete="off"
+                                    placeholder={colorItemType === 'color' ? 'e.g. Ocean Blue' : 'e.g. Floral Pattern'}
+                                />
+                                {colorItemType === 'color' ? (
+                                    <div className="flex gap-4 items-end">
+                                        <div className="flex-1">
+                                            <TextField
+                                                label="Hex Color Code"
+                                                value={newColorHex}
+                                                onChange={setNewColorHex}
+                                                autoComplete="off"
+                                                placeholder="#000000"
+                                            />
+                                        </div>
+                                        <div
+                                            className="w-12 h-10 rounded border border-gray-300 shadow-sm mb-1"
+                                            style={{ backgroundColor: newColorHex }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <BlockStack gap="400">
+                                        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                                            <button
+                                                type="button"
+                                                className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${patternSource === 'library' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
+                                                onClick={() => setPatternSource('library')}
+                                            >
+                                                Library
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${patternSource === 'upload' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
+                                                onClick={() => setPatternSource('upload')}
+                                            >
+                                                Upload
+                                            </button>
+                                        </div>
+
+                                        {patternSource === 'library' ? (
+                                            <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1">
+                                                {PATTERN_LIBRARY.map((p) => (
+                                                    <div
+                                                        key={p.url}
+                                                        onClick={() => {
+                                                            setSelectedLibraryPattern(p.url);
+                                                            if (!newColorName) setNewColorName(p.name);
+                                                        }}
+                                                        className={`aspect-square rounded-md overflow-hidden cursor-pointer border-2 transition-all ${selectedLibraryPattern === p.url ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-transparent hover:border-gray-300'}`}
+                                                    >
+                                                        <img
+                                                            src={p.url}
+                                                            alt={p.name}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.currentTarget.src = 'https://placehold.co/100x100?text=Pattern';
+                                                            }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <BlockStack gap="200">
+                                                <label className="block text-sm font-medium text-gray-700">Pattern File</label>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            setPatternFile(e.target.files[0]);
+                                                            if (!newColorName) {
+                                                                const fname = e.target.files[0].name.split('.')[0];
+                                                                setNewColorName(fname.charAt(0).toUpperCase() + fname.slice(1));
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="block w-full text-sm text-gray-500
+                                                      file:mr-4 file:py-2 file:px-4
+                                                      file:rounded-full file:border-0
+                                                      file:text-sm file:font-semibold
+                                                      file:bg-indigo-50 file:text-indigo-700
+                                                      hover:file:bg-indigo-100
+                                                    "
+                                                />
+                                                {patternFile && (
+                                                    <div className="mt-2 text-center rounded border border-dashed border-gray-300 p-2">
+                                                        <img
+                                                            src={URL.createObjectURL(patternFile)}
+                                                            alt="Preview"
+                                                            className="max-h-24 mx-auto rounded"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </BlockStack>
+                                        )}
+                                    </BlockStack>
+                                )}
+                            </BlockStack>
+                        )}
+
+                        {asset.type === 'gallery' && (
+                            <BlockStack gap="400">
+                                <label className="block text-sm font-medium text-gray-700">Gallery Images (Bulk Upload Supported)</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        if (e.target.files) {
+                                            setGalleryFiles(Array.from(e.target.files));
+                                        }
+                                    }}
+                                    className="block w-full text-sm text-gray-500
+                                      file:mr-4 file:py-2 file:px-4
+                                      file:rounded-full file:border-0
+                                      file:text-sm file:font-semibold
+                                      file:bg-indigo-50 file:text-indigo-700
+                                      hover:file:bg-indigo-100
+                                    "
+                                />
+                                {galleryFiles.length > 0 && (
+                                    <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                                        {galleryFiles.map((file, i) => (
+                                            <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
+                                                <img
+                                                    src={URL.createObjectURL(file)}
+                                                    alt="upload-preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {isSubmitting && uploadProgress > 0 && (
+                                    <BlockStack gap="200">
+                                        <div className="flex justify-between items-center text-xs text-gray-500">
+                                            <span>Processing images...</span>
+                                            <span>{uploadProgress}%</span>
+                                        </div>
+                                        <ProgressBar progress={uploadProgress} size="small" tone="primary" />
+                                    </BlockStack>
+                                )}
+                            </BlockStack>
+                        )}
+                    </FormLayout>
+                </Modal.Section>
+            </Modal>
+
+            <Modal
+                open={!!previewItem}
+                onClose={() => setPreviewItem(null)}
+                title={`Preview: ${previewItem?.name}`}
+                secondaryActions={[{ content: 'Close', onAction: () => setPreviewItem(null) }]}
+            >
+                <Modal.Section>
+                    {previewItem && asset.type === 'font' && (
+                        <BlockStack gap="400">
+                            <Box padding="400" background="bg-surface-secondary" borderRadius="200">
+                                <div style={{ fontSize: '48px', textAlign: 'center', fontFamily: previewItem.name }}>
+                                    Abc 123
+                                </div>
+                            </Box>
+                        </BlockStack>
+                    )}
+                    {previewItem && asset.type === 'color' && (
+                        <BlockStack gap="400">
+                            <div
+                                className="w-full h-32 rounded-lg border border-gray-200 shadow-inner"
+                                style={{
+                                    backgroundColor: previewItem.hex,
+                                    backgroundImage: previewItem.isPattern ? `url(${previewItem.patternUrl})` : 'none',
+                                    backgroundSize: 'cover'
+                                }}
+                            />
+                            <div className="text-center">
+                                <Text variant="headingLg" as="p">{previewItem.name}</Text>
+                                <Text variant="bodyMd" tone="subdued" as="p">
+                                    {previewItem.isPattern ? 'Pattern Image' : previewItem.hex}
+                                </Text>
+                            </div>
+                        </BlockStack>
+                    )}
+                    {previewItem && asset.type === 'gallery' && (
+                        <BlockStack gap="400">
+                            <Box padding="400" background="bg-surface-secondary" borderRadius="200">
+                                <div className="flex justify-center">
+                                    <img src={previewItem.url} alt={previewItem.name} className="max-w-full max-h-96 object-contain rounded shadow-lg" />
+                                </div>
+                            </Box>
+                            <div className="text-center">
+                                <Text variant="headingLg" as="p">{previewItem.name}</Text>
+                            </div>
+                        </BlockStack>
+                    )}
+                </Modal.Section>
+            </Modal>
+            <Modal
+                open={isRenameModalOpen}
+                onClose={() => setIsRenameModalOpen(false)}
+                title={`Rename ${asset?.type === 'font' ? 'Font' : asset?.type === 'gallery' ? 'Image' : 'Color'}`}
+                primaryAction={{
+                    content: 'Save',
+                    onAction: handleRenameItem,
+                    loading: isSubmitting
+                }}
+                secondaryActions={[{ content: 'Cancel', onAction: () => setIsRenameModalOpen(false) }]}
+            >
+                <Modal.Section>
+                    <FormLayout>
+                        <TextField
+                            label="New Name"
+                            value={newItemName}
+                            onChange={setNewItemName}
+                            autoComplete="off"
+                        />
+                    </FormLayout>
+                </Modal.Section>
+            </Modal>
+            {toastActive && (
+                <Toast content={toastContent} onDismiss={() => setToastActive(false)} duration={3000} />
+            )}
+        </Page>
+    );
+}

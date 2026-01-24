@@ -87,7 +87,7 @@ const shopify = shopifyApp({
     },
     sessionStorage: loggingStorage,
     isEmbeddedApp: true,
-    useOnlineTokens: false,
+    useOnlineTokens: true,
     exitIframePath: "/exitiframe",
 });
 
@@ -113,6 +113,8 @@ const STATIC_PATH = process.env.NODE_ENV === "production"
     : resolve(__dirname, "../frontend");
 
 app.use("/imcst_api", shopify.validateAuthenticatedSession());
+
+
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -383,6 +385,23 @@ app.post("/imcst_api/config", async (req, res) => {
     res.json(config);
 });
 
+// 2a. Delete Product Config
+app.delete("/imcst_api/config/:productId", async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const shop = res.locals.shopify.session.shop;
+
+        await prisma.merchantConfig.delete({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Delete config error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 2b. Get Configured Products (for persistence)
 app.get("/imcst_api/configured-products", async (req, res) => {
     try {
@@ -544,6 +563,28 @@ app.post("/imcst_api/remove-bg", async (req, res) => {
     }
 });
 
+// Get Font Library (Global search from GoogleFont table)
+app.get("/imcst_api/font-library", async (req, res) => {
+    try {
+        const { query } = req.query;
+
+        const fonts = await prisma.googleFont.findMany({
+            where: query ? {
+                name: {
+                    contains: query,
+                    mode: 'insensitive'
+                }
+            } : {},
+            take: 50,
+            orderBy: { name: 'asc' }
+        });
+
+        res.json(fonts.map(f => f.name));
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 5. Get Assets (Filterable by type)
 app.get("/imcst_api/assets", async (req, res) => {
     try {
@@ -570,7 +611,7 @@ app.post("/imcst_api/assets", async (req, res) => {
         const { type, name, value, config } = req.body;
         const shop = res.locals.shopify.session.shop;
 
-        if (!type || !name || !value) {
+        if (!type || !name || value === undefined || value === null) {
             return res.status(400).json({ error: "Type, name, and value are required" });
         }
 
@@ -587,6 +628,40 @@ app.post("/imcst_api/assets", async (req, res) => {
         res.json(asset);
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+// 6b. Update Asset
+app.put("/imcst_api/assets/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, value, config } = req.body;
+        const shop = res.locals.shopify.session.shop;
+
+        const asset = await prisma.asset.findFirst({
+            where: { id, shop }
+        });
+
+        if (!asset) {
+            return res.status(404).json({ error: "Asset not found" });
+        }
+
+        const dataToUpdate = {};
+        if (name !== undefined) dataToUpdate.name = name;
+        if (value !== undefined) dataToUpdate.value = value;
+        if (config !== undefined) dataToUpdate.config = config;
+
+        console.log(`[PUT Asset ${id}] Updating with:`, JSON.stringify(dataToUpdate, null, 2));
+
+        const updatedAsset = await prisma.asset.update({
+            where: { id },
+            data: dataToUpdate
+        });
+
+        res.json(updatedAsset);
+    } catch (error) {
+        console.error(`[PUT Asset Error]:`, error);
+        res.status(400).json({ error: error.message, details: error.stack });
     }
 });
 

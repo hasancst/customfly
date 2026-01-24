@@ -126,7 +126,20 @@ Database menggunakan **PostgreSQL** dengan Prisma ORM. Schema utama:
 - config (JSON) - Additional configuration
 ```
 
-## 🔌 API Endpoints
+## � Data Isolation (Jail Session/Store Isolation)
+
+Aplikasi ini menerapkan arsitektur **Multi-tenancy** yang ketat ("Jail Session") untuk memastikan keamanan dan isolasi data antar toko.
+
+### Asset Isolation Strategy
+Setiap aset (Font, Warna, Gambar, Konfigurasi) secara tegas terikat pada `shop` domain dari session yang aktif.
+
+- **Backend Enforcement**: Middleware `shopify.validateAuthenticatedSession()` memverifikasi identitas toko pada setiap request.
+- **Database Scoping**: Setiap operasi database (Create, Read, Update, Delete) wajib menyertakan filter `where: { shop }`.
+- **Prevention**: Merchant A tidak akan pernah bisa mengakses, melihat, atau memodifikasi aset milik Merchant B di level database.
+
+Hal ini menjamin integritas data dan privasi setiap merchant yang menggunakan aplikasi ini.
+
+## �🔌 API Endpoints
 
 Base URL: `/imcst_api` (memerlukan Shopify authentication)
 
@@ -242,24 +255,35 @@ npm start
 
 ## 🔧 Services & Deployment
 
+Aplikasi berjalan menggunakan **systemd service** (systemctl) untuk manajemen proses dan auto-restart.
+
 ### Running Services (Production)
 
-Aplikasi saat ini berjalan dengan **manual node processes** (bukan systemctl):
+Gunakan perintah berikut untuk mengelola service:
 
 ```bash
-# Check running services
-ps aux | grep node
+# Cek status service
+sudo systemctl status imcst-backend.service
+sudo systemctl status imcst-frontend.service
 
-# Active Services:
-# - Backend API: node server.js (Port 3000)
-# - Frontend Dev: vite --host --port 3006 (Port 3006)
-# - Prisma Studio: prisma studio (Port 5555)
+# Restart service
+sudo systemctl restart imcst-backend.service
+sudo systemctl restart imcst-frontend.service
+
+# Cek logs real-time
+journalctl -u imcst-backend.service -f
+journalctl -u imcst-frontend.service -f
 ```
 
-### Port Mapping
-- **3000** - Backend API Server (Express)
-- **3006** - Frontend Development Server (Vite)
-- **5555** - Prisma Studio (Database GUI)
+### Daftar Service:
+- **imcst-backend.service**: Backend API Server (Node.js) berjalan di port **3011**.
+- **imcst-frontend.service**: Frontend Development Server (Vite) berjalan di port **3006**.
+
+### Deployment Architecture
+- **DNS & Inbound Traffic**: `custom.duniasantri.com` dikelola oleh **Cloudflare**.
+- **Tunneling**: Menggunakan **Cloudflare Tunnel** (`cloudflared`) yang mem-bypass port 80/443 standar dan langsung menghubungkan domain ke `localhost:3011`.
+- **Backend**: Node.js Express (port 3011) menangani API (`/imcst_api/*`) dan menyajikan file statis.
+- **Frontend**: Dikompilasi (`npm run build`) dan disajikan oleh backend dari folder `frontend/dist`.
 
 ### Logs Location
 - **Application Logs**: `/www/wwwroot/custom.local/backend/out.log`
@@ -324,7 +348,25 @@ location /imcst_api {
 }
 ```
 
-## 📝 Integration Status
+## � Troubleshooting
+ 
+### 1. Error 403 Forbidden pada API
+Jika melihat error 403 pada console saat memanggil `/imcst_api/*`, hal ini biasanya disebabkan oleh session yang kadaluarsa atau scope yang tidak sesuai. 
+ 
+**Solusi:**
+1. Pastikan `SCOPES` di `.env` sudah sesuai dengan database.
+2. Lakukan re-autentikasi dengan membuka URL berikut di browser (ganti `<shop>` dengan domain toko Anda):
+   `https://custom.duniasantri.com/api/auth?shop=<shop>.myshopify.com`
+3. Restart backend service: `sudo systemctl restart imcst-backend.service`
+
+### 2. Perubahan Frontend Tidak Muncul
+Karena backend melayani file statis dari `frontend/dist`, perubahan di folder `src` tidak akan muncul sampai di-build.
+
+**Solusi:**
+```bash
+cd /www/wwwroot/custom.local/frontend
+npm run build
+```
 
 - ✅ **Designer**: Fully integrated dengan React Router
 - ✅ **Backend**: Express API dengan Shopify SDK
