@@ -204,7 +204,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">Center Horizontal</TooltipContent>
+                                    <TooltipContent side="top" className="z-[200]">Center Horizontal</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -212,7 +212,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignVerticalJustifyCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">Center Vertical</TooltipContent>
+                                    <TooltipContent side="top" className="z-[200]">Center Vertical</TooltipContent>
                                 </Tooltip>
                                 <div className="w-px h-4 bg-gray-300 mx-1" />
                                 <Tooltip>
@@ -226,7 +226,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Square className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">Square 1:1</TooltipContent>
+                                    <TooltipContent side="top" className="z-[200]">Square 1:1</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -234,7 +234,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Maximize className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">Fit to Image</TooltipContent>
+                                    <TooltipContent side="top" className="z-[200]">Fit to Image</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -242,7 +242,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <RotateCcw className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">Reset Area</TooltipContent>
+                                    <TooltipContent side="top" className="z-[200]">Reset Area</TooltipContent>
                                 </Tooltip>
                             </div>
 
