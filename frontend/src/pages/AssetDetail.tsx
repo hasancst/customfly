@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
-import { DeleteIcon, PlusIcon, SearchIcon, EditIcon } from '@shopify/polaris-icons';
+import { DeleteIcon, PlusIcon, SearchIcon, EditIcon, DragHandleIcon } from '@shopify/polaris-icons';
+import { Reorder } from 'motion/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
@@ -62,6 +63,7 @@ export default function AssetDetail() {
     const [newItemName, setNewItemName] = useState('');
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
+    const [localItems, setLocalItems] = useState<ListItem[]>([]);
 
     // Autocomplete states
     const [googleFontOptions, setGoogleFontOptions] = useState(POPULAR_GOOGLE_FONTS);
@@ -75,7 +77,7 @@ export default function AssetDetail() {
 
     // Search & Pagination states
     const [searchQuery, setSearchQuery] = useState('');
-    const [sortOrder, setSortOrder] = useState('original');
+    const [sortOrder, setSortOrder] = useState('custom');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -162,6 +164,41 @@ export default function AssetDetail() {
 
     const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
     const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    // For Drag and Drop, we need to sync localItems when items change or sort order changes
+    useEffect(() => {
+        if (sortOrder === 'custom') {
+            setLocalItems(filteredItems);
+        }
+    }, [filteredItems, sortOrder]);
+
+    const handleReorder = async (newOrder: ListItem[]) => {
+        setLocalItems(newOrder);
+        if (!asset) return;
+
+        // Construct the new value string based on the new order
+        const newValueStr = newOrder.map(item => item.id).join('\n');
+
+        try {
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: newValueStr,
+                    config: { ...asset.config, specificFonts: asset.type === 'font' ? newValueStr : asset.config.specificFonts }
+                })
+            });
+
+            if (response.ok) {
+                // We update the local asset state to avoid jumpiness
+                setAsset({ ...asset, value: newValueStr });
+                showToast('Order saved');
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     // Load fonts for preview
     useEffect(() => {
@@ -551,115 +588,197 @@ export default function AssetDetail() {
                                             labelInline
                                             label="Sort"
                                             options={[
+                                                { label: 'Manual (Drag & Drop)', value: 'custom' },
                                                 { label: 'Oldest Added', value: 'original' },
                                                 { label: 'Newest Added', value: 'newest' },
                                                 { label: 'Name (A-Z)', value: 'az' },
                                                 { label: 'Name (Z-A)', value: 'za' },
                                             ]}
                                             value={sortOrder}
-                                            onChange={setSortOrder}
+                                            onChange={(val) => {
+                                                setSortOrder(val);
+                                                if (val === 'custom') setCurrentPage(1); // Usually custom order is single page or we might need to handle pagination
+                                            }}
                                         />
                                     </div>
                                 </div>
                             </BlockStack>
                         </Box>
 
-                        <ResourceList
-                            resourceName={{
-                                singular: asset.type === 'gallery' ? 'image' : asset.type,
-                                plural: asset.type === 'gallery' ? 'images' : `${asset.type}s`
-                            }}
-                            items={paginatedItems}
-                            renderItem={(item) => (
-                                <ResourceItem id={item.id} onClick={() => setPreviewItem(item)}>
-                                    <div className="flex items-center justify-between w-full">
-                                        <div className="flex items-center gap-3 flex-1">
-                                            {asset.type === 'color' && (
-                                                <div
-                                                    className="w-8 h-8 rounded border border-gray-200 shadow-sm"
-                                                    style={{
-                                                        backgroundColor: item.hex,
-                                                        backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
-                                                        backgroundSize: 'cover'
-                                                    }}
-                                                />
-                                            )}
-                                            <div className="flex flex-col gap-1">
-                                                <Text variant="bodyMd" fontWeight="bold" as="span">
-                                                    {item.name}
-                                                </Text>
-                                                {asset.type === 'color' && (
-                                                    <Text variant="bodySm" tone="subdued" as="span">
-                                                        {item.isPattern ? 'Pattern' : item.hex}
-                                                    </Text>
-                                                )}
-                                            </div>
-                                        </div>
+                        {sortOrder === 'custom' ? (
+                            <div className="p-2">
+                                <Reorder.Group axis="y" values={localItems} onReorder={handleReorder} className="flex flex-col gap-2">
+                                    {localItems.map((item) => (
+                                        <Reorder.Item
+                                            key={item.id}
+                                            value={item}
+                                            className="bg-white border border-gray-100 rounded-lg shadow-sm hover:border-indigo-300 transition-colors"
+                                        >
+                                            <div className="flex items-center p-3 justify-between w-full">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <div className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-indigo-600">
+                                                        <Icon source={DragHandleIcon} />
+                                                    </div>
+                                                    {asset.type === 'color' && (
+                                                        <div
+                                                            className="w-8 h-8 rounded border border-gray-200 shadow-sm"
+                                                            style={{
+                                                                backgroundColor: item.hex,
+                                                                backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
+                                                                backgroundSize: 'cover'
+                                                            }}
+                                                        />
+                                                    )}
+                                                    <div className="flex flex-col gap-1">
+                                                        <Text variant="bodyMd" fontWeight="bold" as="span">
+                                                            {item.name}
+                                                        </Text>
+                                                        {asset.type === 'color' && (
+                                                            <Text variant="bodySm" tone="subdued" as="span">
+                                                                {item.isPattern ? 'Pattern' : item.hex}
+                                                            </Text>
+                                                        )}
+                                                        {asset.type === 'option' && (
+                                                            <Text variant="bodySm" tone="subdued" as="span">
+                                                                {item.hex}
+                                                            </Text>
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                        {asset.type === 'gallery' && (
-                                            <div className="flex-1 px-8 text-right">
-                                                <div className="w-16 h-16 ml-auto rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
-                                                    <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                <div className="flex items-center gap-2">
+                                                    {asset.type === 'gallery' && (
+                                                        <div className="w-12 h-12 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center mr-4">
+                                                            <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                        </div>
+                                                    )}
+                                                    {asset.type === 'font' && (
+                                                        <div className="mr-8">
+                                                            <span style={{ fontFamily: item.name, fontSize: '14px' }}>Customfly</span>
+                                                        </div>
+                                                    )}
+                                                    <Button
+                                                        icon={EditIcon}
+                                                        variant="plain"
+                                                        onClick={() => {
+                                                            setItemToRename(item);
+                                                            setNewItemName(item.name);
+                                                            setIsRenameModalOpen(true);
+                                                        }}
+                                                    />
+                                                    <Button
+                                                        icon={DeleteIcon}
+                                                        variant="plain"
+                                                        tone="critical"
+                                                        onClick={() => handleDeleteItem(item.name)}
+                                                    />
                                                 </div>
                                             </div>
-                                        )}
-
-                                        {asset.type === 'font' && (
-                                            <div className="flex-1 px-8 text-right">
-                                                <span style={{ fontFamily: item.name, fontSize: '16px' }}>
-                                                    Customfly 123
-                                                </span>
+                                        </Reorder.Item>
+                                    ))}
+                                </Reorder.Group>
+                                {localItems.length === 0 && (
+                                    <div className="p-8 text-center text-gray-500">No items to reorder</div>
+                                )}
+                            </div>
+                        ) : (
+                            <ResourceList
+                                resourceName={{
+                                    singular: asset.type === 'gallery' ? 'image' : asset.type,
+                                    plural: asset.type === 'gallery' ? 'images' : `${asset.type}s`
+                                }}
+                                items={paginatedItems}
+                                renderItem={(item) => (
+                                    <ResourceItem id={item.id} onClick={() => setPreviewItem(item)}>
+                                        <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-3 flex-1">
+                                                {asset.type === 'color' && (
+                                                    <div
+                                                        className="w-8 h-8 rounded border border-gray-200 shadow-sm"
+                                                        style={{
+                                                            backgroundColor: item.hex,
+                                                            backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
+                                                            backgroundSize: 'cover'
+                                                        }}
+                                                    />
+                                                )}
+                                                <div className="flex flex-col gap-1">
+                                                    <Text variant="bodyMd" fontWeight="bold" as="span">
+                                                        {item.name}
+                                                    </Text>
+                                                    {asset.type === 'color' && (
+                                                        <Text variant="bodySm" tone="subdued" as="span">
+                                                            {item.isPattern ? 'Pattern' : item.hex}
+                                                        </Text>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
 
-                                        {asset.type === 'option' && (
-                                            <div className="flex-1 px-8 text-right">
-                                                <Text variant="bodySm" tone="subdued" as="span">
-                                                    {item.hex}
-                                                </Text>
-                                            </div>
-                                        )}
+                                            {asset.type === 'gallery' && (
+                                                <div className="flex-1 px-8 text-right">
+                                                    <div className="w-16 h-16 ml-auto rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
+                                                        <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                    </div>
+                                                </div>
+                                            )}
 
-                                        {asset.config?.enablePricing && asset.config?.pricingType === 'single' && (
-                                            <div className="w-24 mr-4">
-                                                <TextField
-                                                    label="Price"
-                                                    labelHidden
-                                                    type="number"
-                                                    value={asset.config?.fontPrices?.[item.name] || '0'}
-                                                    onChange={(val) => handleUpdateFontPrice(item.name, val)}
-                                                    autoComplete="off"
-                                                    prefix="$"
-                                                    size="slim"
+                                            {asset.type === 'font' && (
+                                                <div className="flex-1 px-8 text-right">
+                                                    <span style={{ fontFamily: item.name, fontSize: '16px' }}>
+                                                        Customfly 123
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {asset.type === 'option' && (
+                                                <div className="flex-1 px-8 text-right">
+                                                    <Text variant="bodySm" tone="subdued" as="span">
+                                                        {item.hex}
+                                                    </Text>
+                                                </div>
+                                            )}
+
+                                            {asset.config?.enablePricing && asset.config?.pricingType === 'single' && (
+                                                <div className="w-24 mr-4">
+                                                    <TextField
+                                                        label="Price"
+                                                        labelHidden
+                                                        type="number"
+                                                        value={asset.config?.fontPrices?.[item.name] || '0'}
+                                                        onChange={(val) => handleUpdateFontPrice(item.name, val)}
+                                                        autoComplete="off"
+                                                        prefix="$"
+                                                        size="slim"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="shrink-0 ml-4 flex gap-1">
+                                                <Button
+                                                    icon={EditIcon}
+                                                    variant="plain"
+                                                    onClick={(e?: any) => {
+                                                        e?.stopPropagation();
+                                                        setItemToRename(item);
+                                                        setNewItemName(item.name);
+                                                        setIsRenameModalOpen(true);
+                                                    }}
+                                                />
+                                                <Button
+                                                    icon={DeleteIcon}
+                                                    variant="plain"
+                                                    tone="critical"
+                                                    onClick={(e?: any) => {
+                                                        e?.stopPropagation();
+                                                        handleDeleteItem(item.name);
+                                                    }}
                                                 />
                                             </div>
-                                        )}
-
-                                        <div className="shrink-0 ml-4 flex gap-1">
-                                            <Button
-                                                icon={EditIcon}
-                                                variant="plain"
-                                                onClick={(e?: any) => {
-                                                    e?.stopPropagation();
-                                                    setItemToRename(item);
-                                                    setNewItemName(item.name);
-                                                    setIsRenameModalOpen(true);
-                                                }}
-                                            />
-                                            <Button
-                                                icon={DeleteIcon}
-                                                variant="plain"
-                                                tone="critical"
-                                                onClick={(e?: any) => {
-                                                    e?.stopPropagation();
-                                                    handleDeleteItem(item.name);
-                                                }}
-                                            />
                                         </div>
-                                    </div>
-                                </ResourceItem>
-                            )}
-                        />
+                                    </ResourceItem>
+                                )}
+                            />
+                        )}
 
                         {totalPages > 1 && (
                             <Box padding="400" borderBlockStartWidth="025" borderColor="border">
