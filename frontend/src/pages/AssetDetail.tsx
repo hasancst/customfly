@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast, Badge } from '@shopify/polaris';
 import { DeleteIcon, PlusIcon, SearchIcon, EditIcon, DragHandleIcon } from '@shopify/polaris-icons';
 import { Reorder } from 'motion/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -35,6 +35,8 @@ interface ListItem {
     isPattern?: boolean;
     patternUrl?: string;
     url?: string; // For gallery images
+    category?: string; // For nested gallery
+    subCategory?: string; // For nested gallery
     originalIndex?: number;
 }
 
@@ -61,6 +63,8 @@ export default function AssetDetail() {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [itemToRename, setItemToRename] = useState<ListItem | null>(null);
     const [newItemName, setNewItemName] = useState('');
+    const [newGalleryCategory, setNewGalleryCategory] = useState('');
+    const [newGallerySubCategory, setNewGallerySubCategory] = useState('');
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
     const [localItems, setLocalItems] = useState<ListItem[]>([]);
@@ -137,8 +141,16 @@ export default function AssetDetail() {
 
         if (asset.type === 'gallery') {
             return safeSplit(asset.value).map(pair => {
+                const parts = pair.split('|');
+                if (parts.length === 4) {
+                    // Category|Sub|Name|URL
+                    return { category: parts[0], subCategory: parts[1], name: parts[2], url: parts[3], id: pair };
+                } else if (parts.length === 3) {
+                    // Category|Name|URL
+                    return { category: parts[0], subCategory: 'General', name: parts[1], url: parts[2], id: pair };
+                }
                 const [name, url] = pair.split('|');
-                return { name: name?.trim() || '', url: url?.trim() || '', id: pair };
+                return { category: 'General', subCategory: 'General', name: name?.trim() || '', url: url?.trim() || '', id: pair };
             }).filter(i => i.name);
         }
 
@@ -444,15 +456,16 @@ export default function AssetDetail() {
                 }
                 newListStr = [...currentList, valToStore].join('\n');
             } else if (asset.type === 'gallery') {
-                if (galleryFiles.length === 0) return;
-
                 const newItems: string[] = [];
+                const cat = newGalleryCategory.trim() || 'General';
+                const sub = newGallerySubCategory.trim() || 'General';
+
                 for (let i = 0; i < galleryFiles.length; i++) {
                     const file = galleryFiles[i];
                     try {
                         const name = file.name.split('.')[0];
                         const compressedBase64 = await compressImage(file);
-                        newItems.push(`${name}|${compressedBase64}`);
+                        newItems.push(`${cat}|${sub}|${name}|${compressedBase64}`);
                         setUploadProgress(Math.round(((i + 1) / galleryFiles.length) * 100));
                     } catch (err) {
                         console.error(`Failed to process ${file.name}:`, err);
@@ -501,6 +514,8 @@ export default function AssetDetail() {
                 setNewColorHex('#000000');
                 setPatternFile(null);
                 setSelectedGoogleFonts([]);
+                setNewGalleryCategory('');
+                setNewGallerySubCategory('');
             }
         } catch (err) {
             console.error(err);
@@ -649,8 +664,18 @@ export default function AssetDetail() {
 
                                                 <div className="flex items-center gap-2">
                                                     {asset.type === 'gallery' && (
-                                                        <div className="w-20 h-20 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center mr-4">
-                                                            <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-20 h-20 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
+                                                                <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                            </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
+                                                                <div className="flex gap-1 items-center">
+                                                                    <Badge tone="info">{item.category}</Badge>
+                                                                    <span className="text-gray-300">/</span>
+                                                                    <Badge>{item.subCategory}</Badge>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                     {asset.type === 'font' && (
@@ -720,9 +745,18 @@ export default function AssetDetail() {
                                             </div>
 
                                             {asset.type === 'gallery' && (
-                                                <div className="flex-1 px-8 text-right">
-                                                    <div className="w-24 h-24 ml-auto rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center">
-                                                        <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                <div className="flex-1 px-8">
+                                                    <div className="flex items-center gap-4 justify-end">
+                                                        <div className="flex flex-col gap-1 items-end">
+                                                            <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
+                                                            <div className="flex gap-1 items-center">
+                                                                <Badge tone="info">{item.category}</Badge>
+                                                                <Badge>{item.subCategory}</Badge>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-24 h-24 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
+                                                            <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -1008,49 +1042,67 @@ export default function AssetDetail() {
                         )}
 
                         {asset.type === 'gallery' && (
-                            <BlockStack gap="400">
-                                <label className="block text-sm font-medium text-gray-700">Gallery Images (Bulk Upload Supported)</label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={(e) => {
-                                        if (e.target.files) {
-                                            setGalleryFiles(Array.from(e.target.files));
-                                        }
-                                    }}
-                                    className="block w-full text-sm text-gray-500
-                                      file:mr-4 file:py-2 file:px-4
-                                      file:rounded-full file:border-0
-                                      file:text-sm file:font-semibold
-                                      file:bg-indigo-50 file:text-indigo-700
-                                      hover:file:bg-indigo-100
-                                    "
-                                />
-                                {galleryFiles.length > 0 && (
-                                    <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
-                                        {galleryFiles.map((file, i) => (
-                                            <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
-                                                <img
-                                                    src={URL.createObjectURL(file)}
-                                                    alt="upload-preview"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {isSubmitting && uploadProgress > 0 && (
-                                    <BlockStack gap="200">
-                                        <div className="flex justify-between items-center text-xs text-gray-500">
-                                            <span>Processing images...</span>
-                                            <span>{uploadProgress}%</span>
+                            <FormLayout>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <TextField
+                                        label="Primary Category"
+                                        value={newGalleryCategory}
+                                        onChange={setNewGalleryCategory}
+                                        placeholder="e.g. Occasions, Textures"
+                                        autoComplete="off"
+                                    />
+                                    <TextField
+                                        label="Sub Category"
+                                        value={newGallerySubCategory}
+                                        onChange={setNewGallerySubCategory}
+                                        placeholder="e.g. Floral, Minimalist"
+                                        autoComplete="off"
+                                    />
+                                </div>
+                                <BlockStack gap="400">
+                                    <label className="block text-sm font-medium text-gray-700">Gallery Images (Bulk Upload Supported)</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={(e) => {
+                                            if (e.target.files) {
+                                                setGalleryFiles(Array.from(e.target.files));
+                                            }
+                                        }}
+                                        className="block w-full text-sm text-gray-500
+                                          file:mr-4 file:py-2 file:px-4
+                                          file:rounded-full file:border-0
+                                          file:text-sm file:font-semibold
+                                          file:bg-indigo-50 file:text-indigo-700
+                                          hover:file:bg-indigo-100
+                                        "
+                                    />
+                                    {galleryFiles.length > 0 && (
+                                        <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                                            {galleryFiles.map((file, i) => (
+                                                <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
+                                                    <img
+                                                        src={URL.createObjectURL(file)}
+                                                        alt="upload-preview"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                            ))}
                                         </div>
-                                        <ProgressBar progress={uploadProgress} size="small" tone="primary" />
-                                    </BlockStack>
-                                )}
-                            </BlockStack>
+                                    )}
+
+                                    {isSubmitting && uploadProgress > 0 && (
+                                        <BlockStack gap="200">
+                                            <div className="flex justify-between items-center text-xs text-gray-500">
+                                                <span>Processing images...</span>
+                                                <span>{uploadProgress}%</span>
+                                            </div>
+                                            <ProgressBar progress={uploadProgress} size="small" tone="primary" />
+                                        </BlockStack>
+                                    )}
+                                </BlockStack>
+                            </FormLayout>
                         )}
 
                         {asset.type === 'option' && (
