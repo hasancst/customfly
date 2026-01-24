@@ -127,8 +127,8 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                             <div className="flex items-center gap-2">
                                 <Layers className="w-4 h-4 text-purple-500" />
                                 <div className="flex flex-col">
-                                    <Label className="text-xs font-bold text-gray-700">Enable Sub-Categories</Label>
-                                    <span className="text-[10px] text-gray-400">Support 2-level nested navigation</span>
+                                    <Label className="text-xs font-bold text-gray-700">Enable Sub-Groups</Label>
+                                    <span className="text-[10px] text-gray-400">Support 1-level nested navigation</span>
                                 </div>
                             </div>
                             <Switch
@@ -240,7 +240,7 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                             <li>Images from selected galleries</li>
                             <li>Thumbnail grid with lightbox view</li>
                             <li>Category tabs based on gallery names</li>
-                            <li>Nested sub-category drilldown (if enabled)</li>
+                            <li>Nested sub-grouping (if enabled)</li>
                         </ul>
                     </div>
                 </div>

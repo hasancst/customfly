@@ -35,8 +35,7 @@ interface ListItem {
     isPattern?: boolean;
     patternUrl?: string;
     url?: string; // For gallery images
-    category?: string; // For nested gallery
-    subCategory?: string; // For nested gallery
+    subGroup?: string; // For nested sub-grouping
     originalIndex?: number;
 }
 
@@ -63,8 +62,7 @@ export default function AssetDetail() {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [itemToRename, setItemToRename] = useState<ListItem | null>(null);
     const [newItemName, setNewItemName] = useState('');
-    const [newGalleryCategory, setNewGalleryCategory] = useState('');
-    const [newGallerySubCategory, setNewGallerySubCategory] = useState('');
+    const [newSubGroup, setNewSubGroup] = useState('');
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
     const [localItems, setLocalItems] = useState<ListItem[]>([]);
@@ -142,15 +140,15 @@ export default function AssetDetail() {
         if (asset.type === 'gallery') {
             return safeSplit(asset.value).map(pair => {
                 const parts = pair.split('|');
-                if (parts.length === 4) {
-                    // Category|Sub|Name|URL
-                    return { category: parts[0], subCategory: parts[1], name: parts[2], url: parts[3], id: pair };
-                } else if (parts.length === 3) {
-                    // Category|Name|URL
-                    return { category: parts[0], subCategory: 'General', name: parts[1], url: parts[2], id: pair };
+                if (parts.length === 3) {
+                    // SubGroup|Name|URL
+                    return { subGroup: parts[0], name: parts[1], url: parts[2], id: pair };
+                } else if (parts.length === 4) {
+                    // Migration fallback: Category|Sub|Name|URL -> Join Cat & Sub
+                    return { subGroup: `${parts[0]} - ${parts[1]}`, name: parts[2], url: parts[3], id: pair };
                 }
                 const [name, url] = pair.split('|');
-                return { category: 'General', subCategory: 'General', name: name?.trim() || '', url: url?.trim() || '', id: pair };
+                return { subGroup: 'General', name: name?.trim() || '', url: url?.trim() || '', id: pair };
             }).filter(i => i.name);
         }
 
@@ -457,15 +455,14 @@ export default function AssetDetail() {
                 newListStr = [...currentList, valToStore].join('\n');
             } else if (asset.type === 'gallery') {
                 const newItems: string[] = [];
-                const cat = newGalleryCategory.trim() || 'General';
-                const sub = newGallerySubCategory.trim() || 'General';
+                const group = newSubGroup.trim() || 'General';
 
                 for (let i = 0; i < galleryFiles.length; i++) {
                     const file = galleryFiles[i];
                     try {
                         const name = file.name.split('.')[0];
                         const compressedBase64 = await compressImage(file);
-                        newItems.push(`${cat}|${sub}|${name}|${compressedBase64}`);
+                        newItems.push(`${group}|${name}|${compressedBase64}`);
                         setUploadProgress(Math.round(((i + 1) / galleryFiles.length) * 100));
                     } catch (err) {
                         console.error(`Failed to process ${file.name}:`, err);
@@ -514,8 +511,7 @@ export default function AssetDetail() {
                 setNewColorHex('#000000');
                 setPatternFile(null);
                 setSelectedGoogleFonts([]);
-                setNewGalleryCategory('');
-                setNewGallerySubCategory('');
+                setNewSubGroup('');
             }
         } catch (err) {
             console.error(err);
@@ -670,11 +666,7 @@ export default function AssetDetail() {
                                                             </div>
                                                             <div className="flex flex-col gap-1">
                                                                 <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                                <div className="flex gap-1 items-center">
-                                                                    <Badge tone="info">{item.category}</Badge>
-                                                                    <span className="text-gray-300">/</span>
-                                                                    <Badge>{item.subCategory}</Badge>
-                                                                </div>
+                                                                <Badge tone="info">{item.subGroup}</Badge>
                                                             </div>
                                                         </div>
                                                     )}
@@ -749,10 +741,7 @@ export default function AssetDetail() {
                                                     <div className="flex items-center gap-4 justify-end">
                                                         <div className="flex flex-col gap-1 items-end">
                                                             <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                            <div className="flex gap-1 items-center">
-                                                                <Badge tone="info">{item.category}</Badge>
-                                                                <Badge>{item.subCategory}</Badge>
-                                                            </div>
+                                                            <Badge tone="info">{item.subGroup}</Badge>
                                                         </div>
                                                         <div className="w-24 h-24 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
                                                             <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
@@ -1043,22 +1032,14 @@ export default function AssetDetail() {
 
                         {asset.type === 'gallery' && (
                             <FormLayout>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <TextField
-                                        label="Primary Category"
-                                        value={newGalleryCategory}
-                                        onChange={setNewGalleryCategory}
-                                        placeholder="e.g. Occasions, Textures"
-                                        autoComplete="off"
-                                    />
-                                    <TextField
-                                        label="Sub Category"
-                                        value={newGallerySubCategory}
-                                        onChange={setNewGallerySubCategory}
-                                        placeholder="e.g. Floral, Minimalist"
-                                        autoComplete="off"
-                                    />
-                                </div>
+                                <TextField
+                                    label="Sub-Group Name"
+                                    value={newSubGroup}
+                                    onChange={setNewSubGroup}
+                                    placeholder="e.g. Logos, Icons, Backgrounds"
+                                    autoComplete="off"
+                                    helpText="This will act as a folder inside this gallery"
+                                />
                                 <BlockStack gap="400">
                                     <label className="block text-sm font-medium text-gray-700">Gallery Images (Bulk Upload Supported)</label>
                                     <input
