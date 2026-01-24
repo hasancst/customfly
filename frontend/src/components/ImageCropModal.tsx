@@ -181,9 +181,10 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                         <img
                             ref={imgRef}
                             src={imageUrl}
-                            onLoad={(e) => initializeCrop()}
-                            className="max-w-full block"
+                            onLoad={() => initializeCrop()}
+                            className="max-w-full block select-none"
                             crossOrigin="anonymous"
+                            draggable={false}
                         />
                     </ReactCrop>
                 </div>
