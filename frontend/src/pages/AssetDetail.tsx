@@ -471,7 +471,9 @@ export default function AssetDetail() {
             backAction={{ content: 'Assets', onAction: () => navigate('/assets') }}
             title={asset.name}
             primaryAction={{
-                content: asset.type === 'font' ? 'Add Font' : asset.type === 'gallery' ? 'Add Image' : 'Add Color',
+                content: asset.type === 'font' ? 'Add Font' :
+                    asset.type === 'gallery' ? 'Add Image' :
+                        asset.type === 'option' ? 'Add Option' : 'Add Color',
                 onAction: () => setIsAddModalOpen(true),
                 icon: PlusIcon
             }}
@@ -518,7 +520,11 @@ export default function AssetDetail() {
                     <Card padding="0">
                         <Box padding="400">
                             <BlockStack gap="400">
-                                <Text variant="headingMd" as="h2">{asset.type === 'font' ? 'Fonts' : asset.type === 'gallery' ? 'Images' : 'Colors'} in this Group ({items.length})</Text>
+                                <Text variant="headingMd" as="h2">{
+                                    asset.type === 'font' ? 'Fonts' :
+                                        asset.type === 'gallery' ? 'Images' :
+                                            asset.type === 'option' ? 'Options' : 'Colors'
+                                } in this Group ({items.length})</Text>
                                 <div className="flex gap-4">
                                     <div className="flex-1">
                                         <Filters
