@@ -632,7 +632,10 @@ export function ContextualToolbar({
                                             variant="ghost"
                                             size="icon"
                                             className="h-9 w-9 text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-lg"
-                                            onClick={onCrop}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCrop();
+                                            }}
                                         >
                                             <Crop className="w-4 h-4" />
                                         </Button>

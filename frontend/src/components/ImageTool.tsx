@@ -262,7 +262,10 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                   variant="ghost"
                   size="sm"
                   className="h-7 text-[10px] text-indigo-600 hover:bg-indigo-50 gap-1 px-2 border border-indigo-100/50"
-                  onClick={onCrop}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCrop();
+                  }}
                 >
                   <Crop className="w-3 h-3" />
                   Crop

@@ -20,14 +20,22 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     const [aspect, setAspect] = useState<number | undefined>(undefined);
     const imgRef = useRef<HTMLImageElement>(null);
 
-    const initializeCrop = (img: HTMLImageElement) => {
-        const { width, height } = img;
-        if (width <= 0 || height <= 0) return;
+    const initializeCrop = () => {
+        const img = imgRef.current;
+        if (!img) return;
+
+        const { width, height, naturalWidth, naturalHeight } = img;
+        if (width <= 0 || height <= 0) {
+            // Retry later if not yet layed out
+            setTimeout(initializeCrop, 50);
+            return;
+        }
 
         // If we have a saved crop, try to restore it
-        if (initialCrop && initialCrop.width > 0 && img.naturalWidth > 0) {
-            const backScaleX = width / img.naturalWidth;
-            const backScaleY = height / img.naturalHeight;
+        if (initialCrop && initialCrop.width > 0 && naturalWidth > 0) {
+            const backScaleX = width / naturalWidth;
+            const backScaleY = height / naturalHeight;
+
             if (backScaleX > 0 && backScaleY > 0) {
                 setCrop({
                     unit: 'px',
@@ -40,7 +48,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
             }
         }
 
-        // Default: 80% centered box using the PERCENTAGE method for stability
+        // Default: 80% centered box using percentage for maximum stability
         const percentCrop = centerCrop(
             makeAspectCrop(
                 { unit: '%', width: 80 },
@@ -54,9 +62,20 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         setCrop(percentCrop);
     };
 
+    // Initialize when modal becomes open or image changes
     useEffect(() => {
-        if (isOpen && imgRef.current && imgRef.current.complete) {
-            initializeCrop(imgRef.current);
+        if (isOpen) {
+            // Small delay to ensure Dialog animation finished and layout is stable
+            const timer = setTimeout(() => {
+                if (imgRef.current && imgRef.current.complete) {
+                    initializeCrop();
+                }
+            }, 150);
+            return () => clearTimeout(timer);
+        } else {
+            // Reset state when closing
+            setCrop(undefined);
+            setCompletedCrop(undefined);
         }
     }, [isOpen, imageUrl]);
 
@@ -142,7 +161,10 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         <Dialog open={isOpen} onOpenChange={(open) => {
             if (!open) onClose();
         }}>
-            <DialogContent className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl z-[50]">
+            <DialogContent
+                className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl z-[50]"
+                onPointerDownOutside={(e) => e.preventDefault()} // Prevent closing when interacting with ReactCrop
+            >
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
                         <CropIcon className="w-5 h-5 text-indigo-600" />
@@ -162,7 +184,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                         <img
                             ref={imgRef}
                             src={imageUrl}
-                            onLoad={(e) => initializeCrop(e.currentTarget)}
+                            onLoad={initializeCrop}
                             className="max-w-full block"
                             crossOrigin="anonymous"
                         />
