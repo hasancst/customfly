@@ -114,9 +114,9 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
           position: crop ? 'absolute' : 'relative',
           left: crop ? -crop.x * z : 0,
           top: crop ? -crop.y * z : 0,
-          width: 'auto',
-          height: 'auto',
-          maxWidth: 'none',
+          width: crop ? 'auto' : (width * z),
+          height: crop ? 'auto' : (height * z),
+          maxWidth: crop ? 'none' : '100%',
         }}
         crossOrigin="anonymous"
         draggable={false}
@@ -129,8 +129,8 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
             position: crop ? 'absolute' : 'relative',
             left: crop ? -crop.x * z : 0,
             top: crop ? -crop.y * z : 0,
-            width: 'auto',
-            height: 'auto',
+            width: crop ? 'auto' : (width * z),
+            height: crop ? 'auto' : (height * z),
           }}
         />
       )}

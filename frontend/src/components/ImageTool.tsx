@@ -265,18 +265,37 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
               <div className="h-24 w-fit aspect-square bg-gray-100 rounded-xl border border-gray-200 overflow-hidden relative group shadow-sm">
                 <img src={selectedElement.src} className="w-full h-full object-contain" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Button variant="ghost" size="xs" className="text-white hover:text-white text-[10px] h-7" onClick={() => fileInputRef.current?.click()}>Replace</Button>
+                  <Button variant="ghost" size="sm" className="text-white hover:text-white text-[10px] h-7" onClick={() => fileInputRef.current?.click()}>Replace</Button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 flex-1">
-                <Button
-                  variant="outline"
-                  className="h-11 rounded-xl font-bold border-indigo-100 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 shadow-none gap-2 px-4"
-                  onClick={() => setIsCropModalOpen(true)}
-                >
-                  <Crop className="w-4 h-4" />
-                  Crop Image
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-11 flex-1 rounded-xl font-bold border-indigo-100 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 shadow-none gap-2"
+                    onClick={() => setIsCropModalOpen(true)}
+                  >
+                    <Crop className="w-4 h-4" />
+                    Crop
+                  </Button>
+                  {selectedElement.crop && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-11 w-11 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-100"
+                      title="Reset Crop"
+                      onClick={() => {
+                        handleUpdate({
+                          crop: undefined,
+                          width: 200, // Reset to a standard default or keep current height
+                          height: 200
+                        });
+                      }}
+                    >
+                      <RotateCw className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
                 <p className="text-[10px] text-gray-500 leading-tight">Cut unwanted parts or change the aspect ratio.</p>
               </div>
             </div>
@@ -308,8 +327,8 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
                     key={preset.id}
                     onClick={() => updateFilters({ preset: preset.id })}
                     className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-[10px] font-bold ${(selectedElement.imageFilters?.preset || 'none') === preset.id
-                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-400'
+                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-400'
                       }`}
                   >
                     <div
