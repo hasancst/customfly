@@ -41,6 +41,19 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
       onAddElement({ ...commonProps, id: `text-${Date.now()}`, type: 'text', text: 'New Text', fontSize: 24, color: '#000000', fontFamily: 'Inter' });
     } else if (type === 'image') {
       onAddElement({ ...commonProps, id: `img-${Date.now()}`, type: 'image', src: 'https://placehold.co/200x200?text=Upload+Image' });
+    } else if (type === 'textarea') {
+      onAddElement({
+        ...commonProps,
+        id: `textarea-${Date.now()}`,
+        type: 'textarea',
+        text: 'Enter notes here...',
+        fontSize: 16,
+        color: '#000000',
+        fontFamily: 'Inter',
+        fontWeight: 400,
+        textAlign: 'left',
+        label: 'Text Area'
+      });
     } else {
       // Placeholder for new types
       onAddElement({ ...commonProps, id: `${type}-${Date.now()}`, type: type as any, label: `New ${type}` });

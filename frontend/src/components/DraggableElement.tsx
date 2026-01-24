@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, memo, useEffect } from 'react';
 import { CanvasElement } from '../types';
 import { Input } from './ui/input';
-import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2, Images, AlignLeft, UploadCloud, Palette, ChevronDown, CheckCircle2, Hash, Clock } from 'lucide-react';
+import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2, Images, UploadCloud, Palette, ChevronDown, CheckCircle2, Hash, Clock } from 'lucide-react';
 
 interface DraggableElementProps {
   element: CanvasElement;
@@ -480,11 +480,12 @@ export const DraggableElement = memo(({
   const content = useMemo(() => {
     switch (element.type) {
       case 'text':
-        if (element.bridge) {
+      case 'textarea':
+        if (element.type === 'text' && element.bridge) {
           return <BridgeText element={element} zoom={zoom} />;
         }
 
-        if (element.isCurved && element.curve && element.curve !== 0) {
+        if (element.type === 'text' && element.isCurved && element.curve && element.curve !== 0) {
           const fontSize = (element.fontSize || 32);
           const scaledFontSize = fontSize * (zoom / 100);
           const text = element.text || '';
@@ -590,6 +591,8 @@ export const DraggableElement = memo(({
               fontSize: localState.fontSize * (zoom / 100),
               fontFamily: element.fontFamily || 'Inter',
               fontWeight: element.fontWeight || 400,
+              fontStyle: element.italic ? 'italic' : 'normal',
+              textDecoration: element.underline ? 'underline' : 'none',
               textAlign: element.textAlign || 'center',
               whiteSpace: isWrap ? 'pre-wrap' : 'nowrap',
               wordBreak: isWrap ? 'break-word' : 'normal',
@@ -934,16 +937,6 @@ export const DraggableElement = memo(({
           </div>
         );
 
-      case 'textarea':
-        return (
-          <div className="bg-white border-2 border-indigo-100 rounded-xl p-3 shadow-sm" style={{ width: (element.width || 250) * (zoom / 100) }}>
-            <div className="flex items-center gap-2 mb-2">
-              <AlignLeft className="w-3 h-3 text-indigo-400" />
-              <span className="text-[10px] font-bold text-gray-500 uppercase">{element.label || 'Notes'}</span>
-            </div>
-            <div className="h-16 bg-gray-50 rounded-lg border border-dashed border-gray-200" />
-          </div>
-        );
 
       case 'file_upload':
         return (

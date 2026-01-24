@@ -17,6 +17,8 @@ export interface CanvasElement {
   fontSize?: number;
   fontFamily?: string;
   fontWeight?: number;
+  italic?: boolean;
+  underline?: boolean;
   textAlign?: 'left' | 'center' | 'right';
   color?: string;
   fillType?: 'solid' | 'gradient';

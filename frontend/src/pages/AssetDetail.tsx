@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
 import { DeleteIcon, PlusIcon, SearchIcon, EditIcon, DragHandleIcon } from '@shopify/polaris-icons';
 import { Reorder } from 'motion/react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 
@@ -40,12 +40,10 @@ interface ListItem {
 
 export default function AssetDetail() {
     const { id } = useParams();
-    const navigate = useNavigate();
     const fetch = useAuthenticatedFetch();
 
     const [asset, setAsset] = useState<Asset | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [previewItem, setPreviewItem] = useState<any>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newFontType, setNewFontType] = useState<'google' | 'custom' | 'upload'>('google');
     const [colorItemType, setColorItemType] = useState<'color' | 'pattern'>('color');
@@ -711,7 +709,7 @@ export default function AssetDetail() {
                                 }}
                                 items={paginatedItems}
                                 renderItem={(item) => (
-                                    <ResourceItem id={item.id} onClick={() => setPreviewItem(item)}>
+                                    <ResourceItem id={item.id} onClick={() => { }}>
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-3 flex-1">
                                                 {asset.type === 'color' && (

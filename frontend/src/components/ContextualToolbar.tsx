@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    Type,
     Bold,
     Italic,
     AlignLeft,
@@ -19,7 +18,8 @@ import {
     CaseLower,
     Hash,
     Type as TypeIcon,
-    Info
+    Info,
+    Underline
 } from 'lucide-react';
 import {
     Select,
@@ -39,6 +39,12 @@ import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ContextualToolbarProps {
     selectedElement: CanvasElement | undefined;
@@ -94,20 +100,21 @@ export function ContextualToolbar({
         });
     }, [userFonts]);
     const [localStrokeWidth, setLocalStrokeWidth] = useState(selectedElement?.strokeWidth || 0);
-    const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const updateTimeoutRef = useRef<any>(null);
 
     useEffect(() => {
         if (selectedElement?.strokeColor) {
             setLocalStrokeColor(selectedElement.strokeColor);
         }
         setLocalStrokeWidth(selectedElement?.strokeWidth || 0);
+        setLocalColor(selectedElement?.color || '#000000');
     }, [selectedElement?.id, selectedElement?.color, selectedElement?.strokeColor, selectedElement?.strokeWidth]);
 
     const handleUpdate = (updates: Partial<CanvasElement>) => {
         if (!selectedElement) return;
 
         // Apply automatic formatting if text, type, case or maxChars are changed
-        if (selectedElement.type === 'text') {
+        if (selectedElement.type === 'text' || selectedElement.type === 'textarea') {
             const currentText = updates.text !== undefined ? updates.text : selectedElement.text || '';
             const currentType = updates.textType !== undefined ? updates.textType : (selectedElement.textType || 'all');
             const currentCase = updates.textCase !== undefined ? updates.textCase : (selectedElement.textCase || 'none');
@@ -157,8 +164,9 @@ export function ContextualToolbar({
         }, 50);
     };
 
-    const isText = selectedElement?.type === 'text' || selectedElement?.type === 'monogram';
-    const isImage = selectedElement?.type === 'image';
+    const isText = selectedElement?.type === 'text' || selectedElement?.type === 'monogram' || selectedElement?.type === 'textarea';
+    const isTextArea = selectedElement?.type === 'textarea';
+    const isMonogram = selectedElement?.type === 'monogram';
     const isField = selectedElement?.type === 'field' || selectedElement?.type === 'phone' || selectedElement?.type === 'date' || selectedElement?.type === 'map' || selectedElement?.type === 'swatch';
 
     return (
@@ -188,7 +196,7 @@ export function ContextualToolbar({
                     )}
 
                     {/* Font Size */}
-                    {(isText || isField || selectedElement.type === 'monogram') && (
+                    {(isText || isField) && (
                         <>
                             <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg h-9 px-1">
                                 <Button
@@ -218,18 +226,37 @@ export function ContextualToolbar({
                         </>
                     )}
 
-                    {/* Font Weight / Bold */}
+                    {/* Text Formatting (Bold, Italic, Underline) */}
                     {(isText || isField) && (
                         <>
-                            <ToggleGroup
-                                type="single"
-                                value={String(selectedElement.fontWeight || 400)}
-                                onValueChange={(val: string) => val && handleUpdate({ fontWeight: parseInt(val) })}
-                            >
-                                <ToggleGroupItem value="700" className="h-9 w-9 rounded-lg" aria-label="Toggle bold">
-                                    <Bold className="w-4 h-4" />
-                                </ToggleGroupItem>
-                            </ToggleGroup>
+                            <div className="flex items-center bg-gray-50 rounded-lg border border-gray-100 p-0.5">
+                                <ToggleGroup
+                                    type="multiple"
+                                    value={[
+                                        ...(selectedElement.fontWeight === 700 ? ['bold'] : []),
+                                        ...(selectedElement.italic ? ['italic'] : []),
+                                        ...(selectedElement.underline ? ['underline'] : [])
+                                    ]}
+                                    onValueChange={(vals: string[]) => {
+                                        handleUpdate({
+                                            fontWeight: vals.includes('bold') ? 700 : 400,
+                                            italic: vals.includes('italic'),
+                                            underline: vals.includes('underline')
+                                        });
+                                    }}
+                                    className="h-8"
+                                >
+                                    <ToggleGroupItem value="bold" className="h-7 w-7 rounded-md" aria-label="Toggle bold">
+                                        <Bold className="w-3.5 h-3.5" />
+                                    </ToggleGroupItem>
+                                    <ToggleGroupItem value="italic" className="h-7 w-7 rounded-md" aria-label="Toggle italic">
+                                        <Italic className="w-3.5 h-3.5" />
+                                    </ToggleGroupItem>
+                                    <ToggleGroupItem value="underline" className="h-7 w-7 rounded-md" aria-label="Toggle underline">
+                                        <Underline className="w-3.5 h-3.5" />
+                                    </ToggleGroupItem>
+                                </ToggleGroup>
+                            </div>
                             <Separator orientation="vertical" className="h-6 mx-1" />
                         </>
                     )}
@@ -254,32 +281,34 @@ export function ContextualToolbar({
                             </ToggleGroup>
                             <Separator orientation="vertical" className="h-6 mx-1" />
 
-                            {/* Text Mode (Shrink/Wrap) */}
-                            <TooltipProvider>
-                                <ToggleGroup
-                                    type="single"
-                                    value={selectedElement.textMode || 'shrink'}
-                                    onValueChange={(val: any) => val && handleUpdate({ textMode: val })}
-                                >
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <ToggleGroupItem value="shrink" className="h-9 w-9 rounded-lg" aria-label="Shrink to fit">
-                                                <Shrink className="w-4 h-4" />
-                                            </ToggleGroupItem>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Shrink to fit</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <ToggleGroupItem value="wrap" className="h-9 w-9 rounded-lg" aria-label="Auto wrap">
-                                                <WrapText className="w-4 h-4" />
-                                            </ToggleGroupItem>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Auto Wrap</TooltipContent>
-                                    </Tooltip>
-                                </ToggleGroup>
-                            </TooltipProvider>
-                            <Separator orientation="vertical" className="h-6 mx-1" />
+                            {/* Text Mode (Shrink/Wrap) - Hide for Text Area as it's typically auto-wrap */}
+                            {!isTextArea && (
+                                <TooltipProvider>
+                                    <ToggleGroup
+                                        type="single"
+                                        value={selectedElement.textMode || 'shrink'}
+                                        onValueChange={(val: any) => val && handleUpdate({ textMode: val })}
+                                    >
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <ToggleGroupItem value="shrink" className="h-9 w-9 rounded-lg" aria-label="Shrink to fit">
+                                                    <Shrink className="w-4 h-4" />
+                                                </ToggleGroupItem>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Shrink to fit</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <ToggleGroupItem value="wrap" className="h-9 w-9 rounded-lg" aria-label="Auto wrap">
+                                                    <WrapText className="w-4 h-4" />
+                                                </ToggleGroupItem>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Auto Wrap</TooltipContent>
+                                        </Tooltip>
+                                    </ToggleGroup>
+                                    <Separator orientation="vertical" className="h-6 mx-1" />
+                                </TooltipProvider>
+                            )}
 
                             {/* Text Case & Type Buttons */}
                             <div className="flex items-center bg-gray-50 rounded-lg border border-gray-100 p-0.5">
@@ -317,35 +346,37 @@ export function ContextualToolbar({
                                     </TooltipProvider>
                                 </ToggleGroup>
 
-                                <Separator orientation="vertical" className="h-4 mx-1.5" />
-
-                                <ToggleGroup
-                                    type="single"
-                                    value={selectedElement.textType || 'all'}
-                                    onValueChange={(val: any) => val && handleUpdate({ textType: val })}
-                                    className="h-8"
-                                >
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <ToggleGroupItem value="all" className="h-7 w-7 rounded-md" aria-label="All content">
-                                                    <TypeIcon className="w-3.5 h-3.5" />
-                                                </ToggleGroupItem>
-                                            </TooltipTrigger>
-                                            <TooltipContent>All Characters</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <ToggleGroupItem value="numbers" className="h-7 w-7 rounded-md" aria-label="Numbers only">
-                                                    <Hash className="w-3.5 h-3.5" />
-                                                </ToggleGroupItem>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Numbers Only</TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                </ToggleGroup>
+                                {!isTextArea && (
+                                    <>
+                                        <Separator orientation="vertical" className="h-4 mx-1.5" />
+                                        <ToggleGroup
+                                            type="single"
+                                            value={selectedElement.textType || 'all'}
+                                            onValueChange={(val: any) => val && handleUpdate({ textType: val })}
+                                            className="h-8"
+                                        >
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <ToggleGroupItem value="all" className="h-7 w-7 rounded-md" aria-label="All content">
+                                                            <TypeIcon className="w-3.5 h-3.5" />
+                                                        </ToggleGroupItem>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>All Characters</TooltipContent>
+                                                </Tooltip>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <ToggleGroupItem value="numbers" className="h-7 w-7 rounded-md" aria-label="Numbers only">
+                                                            <Hash className="w-3.5 h-3.5" />
+                                                        </ToggleGroupItem>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Numbers Only</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </ToggleGroup>
+                                    </>
+                                )}
                             </div>
-
                             <Separator orientation="vertical" className="h-6 mx-1" />
 
                             {/* Max Chars Popover */}
@@ -383,13 +414,12 @@ export function ContextualToolbar({
                                     </div>
                                 </PopoverContent>
                             </Popover>
-
                             <Separator orientation="vertical" className="h-6 mx-1" />
                         </>
                     )}
 
                     {/* Fill Mode (Solid / Gradient) */}
-                    {isText && (
+                    {isText && !isTextArea && (
                         <>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -420,15 +450,12 @@ export function ContextualToolbar({
                                         </TabsList>
 
                                         <TabsContent value="solid" className="space-y-3 mt-0">
-                                            <HexColorPicker
-                                                color={localColor}
-                                                onChange={handleColorChange}
-                                            />
+                                            <HexColorPicker color={localColor} onChange={handleColorChange} />
                                             <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t border-gray-100">
                                                 {userColors.map((c: any) => (
                                                     <button
                                                         key={c.id}
-                                                        className="w-6 h-6 rounded-full border border-gray-200"
+                                                        className={`w-6 h-6 rounded-full border ${localColor === c.value ? 'border-indigo-500 scale-110' : 'border-gray-200'}`}
                                                         style={{ backgroundColor: c.value }}
                                                         onClick={() => handleColorChange(c.value)}
                                                     />
@@ -440,47 +467,35 @@ export function ContextualToolbar({
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <Label className="text-[10px] uppercase font-bold text-gray-400">From</Label>
-                                                    <div className="relative group">
-                                                        <input
-                                                            type="color"
-                                                            value={selectedElement.gradient?.from || '#000000'}
-                                                            onChange={(e) => handleGradientChange({ from: e.target.value })}
-                                                            className="w-full h-8 rounded-md border-0 p-0 cursor-pointer overflow-hidden bg-transparent"
-                                                        />
-                                                    </div>
+                                                    <input
+                                                        type="color"
+                                                        value={selectedElement.gradient?.from || '#000000'}
+                                                        onChange={(e) => handleGradientChange({ from: e.target.value })}
+                                                        className="w-full h-8 rounded-md border-0 p-0 cursor-pointer overflow-hidden bg-transparent"
+                                                    />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label className="text-[10px] uppercase font-bold text-gray-400">To</Label>
-                                                    <div className="relative group">
-                                                        <input
-                                                            type="color"
-                                                            value={selectedElement.gradient?.to || '#ffffff'}
-                                                            onChange={(e) => handleGradientChange({ to: e.target.value })}
-                                                            className="w-full h-8 rounded-md border-0 p-0 cursor-pointer overflow-hidden bg-transparent"
-                                                        />
-                                                    </div>
+                                                    <input
+                                                        type="color"
+                                                        value={selectedElement.gradient?.to || '#ffffff'}
+                                                        onChange={(e) => handleGradientChange({ to: e.target.value })}
+                                                        className="w-full h-8 rounded-md border-0 p-0 cursor-pointer overflow-hidden bg-transparent"
+                                                    />
                                                 </div>
                                             </div>
-
-
-
                                             <div className="pt-2 border-t border-gray-100">
-                                                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                                                <div className="flex gap-1.5">
                                                     {[
                                                         { f: '#4f46e5', t: '#9333ea' },
                                                         { f: '#f59e0b', t: '#ef4444' },
-                                                        { f: '#10b981', t: '#3b82f6' },
-                                                        { f: '#000000', t: '#6b7280' },
-                                                        { f: '#ec4899', t: '#f43f5e' }
+                                                        { f: '#10b981', t: '#3b82f6' }
                                                     ].map((g, i) => (
                                                         <button
                                                             key={i}
                                                             className="w-6 h-6 rounded-full border border-gray-200 shrink-0"
                                                             style={{ background: `linear-gradient(135deg, ${g.f}, ${g.t})` }}
-                                                            onClick={() => handleUpdate({
-                                                                fillType: 'gradient',
-                                                                gradient: { from: g.f, to: g.t }
-                                                            })}
+                                                            onClick={() => handleUpdate({ fillType: 'gradient', gradient: { from: g.f, to: g.t } })}
                                                         />
                                                     ))}
                                                 </div>
@@ -493,8 +508,48 @@ export function ContextualToolbar({
                         </>
                     )}
 
-                    {/* Stroke Controls */}
-                    {isText && (
+                    {/* Text Area Color Picker (Solid Only) */}
+                    {isTextArea && (
+                        <>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 gap-2 px-2 border-gray-100 rounded-lg hover:bg-gray-50 w-[115px] justify-start"
+                                    >
+                                        <div
+                                            className="w-4 h-4 rounded-full border border-gray-200 shrink-0"
+                                            style={{ backgroundColor: selectedElement.color || '#000000' }}
+                                        />
+                                        <span className="text-[10px] font-bold uppercase truncate flex-1 text-left">
+                                            {selectedElement.color || '#000'}
+                                        </span>
+                                        <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[280px] p-3 drop-shadow-2xl border-indigo-100 rounded-xl z-[10000]">
+                                    <div className="space-y-3">
+                                        <HexColorPicker color={localColor} onChange={handleColorChange} />
+                                        <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t border-gray-100">
+                                            {userColors.map((c: any) => (
+                                                <button
+                                                    key={c.id}
+                                                    className={`w-6 h-6 rounded-full border ${localColor === c.value ? 'border-indigo-500 scale-110' : 'border-gray-200'}`}
+                                                    style={{ backgroundColor: c.value }}
+                                                    onClick={() => handleColorChange(c.value)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                            <Separator orientation="vertical" className="h-6 mx-1" />
+                        </>
+                    )}
+
+                    {/* Stroke Controls - Hide for Text Area and Monogram */}
+                    {isText && !isTextArea && !isMonogram && (
                         <>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -514,40 +569,11 @@ export function ContextualToolbar({
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-[280px] p-4 drop-shadow-2xl border-indigo-100 rounded-xl space-y-4 z-[10000]">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-gray-700">Text Stroke</span>
-                                        {selectedElement.strokeWidth && selectedElement.strokeWidth > 0 && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-7 text-[10px] text-red-500 hover:text-red-600 px-2"
-                                                onClick={() => handleUpdate({ strokeWidth: 0 })}
-                                            >
-                                                Remove
-                                            </Button>
-                                        )}
-                                    </div>
-
                                     <div className="space-y-3">
                                         <Label className="text-[10px] uppercase font-bold text-gray-400">Stroke Color</Label>
-                                        <HexColorPicker
-                                            color={localStrokeColor}
-                                            onChange={handleStrokeColorChange}
-                                        />
-                                        <div className="grid grid-cols-5 gap-1.5 pt-2 border-t border-gray-100">
-                                            {userColors.map((c: any) => (
-                                                <button
-                                                    key={c.id}
-                                                    className="w-6 h-6 rounded-full border border-gray-200"
-                                                    style={{ backgroundColor: c.value }}
-                                                    onClick={() => handleStrokeColorChange(c.value)}
-                                                />
-                                            ))}
-                                        </div>
+                                        <HexColorPicker color={localStrokeColor} onChange={handleStrokeColorChange} />
                                     </div>
-
                                     <Separator />
-
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
                                             <Label className="text-[10px] uppercase font-bold text-gray-400">Stroke Width</Label>
@@ -559,12 +585,7 @@ export function ContextualToolbar({
                                                 setLocalStrokeWidth(values[0]);
                                                 onUpdateElement(selectedElement.id, { strokeWidth: values[0] }, true);
                                             }}
-                                            onValueCommit={(values: number[]) => {
-                                                onUpdateElement(selectedElement.id, { strokeWidth: values[0] }, false);
-                                            }}
-                                            min={0}
-                                            max={20}
-                                            step={0.1}
+                                            min={0} max={20} step={0.1}
                                         />
                                     </div>
                                 </PopoverContent>
@@ -576,35 +597,26 @@ export function ContextualToolbar({
                     {/* Rotation */}
                     <div className="flex items-center gap-2 px-2">
                         <RotateCw className="w-4 h-4 text-gray-400" />
-                        <div className="w-32">
+                        <div className="w-24">
                             <Slider
                                 value={[selectedElement.rotation || 0]}
                                 onValueChange={(values: number[]) => handleUpdate({ rotation: values[0] })}
-                                min={-180}
-                                max={180}
-                                step={1}
+                                min={-180} max={180} step={1}
                             />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 w-6">{selectedElement.rotation || 0}°</span>
                     </div>
 
                     <Separator orientation="vertical" className="h-6 mx-1" />
 
                     {/* Opacity */}
                     <div className="flex items-center gap-2 px-2">
-                        <div className="w-4 h-4 flex items-center justify-center">
-                            <div className="w-full h-full rounded-sm border border-gray-300 opacity-50 bg-gray-200" />
-                        </div>
-                        <div className="w-32">
+                        <div className="w-24">
                             <Slider
                                 value={[selectedElement.opacity || 100]}
                                 onValueChange={(values: number[]) => handleUpdate({ opacity: values[0] })}
-                                min={0}
-                                max={100}
-                                step={1}
+                                min={0} max={100} step={1}
                             />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 w-8">{selectedElement.opacity || 100}%</span>
                     </div>
 
                     <div className="flex-1" />
@@ -635,10 +647,3 @@ export function ContextualToolbar({
         </div>
     );
 }
-
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
