@@ -25,13 +25,13 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         if (!img) return;
 
         const { width, height, naturalWidth, naturalHeight } = img;
+
+        // Safety check: wait for layout dimensions
         if (width <= 0 || height <= 0) {
-            // Retry later if not yet layed out
-            setTimeout(initializeCrop, 50);
             return;
         }
 
-        // If we have a saved crop, try to restore it
+        // 1. If we have a saved crop, try to restore it
         if (initialCrop && initialCrop.width > 0 && naturalWidth > 0) {
             const backScaleX = width / naturalWidth;
             const backScaleY = height / naturalHeight;
@@ -48,7 +48,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
             }
         }
 
-        // Default: 80% centered box using percentage for maximum stability
+        // 2. Default: 80% centered box
         const percentCrop = centerCrop(
             makeAspectCrop(
                 { unit: '%', width: 80 },
@@ -62,22 +62,21 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         setCrop(percentCrop);
     };
 
-    // Initialize when modal becomes open or image changes
+    // Re-initialize when modal opens or image changes
     useEffect(() => {
         if (isOpen) {
-            // Small delay to ensure Dialog animation finished and layout is stable
+            // Give layout a tiny bit of time
             const timer = setTimeout(() => {
                 if (imgRef.current && imgRef.current.complete) {
                     initializeCrop();
                 }
-            }, 150);
+            }, 50);
             return () => clearTimeout(timer);
         } else {
-            // Reset state when closing
             setCrop(undefined);
             setCompletedCrop(undefined);
         }
-    }, [isOpen, imageUrl]);
+    }, [isOpen, imageUrl, initialCrop]);
 
     const centerHorizontal = () => {
         setCrop((c) => {
@@ -129,7 +128,8 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         });
     };
 
-    const handleSave = () => {
+    const handleSave = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
         if (completedCrop && imgRef.current) {
             const img = imgRef.current;
             const scaleX = img.naturalWidth / img.width;
@@ -161,10 +161,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         <Dialog open={isOpen} onOpenChange={(open) => {
             if (!open) onClose();
         }}>
-            <DialogContent
-                className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl z-[50]"
-                onPointerDownOutside={(e) => e.preventDefault()} // Prevent closing when interacting with ReactCrop
-            >
+            <DialogContent className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
                         <CropIcon className="w-5 h-5 text-indigo-600" />
@@ -184,7 +181,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                         <img
                             ref={imgRef}
                             src={imageUrl}
-                            onLoad={initializeCrop}
+                            onLoad={(e) => initializeCrop()}
                             className="max-w-full block"
                             crossOrigin="anonymous"
                         />
@@ -201,7 +198,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent className="z-[70]" side="top">Center Horizontal</TooltipContent>
+                                    <TooltipContent side="top">Center Horizontal</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -209,7 +206,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignVerticalJustifyCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent className="z-[70]" side="top">Center Vertical</TooltipContent>
+                                    <TooltipContent side="top">Center Vertical</TooltipContent>
                                 </Tooltip>
                                 <div className="w-px h-4 bg-gray-300 mx-1" />
                                 <Tooltip>
@@ -223,7 +220,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Square className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent className="z-[70]" side="top">Square 1:1</TooltipContent>
+                                    <TooltipContent side="top">Square 1:1</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -231,7 +228,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Maximize className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent className="z-[70]" side="top">Fit to Image</TooltipContent>
+                                    <TooltipContent side="top">Fit to Image</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -239,7 +236,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <RotateCcw className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent className="z-[70]" side="top">Reset Area</TooltipContent>
+                                    <TooltipContent side="top">Reset Area</TooltipContent>
                                 </Tooltip>
                             </div>
 
