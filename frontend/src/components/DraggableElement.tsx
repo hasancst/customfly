@@ -29,11 +29,9 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const z = zoom / 100;
-
-  // Calculate the scale between the natural pixels and the displayed size
-  // width/height passed here are the element's dimensions (which are the crop dimensions if crop exists)
 
   useEffect(() => {
     if (!removeBg || removeBgType !== 'js') return;
@@ -42,18 +40,17 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
     const ctx = canvas?.getContext('2d', { willReadFrequently: true });
     const img = imgRef.current;
 
-    if (!canvas || !ctx || !img) return;
+    if (!canvas || !ctx || !img || !isLoaded) return;
 
     const process = () => {
-      // If cropped, we only want to process the cropped area or handle positioning
-      // Simplest: Draw the whole image correctly scaled/shifted or draw just the crop
+      // Draw to canvas for BG removal
       if (crop) {
         canvas.width = crop.width;
         canvas.height = crop.height;
         ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
       } else {
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = img.naturalWidth || width;
+        canvas.height = img.naturalHeight || height;
         ctx.drawImage(img, 0, 0);
       }
 
@@ -82,41 +79,57 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
       }
     };
 
-    if (img.complete) {
-      process();
-    } else {
-      img.onload = process;
-    }
-  }, [src, removeBg, deep, mode, crop]);
+    process();
+  }, [src, removeBg, deep, mode, crop, isLoaded]);
 
   const showProcessed = removeBg && removeBgType === 'js';
 
-  return (
-    <div style={{
+  // Core styles for the container
+  const containerStyle: React.CSSProperties = {
+    width: width * z,
+    height: height * z,
+    overflow: 'hidden',
+    position: 'relative',
+  };
+
+  // Base style for the image
+  let imgStyle: React.CSSProperties = {
+    display: showProcessed ? 'none' : 'block',
+    userSelect: 'none',
+    pointerEvents: 'none',
+    filter: filter || 'none',
+    maxWidth: 'none',
+  };
+
+  if (crop) {
+    // If cropped, we must use absolute positioning and transform to show the right slice
+    imgStyle = {
+      ...imgStyle,
+      position: 'absolute',
+      width: 'auto',
+      height: 'auto',
+      transform: `scale(${(width / crop.width) * z}) translate(${-crop.x}px, ${-crop.y}px)`,
+      transformOrigin: '0 0',
+    };
+  } else {
+    // Standard image render: Fill the component dimensions
+    imgStyle = {
+      ...imgStyle,
       width: width * z,
       height: height * z,
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+      objectFit: 'contain',
+    };
+  }
+
+  return (
+    <div style={containerStyle}>
       <img
         ref={imgRef}
         src={src}
-        style={{
-          display: showProcessed ? 'none' : 'block',
-          position: 'absolute',
-          width: 'auto',
-          height: 'auto',
-          maxWidth: 'none',
-          // Use transform for better performance and clarity
-          transform: crop
-            ? `scale(${(width / crop.width) * z}) translate(${-crop.x}px, ${-crop.y}px)`
-            : `scale(${(width / (imgRef.current?.naturalWidth || width)) * z})`,
-          transformOrigin: '0 0',
-          filter: filter || 'none',
-          userSelect: 'none',
-          pointerEvents: 'none',
-        }}
-        crossOrigin="anonymous"
+        onLoad={() => setIsLoaded(true)}
+        style={imgStyle}
+        // Only trigger CORS if we actually need it for canvas processing
+        crossOrigin={showProcessed ? "anonymous" : undefined}
         draggable={false}
       />
       {showProcessed && (
