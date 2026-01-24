@@ -515,6 +515,7 @@ export default function AssetDetail() {
 
     return (
         <Page
+            fullWidth
             backAction={{ content: 'Assets', onAction: () => navigate('/assets') }}
             title={asset.name}
             primaryAction={{

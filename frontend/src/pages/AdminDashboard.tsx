@@ -419,7 +419,7 @@ export default function AdminDashboard() {
     );
 
     return (
-        <Page title="Product Inventory">
+        <Page title="Product Inventory" fullWidth>
             <Layout>
                 <Layout.Section>
                     <Card padding="0">

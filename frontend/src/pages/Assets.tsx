@@ -32,12 +32,8 @@ export default function Assets() {
 
     // Form states
     const [assetName, setAssetName] = useState('');
-    const [assetValue, setAssetValue] = useState('Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
-
-    // Generic states
-    const [groupName, setGroupName] = useState('Default');
 
     const fetch = useAuthenticatedFetch();
     const [toastActive, setToastActive] = useState(false);
@@ -126,8 +122,6 @@ export default function Assets() {
                 console.log("Asset created successfully");
                 setIsModalOpen(false);
                 setAssetName('');
-                setGroupName('Default');
-                setAssetValue('Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
                 fetchAssets();
             } else {
                 const errorData = await response.json().catch(() => ({}));
@@ -342,6 +336,7 @@ export default function Assets() {
     return (
         <Page
             title="Asset Management"
+            fullWidth
             primaryAction={{
                 content: `Create ${tabs[selectedTab].content}`,
                 onAction: () => setIsModalOpen(true),
