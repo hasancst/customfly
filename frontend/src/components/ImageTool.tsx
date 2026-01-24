@@ -303,7 +303,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 {IMAGE_SHAPES.map((shape) => (
                   <button
                     key={shape.id}
-                    onClick={() => handleUpdate({ maskShape: shape.path })}
+                    onClick={() => handleUpdate({ maskShape: shape.path, maskViewBox: shape.viewBox || '0 0 100 100' })}
                     className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-[10px] font-bold ${selectedElement.maskShape === shape.path
                       ? 'bg-orange-600 border-orange-600 text-white'
                       : 'bg-white border-gray-200 text-gray-600 hover:border-orange-400'

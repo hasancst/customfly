@@ -64,6 +64,7 @@ export interface CanvasElement {
     height: number;
   };
   maskShape?: string; // Path/SVG for masking
+  maskViewBox?: string; // viewBox for masking
 
   // Field specific
   fieldType?: 'text' | 'email' | 'number' | 'textarea';

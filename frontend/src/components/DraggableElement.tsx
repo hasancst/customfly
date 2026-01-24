@@ -15,7 +15,8 @@ interface DraggableElementProps {
   enableBounce?: boolean;
 }
 
-const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height, zoom, filter, crop, maskShape }: {
+const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, width, height, zoom, filter, crop, maskShape, maskViewBox }: {
+  id: string,
   src: string,
   removeBg: boolean,
   removeBgType: 'js' | 'rembg',
@@ -26,7 +27,8 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
   zoom: number,
   filter?: string,
   crop?: { x: number, y: number, width: number, height: number },
-  maskShape?: string
+  maskShape?: string,
+  maskViewBox?: string
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -122,27 +124,65 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
     };
   }
 
+  const maskId = useMemo(() => `mask-${id}`, [id]);
+
+  const maskTransform = useMemo(() => {
+    if (!maskShape) return "";
+    if (!maskViewBox) return "scale(0.01, 0.01)";
+    const parts = maskViewBox.split(/[ ,]+/).map(Number);
+    if (parts.length !== 4) return "scale(0.01, 0.01)";
+    const [minX, minY, vbWidth, vbHeight] = parts;
+
+    // Safety margin to prevent edge clipping (5% buffer)
+    const margin = 0.05;
+    const s = 1 - (margin * 2);
+
+    const sx = s / vbWidth;
+    const sy = s / vbHeight;
+
+    return `translate(${margin}, ${margin}) scale(${sx}, ${sy}) translate(${-minX}, ${-minY})`;
+  }, [maskShape, maskViewBox]);
+
+  const clipPathStyle = useMemo(() => ({
+    width: '100%',
+    height: '100%',
+    clipPath: maskShape ? `url(#${maskId})` : 'none',
+    overflow: 'hidden'
+  }), [maskShape, maskId]);
+
+  // Adjust objectFit when masking is active
+  if (maskShape && !crop) {
+    imgStyle = {
+      ...imgStyle,
+      objectFit: 'cover',
+    };
+  }
+
   return (
     <div style={containerStyle}>
-      <svg width="0" height="0" style={{ position: 'absolute' }}>
+      <svg
+        style={{
+          position: 'absolute',
+          width: 0,
+          height: 0,
+          pointerEvents: 'none',
+          visibility: 'hidden'
+        }}
+        aria-hidden="true"
+      >
         <defs>
-          <clipPath id={`mask-${src.replace(/[^a-z0-9]/gi, '')}-${width}-${height}`} clipPathUnits="objectBoundingBox">
+          <clipPath id={maskId} clipPathUnits="objectBoundingBox">
             {maskShape?.startsWith('M') ? (
-              <path d={maskShape} transform="scale(0.01, 0.01)" />
+              <path d={maskShape} transform={maskTransform} />
             ) : maskShape ? (
-              <polygon points={maskShape} transform="scale(0.01, 0.01)" />
+              <polygon points={maskShape} transform={maskTransform} />
             ) : (
               <rect width="1" height="1" />
             )}
           </clipPath>
         </defs>
       </svg>
-      <div style={{
-        width: '100%',
-        height: '100%',
-        clipPath: maskShape ? `url(#mask-${src.replace(/[^a-z0-9]/gi, '')}-${width}-${height})` : 'none',
-        overflow: 'hidden'
-      }}>
+      <div style={clipPathStyle}>
         <img
           ref={imgRef}
           src={src}
@@ -164,7 +204,7 @@ const ProcessedImage = ({ src, removeBg, removeBgType, deep, mode, width, height
       </div>
     </div>
   );
-};
+});
 
 const BridgeText = ({ element, zoom }: { element: CanvasElement, zoom: number }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -723,6 +763,7 @@ export const DraggableElement = memo(({
         return (
           <div className="relative">
             <ProcessedImage
+              id={element.id}
               src={element.src || ''}
               removeBg={!!element.removeBg}
               removeBgType={(element.removeBgType as any) || 'js'}
@@ -734,6 +775,7 @@ export const DraggableElement = memo(({
               filter={filterString}
               crop={element.crop}
               maskShape={element.maskShape}
+              maskViewBox={element.maskViewBox}
             />
           </div>
         );
