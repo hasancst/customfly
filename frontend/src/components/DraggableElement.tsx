@@ -913,8 +913,7 @@ export const DraggableElement = memo(({
         );
 
       case 'gallery':
-        const galleryMode = element.galleryMode || 'all';
-        const categoryCount = element.galleryCategories?.length || 0;
+        const galleryCount = element.gallerySourceIds?.length || 0;
         return (
           <div className="flex flex-col items-center justify-center bg-pink-50 border-2 border-pink-200 rounded-2xl overflow-hidden group/opt p-4" style={{ width: (element.width || 300) * (zoom / 100), height: (element.height || 150) * (zoom / 100) }}>
             <Images className="w-10 h-10 text-pink-500 mb-2 group-hover/opt:scale-110 transition-transform" />
@@ -922,7 +921,7 @@ export const DraggableElement = memo(({
             <div className="mt-2 flex items-center gap-2">
               <div className="px-2 py-0.5 bg-pink-100 rounded-full">
                 <span className="text-[9px] font-bold text-pink-600">
-                  {galleryMode === 'categorized' ? `${categoryCount} Categories` : 'All Images'}
+                  {galleryCount} Galleries
                 </span>
               </div>
               <div className="px-2 py-0.5 bg-white rounded-full border border-pink-200">

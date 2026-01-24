@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Images, Plus, X, FolderOpen, Grid3x3, Database } from 'lucide-react';
+import { Images, Plus, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CanvasElement } from '@/types';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Badge } from '@/components/ui/badge';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
 interface GalleryToolProps {
@@ -15,13 +13,6 @@ interface GalleryToolProps {
 }
 
 export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: GalleryToolProps) {
-    const [galleryMode, setGalleryMode] = useState<'categorized' | 'all'>(
-        selectedElement?.galleryMode || 'all'
-    );
-    const [categories, setCategories] = useState<string[]>(
-        selectedElement?.galleryCategories || []
-    );
-    const [newCategory, setNewCategory] = useState('');
     const [maxImages, setMaxImages] = useState(selectedElement?.galleryMaxImages || 10);
     const [availableGalleries, setAvailableGalleries] = useState<any[]>([]);
     const [selectedGalleries, setSelectedGalleries] = useState<string[]>(
@@ -31,8 +22,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
 
     useEffect(() => {
         if (selectedElement?.type === 'gallery') {
-            setGalleryMode(selectedElement.galleryMode || 'all');
-            setCategories(selectedElement.galleryCategories || []);
             setMaxImages(selectedElement.galleryMaxImages || 10);
             setSelectedGalleries(selectedElement.gallerySourceIds || []);
         }
@@ -66,8 +55,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
             rotation: 0,
             opacity: 100,
             zIndex: Date.now(),
-            galleryMode,
-            galleryCategories: categories,
             galleryMaxImages: maxImages,
             gallerySourceIds: selectedGalleries,
         };
@@ -80,67 +67,8 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
         }
     };
 
-    const handleAddCategory = () => {
-        if (newCategory.trim() && !categories.includes(newCategory.trim())) {
-            const updatedCategories = [...categories, newCategory.trim()];
-            setCategories(updatedCategories);
-            setNewCategory('');
-            if (selectedElement) {
-                handleUpdate({ galleryCategories: updatedCategories });
-            }
-        }
-    };
-
-    const handleRemoveCategory = (category: string) => {
-        const updatedCategories = categories.filter(c => c !== category);
-        setCategories(updatedCategories);
-        if (selectedElement) {
-            handleUpdate({ galleryCategories: updatedCategories });
-        }
-    };
-
     return (
         <div className="space-y-6 pb-4">
-            {/* Gallery Mode Selection */}
-            <div className="px-1 space-y-3">
-                <div className="flex items-center gap-2">
-                    <Images className="w-4 h-4 text-pink-500" />
-                    <Label className="text-sm font-bold text-gray-700">Display Mode</Label>
-                </div>
-
-                <ToggleGroup
-                    type="single"
-                    value={galleryMode}
-                    onValueChange={(val: any) => {
-                        if (val) {
-                            setGalleryMode(val);
-                            if (selectedElement) handleUpdate({ galleryMode: val });
-                        }
-                    }}
-                    className="w-full bg-gray-50 p-1 rounded-xl border border-gray-100"
-                >
-                    <ToggleGroupItem
-                        value="all"
-                        className="flex-1 gap-2 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-pink-600 data-[state=active]:shadow-sm"
-                    >
-                        <Grid3x3 className="w-3.5 h-3.5" />
-                        All Images
-                    </ToggleGroupItem>
-                    <ToggleGroupItem
-                        value="categorized"
-                        className="flex-1 gap-2 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-pink-600 data-[state=active]:shadow-sm"
-                    >
-                        <FolderOpen className="w-3.5 h-3.5" />
-                        By Category
-                    </ToggleGroupItem>
-                </ToggleGroup>
-
-                <p className="text-[10px] text-gray-500 italic px-1">
-                    {galleryMode === 'all'
-                        ? 'Show all images in a single grid view'
-                        : 'Organize images into category tabs'}\n                </p>
-            </div>
-
             {/* Gallery Selection - Always show */}
             <div className="px-1 space-y-3">
                 <Label className="text-sm font-bold text-gray-700">Select Galleries</Label>
@@ -192,56 +120,6 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                 )}
             </div>
 
-            {/* Categories (only show if categorized mode) */}
-            {galleryMode === 'categorized' && (
-                <div className="px-1 space-y-3">
-                    <Label className="text-sm font-bold text-gray-700">Categories</Label>
-
-                    {/* Add Category Input */}
-                    <div className="flex gap-2">
-                        <Input
-                            value={newCategory}
-                            onChange={(e) => setNewCategory(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
-                            placeholder="e.g., Wedding, Portrait, Nature"
-                            className="flex-1 h-9 rounded-lg text-xs"
-                        />
-                        <Button
-                            onClick={handleAddCategory}
-                            size="sm"
-                            className="h-9 px-3 bg-pink-500 hover:bg-pink-600 text-white rounded-lg"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </Button>
-                    </div>
-
-                    {/* Category List */}
-                    {categories.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                            {categories.map((category) => (
-                                <Badge
-                                    key={category}
-                                    variant="secondary"
-                                    className="pl-3 pr-1 py-1 bg-pink-50 text-pink-700 border border-pink-200 rounded-lg flex items-center gap-1.5"
-                                >
-                                    <span className="text-xs font-medium">{category}</span>
-                                    <button
-                                        onClick={() => handleRemoveCategory(category)}
-                                        className="hover:bg-pink-200 rounded-full p-0.5 transition-colors"
-                                    >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </Badge>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-xs text-gray-400 italic text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                            No categories yet. Add one above.
-                        </p>
-                    )}
-                </div>
-            )}
-
             {/* Max Images */}
             <div className="px-1 space-y-2">
                 <div className="flex items-center justify-between">
@@ -285,8 +163,7 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                     <div className="text-[10px] text-pink-700 space-y-1">
                         <p className="font-bold">Gallery will display:</p>
                         <ul className="list-disc list-inside space-y-0.5 ml-1">
-                            <li>Customer uploaded images</li>
-                            <li>Images from selected categories (if categorized)</li>
+                            <li>Images from selected galleries</li>
                             <li>Thumbnail grid with lightbox view</li>
                         </ul>
                     </div>
