@@ -312,21 +312,27 @@ export default function Assets() {
                                 View {asset.type === 'font' ? 'Fonts' : asset.type === 'color' ? 'Colors' : asset.type === 'gallery' ? 'Gallery' : 'Options'}
                             </Button>
                         )}
-                        <Button
-                            icon={EditIcon}
-                            variant="tertiary"
-                            onClick={(e?: any) => {
-                                e?.stopPropagation();
-                                handleEditAsset(asset);
-                            }}
-                        />
-                        <Button
-                            icon={DeleteIcon}
-                            tone="critical"
-                            variant="tertiary"
-                            loading={isDeleting === id}
-                            onClick={() => handleDeleteAsset(id)}
-                        />
+                        <div className="flex gap-1.5">
+                            <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                <Button
+                                    icon={EditIcon}
+                                    variant="plain"
+                                    onClick={(e?: any) => {
+                                        e?.stopPropagation();
+                                        handleEditAsset(asset);
+                                    }}
+                                />
+                            </div>
+                            <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-red-50 transition-colors">
+                                <Button
+                                    icon={DeleteIcon}
+                                    tone="critical"
+                                    variant="plain"
+                                    loading={isDeleting === id}
+                                    onClick={() => handleDeleteAsset(id)}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </ResourceItem>

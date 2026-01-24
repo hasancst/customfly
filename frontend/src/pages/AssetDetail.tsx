@@ -658,21 +658,25 @@ export default function AssetDetail() {
                                                             <span style={{ fontFamily: item.name, fontSize: '14px' }}>Customfly</span>
                                                         </div>
                                                     )}
-                                                    <Button
-                                                        icon={EditIcon}
-                                                        variant="plain"
-                                                        onClick={() => {
-                                                            setItemToRename(item);
-                                                            setNewItemName(item.name);
-                                                            setIsRenameModalOpen(true);
-                                                        }}
-                                                    />
-                                                    <Button
-                                                        icon={DeleteIcon}
-                                                        variant="plain"
-                                                        tone="critical"
-                                                        onClick={() => handleDeleteItem(item.name)}
-                                                    />
+                                                    <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                                        <Button
+                                                            icon={EditIcon}
+                                                            variant="plain"
+                                                            onClick={() => {
+                                                                setItemToRename(item);
+                                                                setNewItemName(item.name);
+                                                                setIsRenameModalOpen(true);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-red-50 transition-colors">
+                                                        <Button
+                                                            icon={DeleteIcon}
+                                                            variant="plain"
+                                                            tone="critical"
+                                                            onClick={() => handleDeleteItem(item.name)}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </Reorder.Item>
@@ -755,25 +759,29 @@ export default function AssetDetail() {
                                             )}
 
                                             <div className="shrink-0 ml-4 flex gap-1">
-                                                <Button
-                                                    icon={EditIcon}
-                                                    variant="plain"
-                                                    onClick={(e?: any) => {
-                                                        e?.stopPropagation();
-                                                        setItemToRename(item);
-                                                        setNewItemName(item.name);
-                                                        setIsRenameModalOpen(true);
-                                                    }}
-                                                />
-                                                <Button
-                                                    icon={DeleteIcon}
-                                                    variant="plain"
-                                                    tone="critical"
-                                                    onClick={(e?: any) => {
-                                                        e?.stopPropagation();
-                                                        handleDeleteItem(item.name);
-                                                    }}
-                                                />
+                                                <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                                    <Button
+                                                        icon={EditIcon}
+                                                        variant="plain"
+                                                        onClick={(e?: any) => {
+                                                            e?.stopPropagation();
+                                                            setItemToRename(item);
+                                                            setNewItemName(item.name);
+                                                            setIsRenameModalOpen(true);
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-red-50 transition-colors">
+                                                    <Button
+                                                        icon={DeleteIcon}
+                                                        variant="plain"
+                                                        tone="critical"
+                                                        onClick={(e?: any) => {
+                                                            e?.stopPropagation();
+                                                            handleDeleteItem(item.name);
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </ResourceItem>
