@@ -6,7 +6,7 @@ import Settings from '@/pages/Settings';
 import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
 import { RoutePropagator } from '@/components/RoutePropagator';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink } from 'react-router-dom';
 import { Provider as AppBridgeProvider, NavigationMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisProvider, Frame } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
@@ -21,8 +21,16 @@ export default function App() {
     };
     console.log("AppBridge Config:", { apiKey: config.apiKey ? "FOUND" : "MISSING", host: config.host ? "FOUND" : "MISSING" });
 
+    const LinkComponent = ({ children, url, ...rest }: any) => {
+        return (
+            <RouterLink to={url} {...rest}>
+                {children}
+            </RouterLink>
+        );
+    };
+
     return (
-        <PolarisProvider i18n={enTranslations}>
+        <PolarisProvider i18n={enTranslations} linkComponent={LinkComponent}>
             <AppBridgeProvider config={config}>
                 <BrowserRouter>
                     <Frame>
