@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast, Badge } from '@shopify/polaris';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
 import { DeleteIcon, PlusIcon, SearchIcon, EditIcon, DragHandleIcon } from '@shopify/polaris-icons';
 import { Reorder } from 'motion/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -35,7 +35,6 @@ interface ListItem {
     isPattern?: boolean;
     patternUrl?: string;
     url?: string; // For gallery images
-    subGroup?: string; // For nested sub-grouping
     originalIndex?: number;
 }
 
@@ -62,7 +61,6 @@ export default function AssetDetail() {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [itemToRename, setItemToRename] = useState<ListItem | null>(null);
     const [newItemName, setNewItemName] = useState('');
-    const [newSubGroup, setNewSubGroup] = useState('');
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
     const [localItems, setLocalItems] = useState<ListItem[]>([]);
@@ -140,15 +138,13 @@ export default function AssetDetail() {
         if (asset.type === 'gallery') {
             return safeSplit(asset.value).map(pair => {
                 const parts = pair.split('|');
-                if (parts.length === 3) {
-                    // SubGroup|Name|URL
-                    return { subGroup: parts[0], name: parts[1], url: parts[2], id: pair };
-                } else if (parts.length === 4) {
-                    // Migration fallback: Category|Sub|Name|URL -> Join Cat & Sub
-                    return { subGroup: `${parts[0]} - ${parts[1]}`, name: parts[2], url: parts[3], id: pair };
+                // Auto-handle migrated or simple formats
+                if (parts.length >= 2) {
+                    const url = parts[parts.length - 1];
+                    const name = parts[parts.length - 2];
+                    return { name: name?.trim() || '', url: url?.trim() || '', id: pair };
                 }
-                const [name, url] = pair.split('|');
-                return { subGroup: 'General', name: name?.trim() || '', url: url?.trim() || '', id: pair };
+                return { name: pair, url: '', id: pair };
             }).filter(i => i.name);
         }
 
@@ -217,7 +213,6 @@ export default function AssetDetail() {
                 .filter(() => asset?.config?.fontType === 'google')
                 .map(f => f.name.replace(/ /g, '+'))
                 .join('|');
-            /* ... snippet omitted for brevity in thought, fully replaced in call ... */
 
             if (googleFamilies) {
                 const linkId = 'detail-google-fonts';
@@ -254,7 +249,10 @@ export default function AssetDetail() {
         } else if (asset.type === 'color') {
             newListStr = currentList.filter(pair => pair.split('|')[0] !== itemName).join('\n');
         } else if (asset.type === 'gallery') {
-            newListStr = currentList.filter(pair => pair.split('|')[0] !== itemName).join('\n');
+            newListStr = currentList.filter(pair => {
+                const parts = pair.split('|');
+                return parts[parts.length - 2] !== itemName;
+            }).join('\n');
         }
 
         try {
@@ -285,9 +283,15 @@ export default function AssetDetail() {
         const currentList = safeSplit(asset.value);
         const nameChangedList = currentList.map(pair => {
             const parts = pair.split('|');
-            if (parts[0] === itemToRename.name) {
-                // Keep the value/url part, only change the name
-                return parts.length > 1 ? `${newItemName}|${parts[1]}` : newItemName;
+            // Index logic for simple vs nested
+            const nameIndex = parts.length - 2;
+            if (parts[nameIndex === -1 ? 0 : nameIndex] === itemToRename.name) {
+                if (parts.length >= 2) {
+                    const newParts = [...parts];
+                    newParts[newParts.length - 2] = newItemName;
+                    return newParts.join('|');
+                }
+                return newItemName;
             }
             return pair;
         });
@@ -455,14 +459,14 @@ export default function AssetDetail() {
                 newListStr = [...currentList, valToStore].join('\n');
             } else if (asset.type === 'gallery') {
                 const newItems: string[] = [];
-                const group = newSubGroup.trim() || 'General';
+                if (galleryFiles.length === 0) return;
 
                 for (let i = 0; i < galleryFiles.length; i++) {
                     const file = galleryFiles[i];
                     try {
                         const name = file.name.split('.')[0];
                         const compressedBase64 = await compressImage(file);
-                        newItems.push(`${group}|${name}|${compressedBase64}`);
+                        newItems.push(`${name}|${compressedBase64}`);
                         setUploadProgress(Math.round(((i + 1) / galleryFiles.length) * 100));
                     } catch (err) {
                         console.error(`Failed to process ${file.name}:`, err);
@@ -491,7 +495,6 @@ export default function AssetDetail() {
                 newListStr = [...currentList, ...newItems].join('\n');
             }
 
-            // ... same update logic ...
             const response = await fetch(`/imcst_api/assets/${asset.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -511,7 +514,7 @@ export default function AssetDetail() {
                 setNewColorHex('#000000');
                 setPatternFile(null);
                 setSelectedGoogleFonts([]);
-                setNewSubGroup('');
+                setGalleryFiles([]);
             }
         } catch (err) {
             console.error(err);
@@ -664,10 +667,7 @@ export default function AssetDetail() {
                                                             <div className="w-20 h-20 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
                                                                 <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
                                                             </div>
-                                                            <div className="flex flex-col gap-1">
-                                                                <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                                <Badge tone="info">{item.subGroup}</Badge>
-                                                            </div>
+                                                            <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
                                                         </div>
                                                     )}
                                                     {asset.type === 'font' && (
@@ -739,10 +739,7 @@ export default function AssetDetail() {
                                             {asset.type === 'gallery' && (
                                                 <div className="flex-1 px-8">
                                                     <div className="flex items-center gap-4 justify-end">
-                                                        <div className="flex flex-col gap-1 items-end">
-                                                            <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                            <Badge tone="info">{item.subGroup}</Badge>
-                                                        </div>
+                                                        <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
                                                         <div className="w-24 h-24 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
                                                             <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
                                                         </div>
@@ -827,167 +824,148 @@ export default function AssetDetail() {
                         )}
                     </Card>
                 </Layout.Section>
-
             </Layout>
 
             <Modal
                 open={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
-                title={`Add New ${asset.type === 'font' ? 'Font' : 'Color'}`}
+                title={asset.type === 'font' ? 'Add Fonts to Group' :
+                    asset.type === 'gallery' ? 'Add Images to Gallery' :
+                        asset.type === 'option' ? 'Add Options' : 'Add New Color'}
                 primaryAction={{
-                    content: 'Add',
+                    content: 'Add Items',
                     onAction: handleAddItem,
                     loading: isSubmitting
                 }}
                 secondaryActions={[{ content: 'Cancel', onAction: () => setIsAddModalOpen(false) }]}
             >
                 <Modal.Section>
-                    <FormLayout>
+                    <BlockStack gap="400">
                         {asset.type === 'font' && (
-                            <>
+                            <BlockStack gap="400">
                                 <Select
-                                    label="Font Source"
+                                    label="Source"
                                     options={[
-                                        { label: 'Google Fonts', value: 'google' },
-                                        { label: 'Custom Font (URL)', value: 'custom' },
-                                        { label: 'Upload Font File', value: 'upload' },
+                                        { label: 'Google Fonts Library', value: 'google' },
+                                        { label: 'System / Custom Font Name', value: 'custom' },
                                     ]}
                                     value={newFontType}
-                                    onChange={(v: any) => setNewFontType(v)}
+                                    onChange={(val: any) => setNewFontType(val)}
                                 />
+
                                 {newFontType === 'google' ? (
                                     <BlockStack gap="200">
                                         <Combobox
+                                            allowMultiple
                                             activator={
                                                 <Combobox.TextField
                                                     prefix={<Icon source={SearchIcon} />}
                                                     onChange={updateText}
-                                                    label="Font Name"
+                                                    label="Search Google Fonts"
+                                                    labelHidden
                                                     value={inputValue}
-                                                    placeholder="Search Google Font..."
+                                                    placeholder="Search fonts..."
                                                     autoComplete="off"
                                                 />
                                             }
                                         >
-                                            {googleFontOptions.length > 0 || inputValue ? (
-                                                <Listbox onSelect={(option) => {
-                                                    if (!selectedGoogleFonts.includes(option)) {
-                                                        setSelectedGoogleFonts([...selectedGoogleFonts, option]);
+                                            {googleFontOptions.length > 0 ? (
+                                                <Listbox onSelect={(val) => {
+                                                    if (!selectedGoogleFonts.includes(val)) {
+                                                        setSelectedGoogleFonts([...selectedGoogleFonts, val]);
                                                     }
                                                     setInputValue('');
-                                                    setNewName('');
-                                                    updateText('');
                                                 }}>
-                                                    {inputValue.length > 0 && !googleFontOptions.some(o => o.toLowerCase() === inputValue.toLowerCase()) && (
-                                                        <Listbox.Option value={inputValue} accessibilityLabel={`Add ${inputValue}`}>
-                                                            Add "{inputValue}"
-                                                        </Listbox.Option>
-                                                    )}
-                                                    {googleFontOptions.slice(0, 50).map((option) => (
-                                                        <Listbox.Option
-                                                            key={option}
-                                                            value={option}
-                                                            selected={selectedGoogleFonts.includes(option)}
-                                                            accessibilityLabel={option}
-                                                        >
-                                                            {option}
+                                                    {googleFontOptions.map((font) => (
+                                                        <Listbox.Option key={font} value={font} selected={selectedGoogleFonts.includes(font)}>
+                                                            {font}
                                                         </Listbox.Option>
                                                     ))}
                                                 </Listbox>
                                             ) : null}
                                         </Combobox>
-                                        {selectedGoogleFonts.length > 0 && (
-                                            <InlineStack gap="200">
-                                                {selectedGoogleFonts.map(tag => (
-                                                    <Tag key={tag} onRemove={() => removeTag(tag)}>{tag}</Tag>
-                                                ))}
-                                            </InlineStack>
-                                        )}
+                                        <InlineStack gap="200">
+                                            {selectedGoogleFonts.map((font) => (
+                                                <Tag key={font} onRemove={() => removeTag(font)}>{font}</Tag>
+                                            ))}
+                                        </InlineStack>
                                     </BlockStack>
                                 ) : (
                                     <TextField
-                                        label="Font Name"
+                                        label="Font Family Name"
                                         value={newName}
                                         onChange={setNewName}
                                         autoComplete="off"
-                                        placeholder="e.g. MyCustomFont"
+                                        placeholder="e.g. Arial, MyCustomFont"
+                                        helpText="Enter the exact CSS font-family name."
                                     />
                                 )}
-                            </>
+                            </BlockStack>
                         )}
 
                         {asset.type === 'color' && (
                             <BlockStack gap="400">
-                                <Select
-                                    label="Item Type"
-                                    options={[
-                                        { label: 'Solid Color', value: 'color' },
-                                        { label: 'Pattern Image', value: 'pattern' },
-                                    ]}
-                                    value={colorItemType}
-                                    onChange={(v: any) => setColorItemType(v)}
-                                />
-                                <TextField
-                                    label="Name"
-                                    value={newColorName}
-                                    onChange={setNewColorName}
-                                    autoComplete="off"
-                                    placeholder={colorItemType === 'color' ? 'e.g. Ocean Blue' : 'e.g. Floral Pattern'}
-                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <TextField
+                                        label="Color/Pattern Name"
+                                        value={newColorName}
+                                        onChange={setNewColorName}
+                                        autoComplete="off"
+                                        placeholder="e.g. Arctic White"
+                                    />
+                                    <Select
+                                        label="Type"
+                                        options={[
+                                            { label: 'Solid Color', value: 'color' },
+                                            { label: 'Pattern/Texture', value: 'pattern' },
+                                        ]}
+                                        value={colorItemType}
+                                        onChange={(val: any) => setColorItemType(val)}
+                                    />
+                                </div>
+
                                 {colorItemType === 'color' ? (
-                                    <div className="flex gap-4 items-end">
+                                    <div className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50">
                                         <div className="flex-1">
                                             <TextField
-                                                label="Hex Color Code"
+                                                label="Hex Color"
+                                                labelHidden
                                                 value={newColorHex}
                                                 onChange={setNewColorHex}
                                                 autoComplete="off"
                                                 placeholder="#000000"
+                                                prefix={<div className="w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: newColorHex }} />}
                                             />
                                         </div>
-                                        <div
-                                            className="w-12 h-10 rounded border border-gray-300 shadow-sm mb-1"
-                                            style={{ backgroundColor: newColorHex }}
+                                        <input
+                                            type="color"
+                                            value={newColorHex}
+                                            onChange={(e) => setNewColorHex(e.target.value)}
+                                            className="w-10 h-10 p-0 border-0 rounded cursor-pointer overflow-hidden"
                                         />
                                     </div>
                                 ) : (
                                     <BlockStack gap="400">
-                                        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-                                            <button
-                                                type="button"
-                                                className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${patternSource === 'library' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
-                                                onClick={() => setPatternSource('library')}
-                                            >
-                                                Library
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className={`flex-1 py-1 text-xs font-medium rounded-md transition-all ${patternSource === 'upload' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
-                                                onClick={() => setPatternSource('upload')}
-                                            >
-                                                Upload
-                                            </button>
-                                        </div>
+                                        <Select
+                                            label="Pattern Source"
+                                            options={[
+                                                { label: 'From Library', value: 'library' },
+                                                { label: 'Upload New', value: 'upload' },
+                                            ]}
+                                            value={patternSource}
+                                            onChange={(val: any) => setPatternSource(val)}
+                                        />
 
                                         {patternSource === 'library' ? (
                                             <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1">
                                                 {PATTERN_LIBRARY.map((p) => (
                                                     <div
                                                         key={p.url}
-                                                        onClick={() => {
-                                                            setSelectedLibraryPattern(p.url);
-                                                            if (!newColorName) setNewColorName(p.name);
-                                                        }}
-                                                        className={`aspect-square rounded-md overflow-hidden cursor-pointer border-2 transition-all ${selectedLibraryPattern === p.url ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-transparent hover:border-gray-300'}`}
+                                                        onClick={() => setSelectedLibraryPattern(p.url)}
+                                                        className={`aspect-square rounded-md border-2 cursor-pointer overflow-hidden transition-all ${selectedLibraryPattern === p.url ? 'border-indigo-600 scale-95 shadow-inner' : 'border-transparent hover:border-gray-300'}`}
+                                                        title={p.name}
                                                     >
-                                                        <img
-                                                            src={p.url}
-                                                            alt={p.name}
-                                                            className="w-full h-full object-cover"
-                                                            onError={(e) => {
-                                                                e.currentTarget.src = 'https://placehold.co/100x100?text=Pattern';
-                                                            }}
-                                                        />
+                                                        <img src={p.url} alt={p.name} className="w-full h-full object-cover" />
                                                     </div>
                                                 ))}
                                             </div>
@@ -1031,59 +1009,49 @@ export default function AssetDetail() {
                         )}
 
                         {asset.type === 'gallery' && (
-                            <FormLayout>
-                                <TextField
-                                    label="Sub-Group Name"
-                                    value={newSubGroup}
-                                    onChange={setNewSubGroup}
-                                    placeholder="e.g. Logos, Icons, Backgrounds"
-                                    autoComplete="off"
-                                    helpText="This will act as a folder inside this gallery"
+                            <BlockStack gap="400">
+                                <label className="block text-sm font-medium text-gray-700">Gallery Images (Bulk Upload Supported)</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        if (e.target.files) {
+                                            setGalleryFiles(Array.from(e.target.files));
+                                        }
+                                    }}
+                                    className="block w-full text-sm text-gray-500
+                                      file:mr-4 file:py-2 file:px-4
+                                      file:rounded-full file:border-0
+                                      file:text-sm file:font-semibold
+                                      file:bg-indigo-50 file:text-indigo-700
+                                      hover:file:bg-indigo-100
+                                    "
                                 />
-                                <BlockStack gap="400">
-                                    <label className="block text-sm font-medium text-gray-700">Gallery Images (Bulk Upload Supported)</label>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        multiple
-                                        onChange={(e) => {
-                                            if (e.target.files) {
-                                                setGalleryFiles(Array.from(e.target.files));
-                                            }
-                                        }}
-                                        className="block w-full text-sm text-gray-500
-                                          file:mr-4 file:py-2 file:px-4
-                                          file:rounded-full file:border-0
-                                          file:text-sm file:font-semibold
-                                          file:bg-indigo-50 file:text-indigo-700
-                                          hover:file:bg-indigo-100
-                                        "
-                                    />
-                                    {galleryFiles.length > 0 && (
-                                        <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
-                                            {galleryFiles.map((file, i) => (
-                                                <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
-                                                    <img
-                                                        src={URL.createObjectURL(file)}
-                                                        alt="upload-preview"
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {isSubmitting && uploadProgress > 0 && (
-                                        <BlockStack gap="200">
-                                            <div className="flex justify-between items-center text-xs text-gray-500">
-                                                <span>Processing images...</span>
-                                                <span>{uploadProgress}%</span>
+                                {galleryFiles.length > 0 && (
+                                    <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                                        {galleryFiles.map((file, i) => (
+                                            <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
+                                                <img
+                                                    src={URL.createObjectURL(file)}
+                                                    alt="upload-preview"
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
-                                            <ProgressBar progress={uploadProgress} size="small" tone="primary" />
-                                        </BlockStack>
-                                    )}
-                                </BlockStack>
-                            </FormLayout>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {isSubmitting && uploadProgress > 0 && (
+                                    <BlockStack gap="200">
+                                        <div className="flex justify-between items-center text-xs text-gray-500">
+                                            <span>Processing images...</span>
+                                            <span>{uploadProgress}%</span>
+                                        </div>
+                                        <ProgressBar progress={uploadProgress} size="small" tone="primary" />
+                                    </BlockStack>
+                                )}
+                            </BlockStack>
                         )}
 
                         {asset.type === 'option' && (
@@ -1099,62 +1067,14 @@ export default function AssetDetail() {
                                 />
                             </BlockStack>
                         )}
-                    </FormLayout>
+                    </BlockStack>
                 </Modal.Section>
             </Modal>
 
             <Modal
-                open={!!previewItem}
-                onClose={() => setPreviewItem(null)}
-                title={`Preview: ${previewItem?.name}`}
-                secondaryActions={[{ content: 'Close', onAction: () => setPreviewItem(null) }]}
-            >
-                <Modal.Section>
-                    {previewItem && asset.type === 'font' && (
-                        <BlockStack gap="400">
-                            <Box padding="400" background="bg-surface-secondary" borderRadius="200">
-                                <div style={{ fontSize: '48px', textAlign: 'center', fontFamily: previewItem.name }}>
-                                    Abc 123
-                                </div>
-                            </Box>
-                        </BlockStack>
-                    )}
-                    {previewItem && asset.type === 'color' && (
-                        <BlockStack gap="400">
-                            <div
-                                className="w-full h-32 rounded-lg border border-gray-200 shadow-inner"
-                                style={{
-                                    backgroundColor: previewItem.hex,
-                                    backgroundImage: previewItem.isPattern ? `url(${previewItem.patternUrl})` : 'none',
-                                    backgroundSize: 'cover'
-                                }}
-                            />
-                            <div className="text-center">
-                                <Text variant="headingLg" as="p">{previewItem.name}</Text>
-                                <Text variant="bodyMd" tone="subdued" as="p">
-                                    {previewItem.isPattern ? 'Pattern Image' : previewItem.hex}
-                                </Text>
-                            </div>
-                        </BlockStack>
-                    )}
-                    {previewItem && asset.type === 'gallery' && (
-                        <BlockStack gap="400">
-                            <Box padding="400" background="bg-surface-secondary" borderRadius="200">
-                                <div className="flex justify-center">
-                                    <img src={previewItem.url} alt={previewItem.name} className="max-w-full max-h-96 object-contain rounded shadow-lg" />
-                                </div>
-                            </Box>
-                            <div className="text-center">
-                                <Text variant="headingLg" as="p">{previewItem.name}</Text>
-                            </div>
-                        </BlockStack>
-                    )}
-                </Modal.Section>
-            </Modal>
-            <Modal
                 open={isRenameModalOpen}
                 onClose={() => setIsRenameModalOpen(false)}
-                title={`Rename ${asset?.type === 'font' ? 'Font' : asset?.type === 'gallery' ? 'Image' : 'Color'}`}
+                title="Rename Item"
                 primaryAction={{
                     content: 'Save',
                     onAction: handleRenameItem,
@@ -1165,7 +1085,7 @@ export default function AssetDetail() {
                 <Modal.Section>
                     <FormLayout>
                         <TextField
-                            label="New Name"
+                            label="Name"
                             value={newItemName}
                             onChange={setNewItemName}
                             autoComplete="off"

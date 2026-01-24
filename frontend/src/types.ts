@@ -74,7 +74,6 @@ export interface CanvasElement {
 
   // Gallery specific
   galleryMode?: 'all' | 'categorized';
-  gallerySubCategories?: boolean; // Enable nested sub-category navigation
   galleryMaxImages?: number;
   gallerySourceIds?: string[]; // IDs of selected gallery assets
 }
