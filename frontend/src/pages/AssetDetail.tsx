@@ -424,10 +424,10 @@ export default function AssetDetail() {
                 newListStr = [...currentList, ...newItems].join('\n');
             } else if (asset.type === 'option') {
                 if (!newColorName) return;
-                const valToStore = `${newColorName}|${newName || 'enabled'}`;
+                const valToStore = `${newColorName}|enabled`;
 
                 if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
-                    alert("Key already exists in this group");
+                    alert("Option name already exists in this group");
                     setIsSubmitting(false);
                     return;
                 }
@@ -918,18 +918,11 @@ export default function AssetDetail() {
                         {asset.type === 'option' && (
                             <BlockStack gap="400">
                                 <TextField
-                                    label="Option Key"
+                                    label="Option Name"
                                     value={newColorName}
                                     onChange={setNewColorName}
                                     autoComplete="off"
-                                    placeholder="e.g. enable_autosave"
-                                />
-                                <TextField
-                                    label="Option Value"
-                                    value={newName}
-                                    onChange={setNewName}
-                                    autoComplete="off"
-                                    placeholder="e.g. true"
+                                    placeholder="e.g. Mirror Effect, Double Sided, etc."
                                 />
                             </BlockStack>
                         )}
