@@ -93,28 +93,21 @@ export default function Assets() {
     }, []);
 
     const handleAddAsset = async () => {
-        if ((currentType === 'font' || currentType === 'color' || currentType === 'gallery') && !assetName) return;
-        if (currentType === 'option' && (!assetName || !assetValue)) return;
+        if (!assetName) return;
 
         setIsSubmitting(true);
         try {
-            let finalValue = assetValue;
-            let finalConfig: any = {};
+            let finalValue = '';
+            let finalConfig: any = {
+                group: assetName,
+                enablePricing: false
+            };
 
-            if (currentType === 'font' || currentType === 'color' || currentType === 'gallery') {
-                finalConfig = {
-                    group: assetName, // Use assetName as the group
-                    enablePricing: false,
-                    ...(currentType === 'font' ? {
-                        fontType: 'google',
-                        googleConfig: 'specific'
-                    } : {})
-                };
-                finalValue = '';
-            } else {
-                finalConfig = {
-                    group: groupName || 'Default'
-                };
+            if (currentType === 'font') {
+                finalConfig.fontType = 'google';
+                finalConfig.googleConfig = 'specific';
+            } else if (currentType === 'option') {
+                finalValue = 'enabled';
             }
 
             const response = await fetch('/imcst_api/assets', {
@@ -297,7 +290,7 @@ export default function Assets() {
             <ResourceItem
                 id={id}
                 media={media}
-                onClick={() => (asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery') ? navigate(`/assets/${id}`) : {}}
+                onClick={() => (asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option') ? navigate(`/assets/${id}`) : {}}
                 persistActions
             >
                 <div className="flex items-center justify-between">
@@ -305,7 +298,7 @@ export default function Assets() {
                         <Text variant="bodyMd" fontWeight="bold" as="h3">
                             {name}
                         </Text>
-                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery') ? (
+                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option') ? (
                             <div className="flex flex-col gap-0.5">
                                 {/* Details removed or managed in detail page */}
                             </div>
@@ -316,13 +309,13 @@ export default function Assets() {
                         )}
                     </div>
                     <div className="flex gap-2">
-                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery') && (
+                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option') && (
                             <Button
                                 icon={ViewIcon}
                                 variant="tertiary"
                                 onClick={() => navigate(`/assets/${id}`)}
                             >
-                                View {asset.type === 'font' ? 'Fonts' : asset.type === 'color' ? 'Colors' : 'Gallery'}
+                                View {asset.type === 'font' ? 'Fonts' : asset.type === 'color' ? 'Colors' : asset.type === 'gallery' ? 'Gallery' : 'Options'}
                             </Button>
                         )}
                         <Button
@@ -421,33 +414,17 @@ export default function Assets() {
                 <Modal.Section>
                     <FormLayout>
                         <TextField
-                            label={(currentType === 'font' || currentType === 'color' || currentType === 'gallery') ? "Group Name" : "Name"}
+                            label="Group Name"
                             value={assetName}
                             onChange={setAssetName}
                             autoComplete="off"
-                            placeholder={currentType === 'font' ? 'e.g. My Typography Set' : currentType === 'color' ? 'e.g. Brand Primary' : currentType === 'gallery' ? 'e.g. Logo Gallery' : 'e.g. Auto-Save'}
+                            placeholder={
+                                currentType === 'font' ? 'e.g. My Typography Set' :
+                                    currentType === 'color' ? 'e.g. Brand Primary' :
+                                        currentType === 'gallery' ? 'e.g. Logo Gallery' :
+                                            'e.g. General Settings'
+                            }
                         />
-
-                        {currentType === 'option' && (
-                            <TextField
-                                label="Group Name (Category)"
-                                value={groupName}
-                                onChange={setGroupName}
-                                autoComplete="off"
-                                placeholder="e.g. General Settings"
-                            />
-                        )}
-
-                        {currentType === 'option' && (
-                            <TextField
-                                label="Status/Value"
-                                value={assetValue}
-                                onChange={setAssetValue}
-                                autoComplete="off"
-                                placeholder="e.g. enabled"
-                                helpText="Global setting value"
-                            />
-                        )}
 
                     </FormLayout>
                 </Modal.Section>

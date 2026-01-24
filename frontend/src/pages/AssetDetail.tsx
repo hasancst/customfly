@@ -140,6 +140,13 @@ export default function AssetDetail() {
             }).filter(i => i.name);
         }
 
+        if (asset.type === 'option') {
+            return safeSplit(asset.value).map(pair => {
+                const [name, val] = pair.split('|');
+                return { name: name?.trim() || '', hex: val?.trim() || '', id: pair };
+            }).filter(i => i.name);
+        }
+
         return [];
     }, [asset]);
 
@@ -415,6 +422,16 @@ export default function AssetDetail() {
                     }
                 }
                 newListStr = [...currentList, ...newItems].join('\n');
+            } else if (asset.type === 'option') {
+                if (!newColorName) return;
+                const valToStore = `${newColorName}|${newName || 'enabled'}`;
+
+                if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
+                    alert("Key already exists in this group");
+                    setIsSubmitting(false);
+                    return;
+                }
+                newListStr = [...currentList, valToStore].join('\n');
             }
 
             // ... same update logic ...
@@ -576,6 +593,14 @@ export default function AssetDetail() {
                                                 <span style={{ fontFamily: item.name, fontSize: '16px' }}>
                                                     Customfly 123
                                                 </span>
+                                            </div>
+                                        )}
+
+                                        {asset.type === 'option' && (
+                                            <div className="flex-1 px-8 text-right">
+                                                <Text variant="bodySm" tone="subdued" as="span">
+                                                    {item.hex}
+                                                </Text>
                                             </div>
                                         )}
 
@@ -881,6 +906,25 @@ export default function AssetDetail() {
                                         <ProgressBar progress={uploadProgress} size="small" tone="primary" />
                                     </BlockStack>
                                 )}
+                            </BlockStack>
+                        )}
+
+                        {asset.type === 'option' && (
+                            <BlockStack gap="400">
+                                <TextField
+                                    label="Option Key"
+                                    value={newColorName}
+                                    onChange={setNewColorName}
+                                    autoComplete="off"
+                                    placeholder="e.g. enable_autosave"
+                                />
+                                <TextField
+                                    label="Option Value"
+                                    value={newName}
+                                    onChange={setNewName}
+                                    autoComplete="off"
+                                    placeholder="e.g. true"
+                                />
                             </BlockStack>
                         )}
                     </FormLayout>
