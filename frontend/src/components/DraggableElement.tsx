@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, memo, useEffect } from 'react';
 import { CanvasElement } from '../types';
 import { Input } from './ui/input';
-import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2 } from 'lucide-react';
+import { MapPin, Calendar, Phone, Trash2, Copy, RotateCw, Maximize2, Images, AlignLeft, UploadCloud, Palette, ChevronDown, CheckCircle2, Hash, Clock } from 'lucide-react';
 
 interface DraggableElementProps {
   element: CanvasElement;
@@ -872,6 +872,101 @@ export const DraggableElement = memo(({
               ...getStrokeStyle(),
               color: element.fillType === 'gradient' ? 'transparent' : color
             }}>{l3}</span>
+          </div>
+        );
+
+      case 'gallery':
+        return (
+          <div className="flex items-center justify-center bg-pink-50 border-2 border-pink-200 rounded-2xl overflow-hidden group/opt" style={{ width: (element.width || 200) * (zoom / 100), height: (element.height || 100) * (zoom / 100) }}>
+            <div className="text-center p-4">
+              <Images className="w-8 h-8 text-pink-500 mx-auto mb-2 group-hover/opt:scale-110 transition-transform" />
+              <p className="text-[10px] font-bold text-pink-700 uppercase tracking-wider">{element.label || 'Gallery'}</p>
+            </div>
+          </div>
+        );
+
+      case 'textarea':
+        return (
+          <div className="bg-white border-2 border-indigo-100 rounded-xl p-3 shadow-sm" style={{ width: (element.width || 250) * (zoom / 100) }}>
+            <div className="flex items-center gap-2 mb-2">
+              <AlignLeft className="w-3 h-3 text-indigo-400" />
+              <span className="text-[10px] font-bold text-gray-500 uppercase">{element.label || 'Notes'}</span>
+            </div>
+            <div className="h-16 bg-gray-50 rounded-lg border border-dashed border-gray-200" />
+          </div>
+        );
+
+      case 'file_upload':
+        return (
+          <div className="bg-emerald-50 border-2 border-emerald-200 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2" style={{ width: (element.width || 200) * (zoom / 100) }}>
+            <UploadCloud className="w-6 h-6 text-emerald-500" />
+            <p className="text-[10px] font-bold text-emerald-700">{element.label || 'Upload File'}</p>
+          </div>
+        );
+
+      case 'product_color':
+        return (
+          <div className="bg-white border-2 border-orange-100 rounded-2xl p-3 flex flex-col gap-2 shadow-sm" style={{ width: (element.width || 250) * (zoom / 100) }}>
+            <p className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1.5">
+              <Palette className="w-3 h-3" />
+              Select Color
+            </p>
+            <div className="flex gap-2">
+              {['#FF5F5F', '#5FBCFF', '#5FFF9C', '#FFD85F'].map(c => (
+                <div key={c} className="w-8 h-8 rounded-full border border-gray-100 shadow-sm" style={{ backgroundColor: c }} />
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'dropdown':
+        return (
+          <div className="bg-white border-2 border-cyan-100 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm" style={{ width: (element.width || 250) * (zoom / 100) }}>
+            <span className="text-xs font-medium text-gray-700">{element.label || 'Choose Option'}</span>
+            <ChevronDown className="w-4 h-4 text-cyan-500" />
+          </div>
+        );
+
+      case 'button':
+        return (
+          <div className="bg-rose-600 rounded-xl px-6 py-3 shadow-lg shadow-rose-100 text-center" style={{ width: (element.width || 200) * (zoom / 100) }}>
+            <span className="text-xs font-bold text-white uppercase tracking-widest">{element.label || 'Click Here'}</span>
+          </div>
+        );
+
+      case 'checkbox':
+        return (
+          <div className="flex items-center gap-3 bg-white border-2 border-amber-100 rounded-xl p-3 shadow-sm" style={{ width: (element.width || 200) * (zoom / 100) }}>
+            <div className="w-6 h-6 rounded-md border-2 border-amber-200 bg-amber-50 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4 text-amber-500" />
+            </div>
+            <span className="text-xs font-bold text-gray-700">{element.label || 'Agree to terms'}</span>
+          </div>
+        );
+
+      case 'number':
+        return (
+          <div className="bg-white border-2 border-teal-100 rounded-xl p-3 space-y-2 shadow-sm" style={{ width: (element.width || 180) * (zoom / 100) }}>
+            <p className="text-[10px] font-bold text-teal-600 uppercase flex items-center gap-1.5">
+              <Hash className="w-3 h-3" />
+              {element.label || 'Quantity'}
+            </p>
+            <div className="flex items-center justify-between h-8 bg-gray-50 rounded-lg px-3">
+              <span className="text-gray-400 font-bold">-</span>
+              <span className="text-xs font-bold">1</span>
+              <span className="text-gray-400 font-bold">+</span>
+            </div>
+          </div>
+        );
+
+      case 'time':
+        return (
+          <div className="bg-white border-2 border-fuchsia-100 rounded-xl p-3 flex items-center justify-between shadow-sm" style={{ width: (element.width || 200) * (zoom / 100) }}>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-fuchsia-500" />
+              <span className="text-xs font-medium">12:00 PM</span>
+            </div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Set Time</p>
           </div>
         );
 

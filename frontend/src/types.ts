@@ -2,7 +2,7 @@ export type MonogramType = 'Diamond' | 'Circle' | 'Round' | 'Scallop' | 'Stacked
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'field' | 'swatch' | 'phone' | 'date' | 'map' | 'monogram';
+  type: 'text' | 'image' | 'field' | 'swatch' | 'phone' | 'date' | 'map' | 'monogram' | 'gallery' | 'textarea' | 'file_upload' | 'product_color' | 'dropdown' | 'button' | 'checkbox' | 'number' | 'time';
   x: number;
   y: number;
   width?: number;

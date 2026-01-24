@@ -337,9 +337,27 @@ export function Summary({
                                       ? 'Phone Number'
                                       : element.type === 'date'
                                         ? 'Date Picker'
-                                        : element.type === 'map'
-                                          ? element.mapLocation || 'Map'
-                                          : element.type
+                                        : element.type === 'gallery'
+                                          ? 'Gallery'
+                                          : element.type === 'textarea'
+                                            ? 'Text Area'
+                                            : element.type === 'file_upload'
+                                              ? 'File Upload'
+                                              : element.type === 'product_color'
+                                                ? 'Product Color'
+                                                : element.type === 'dropdown'
+                                                  ? 'Drop Down'
+                                                  : element.type === 'button'
+                                                    ? 'Button'
+                                                    : element.type === 'checkbox'
+                                                      ? 'Check Box'
+                                                      : element.type === 'number'
+                                                        ? 'Number Input'
+                                                        : element.type === 'time'
+                                                          ? 'Time Picker'
+                                                          : element.type === 'map'
+                                                            ? element.mapLocation || 'Map'
+                                                            : element.type
                             }
                           </p>
                           <p className="text-xs text-gray-500">
