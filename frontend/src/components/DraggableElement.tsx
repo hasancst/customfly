@@ -223,6 +223,30 @@ export const DraggableElement = memo(({
   const contentRef = useRef<HTMLDivElement>(null);
   const [textScale, setTextScale] = useState(1);
 
+  // Local state for smooth interactions
+  const [localState, setLocalState] = useState({
+    x: element.x,
+    y: element.y,
+    width: element.width || 200,
+    height: element.height || (element.type === 'text' ? 40 : 200),
+    rotation: element.rotation,
+    fontSize: element.fontSize || 32,
+  });
+
+  // Sync props to local state when not interacting
+  useEffect(() => {
+    if (!isDragging && !isResizing && !isRotating) {
+      setLocalState({
+        x: element.x,
+        y: element.y,
+        width: element.width || 200,
+        height: element.height || (element.type === 'text' ? 40 : 200),
+        rotation: element.rotation,
+        fontSize: element.fontSize || 32,
+      });
+    }
+  }, [element, isDragging, isResizing, isRotating]);
+
   // Shrink Logic
   useEffect(() => {
     if (element.type !== 'text' || element.textMode !== 'shrink' || !contentRef.current || !elementRef.current) {
@@ -294,7 +318,7 @@ export const DraggableElement = memo(({
         const { centerX, centerY, startAngle, startRotation } = interactionRef.current;
         const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
         const deltaAngle = (currentAngle - startAngle) * (180 / Math.PI);
-        onUpdate({ rotation: startRotation + deltaAngle }, true);
+        setLocalState(prev => ({ ...prev, rotation: startRotation + deltaAngle }));
         interactionRef.current.rafId = null;
       });
     };
@@ -308,7 +332,10 @@ export const DraggableElement = memo(({
       const { centerX, centerY, startAngle, startRotation } = interactionRef.current;
       const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
       const deltaAngle = (currentAngle - startAngle) * (180 / Math.PI);
-      onUpdate({ rotation: startRotation + deltaAngle }, false); // Commit to history
+
+      const finalRotation = startRotation + deltaAngle;
+      setLocalState(prev => ({ ...prev, rotation: finalRotation }));
+      onUpdate({ rotation: finalRotation }, false); // Commit to history
       setIsRotating(false);
     };
 
@@ -339,16 +366,18 @@ export const DraggableElement = memo(({
         const newWidth = Math.max(50, startWidth + dx);
         const newHeight = isFieldType ? startHeight : Math.max(20, startHeight + dy);
 
-        const updates: Partial<CanvasElement> = {
-          width: newWidth,
-          height: newHeight,
-        };
-
+        let newFontSize = startFontSize;
         if (element.type === 'text') {
-          updates.fontSize = startFontSize * (newWidth / startWidth);
+          newFontSize = startFontSize * (newWidth / startWidth);
         }
 
-        onUpdate(updates, true);
+        setLocalState(prev => ({
+          ...prev,
+          width: newWidth,
+          height: newHeight,
+          fontSize: newFontSize
+        }));
+
         interactionRef.current.rafId = null;
       });
     };
@@ -359,7 +388,7 @@ export const DraggableElement = memo(({
         interactionRef.current.rafId = null;
       }
 
-      // Final commit
+      // Final commit from local state would be easiest, but leveraging calculation ensures precision
       const { startX, startY, startWidth, startHeight, startFontSize } = interactionRef.current;
       const dx = (e.clientX - startX) / (zoom / 100);
       const dy = (e.clientY - startY) / (zoom / 100);
@@ -376,6 +405,14 @@ export const DraggableElement = memo(({
       if (element.type === 'text') {
         updates.fontSize = startFontSize * (newWidth / startWidth);
       }
+
+      // Update local state one last time just in case
+      setLocalState(prev => ({
+        ...prev,
+        width: newWidth,
+        height: newHeight,
+        fontSize: updates.fontSize || prev.fontSize
+      }));
 
       onUpdate(updates, false); // Commit to history
       setIsResizing(false);
@@ -493,8 +530,8 @@ export const DraggableElement = memo(({
 
           return (
             <div style={{
-              width: (element.width || 500) * (zoom / 100),
-              height: (element.height || 500) * (zoom / 100),
+              width: localState.width * (zoom / 100),
+              height: localState.height * (zoom / 100),
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
@@ -550,7 +587,7 @@ export const DraggableElement = memo(({
         return (
           <div
             style={{
-              fontSize: (element.fontSize || 32) * (zoom / 100),
+              fontSize: localState.fontSize * (zoom / 100),
               fontFamily: element.fontFamily || 'Inter',
               fontWeight: element.fontWeight || 400,
               textAlign: element.textAlign || 'center',
@@ -558,8 +595,8 @@ export const DraggableElement = memo(({
               wordBreak: isWrap ? 'break-word' : 'normal',
               userSelect: 'none',
               lineHeight: 1.2,
-              width: (element.width || 200) * (zoom / 100),
-              height: (element.height || 40) * (zoom / 100),
+              width: localState.width * (zoom / 100),
+              height: localState.height * (zoom / 100),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -599,8 +636,8 @@ export const DraggableElement = memo(({
               removeBgType={(element.removeBgType as any) || 'js'}
               deep={element.removeBgDeep || 0}
               mode={element.removeBgMode || 'light'}
-              width={element.width || 200}
-              height={element.height || 200}
+              width={localState.width}
+              height={localState.height}
               zoom={zoom}
             />
           </div>
@@ -1023,9 +1060,9 @@ export const DraggableElement = memo(({
       onClick={onSelect}
       className={`absolute cursor-move ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
       style={{
-        left: element.x * (zoom / 100),
-        top: element.y * (zoom / 100),
-        transform: `rotate(${element.rotation}deg)`,
+        left: localState.x * (zoom / 100),
+        top: localState.y * (zoom / 100),
+        transform: `rotate(${localState.rotation}deg)`,
         opacity: element.opacity / 100,
         zIndex: element.zIndex,
         willChange: (isDragging || isResizing || isRotating) ? 'transform, left, top' : 'auto',
