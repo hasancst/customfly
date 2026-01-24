@@ -19,7 +19,8 @@ import {
     Hash,
     Type as TypeIcon,
     Info,
-    Underline
+    Underline,
+    Crop
 } from 'lucide-react';
 import {
     Select,
@@ -53,6 +54,7 @@ interface ContextualToolbarProps {
     onDuplicateElement: (id: string) => void;
     userFonts: any[];
     userColors: any[];
+    onCrop?: () => void;
 }
 
 export function ContextualToolbar({
@@ -61,7 +63,8 @@ export function ContextualToolbar({
     onDeleteElement,
     onDuplicateElement,
     userFonts,
-    userColors
+    userColors,
+    onCrop
 }: ContextualToolbarProps) {
     const [localColor, setLocalColor] = useState(selectedElement?.color || '#000000');
     const [localStrokeColor, setLocalStrokeColor] = useState(selectedElement?.strokeColor || '#000000');
@@ -618,6 +621,27 @@ export function ContextualToolbar({
                             />
                         </div>
                     </div>
+
+                    {selectedElement.type === 'image' && onCrop && (
+                        <>
+                            <Separator orientation="vertical" className="h-6 mx-1" />
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9 text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-lg"
+                                            onClick={onCrop}
+                                        >
+                                            <Crop className="w-4 h-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Crop Image</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </>
+                    )}
 
                     <div className="flex-1" />
 

@@ -4,6 +4,7 @@ import { Canvas } from '../components/Canvas';
 import { Summary } from '../components/Summary';
 import { Header } from '../components/Header';
 import { ContextualToolbar } from '../components/ContextualToolbar';
+import { ImageCropModal } from '../components/ImageCropModal';
 import { CanvasElement } from '../types';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
@@ -76,6 +77,7 @@ export default function App() {
   const [showSummary, setShowSummary] = useState(true);
   const [renamingPage, setRenamingPage] = useState<{ id: string, name: string } | null>(null);
   const [newPageName, setNewPageName] = useState('');
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const fetch = useAuthenticatedFetch();
   const hasFetchedProduct = useRef(false);
 
@@ -460,6 +462,16 @@ export default function App() {
       setRenamingPage(null);
     }
   };
+  const handleCropComplete = (croppedAreaPixels: { x: number, y: number, width: number, height: number }) => {
+    const el = elements.find(e => e.id === selectedElement);
+    if (el && el.type === 'image') {
+      updateElement(el.id, {
+        crop: croppedAreaPixels,
+        width: croppedAreaPixels.width,
+        height: croppedAreaPixels.height
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
@@ -486,6 +498,7 @@ export default function App() {
           onAddElement={addElement}
           selectedElement={elements.find(el => el.id === selectedElement)}
           onUpdateElement={updateElement}
+          onCrop={() => setIsCropModalOpen(true)}
         />
 
         <div className="flex-1 flex flex-col relative bg-gray-100 overflow-hidden">
@@ -496,6 +509,7 @@ export default function App() {
             onDuplicateElement={duplicateElement}
             userFonts={userFonts}
             userColors={userColors}
+            onCrop={() => setIsCropModalOpen(true)}
           />
 
           {/* Page Navigation at the top of canvas area */}
@@ -651,6 +665,16 @@ export default function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedElement && elements.find(e => e.id === selectedElement)?.type === 'image' && (
+        <ImageCropModal
+          isOpen={isCropModalOpen}
+          onClose={() => setIsCropModalOpen(false)}
+          imageUrl={elements.find(e => e.id === selectedElement)?.src || ''}
+          onCropComplete={handleCropComplete}
+          initialCrop={elements.find(e => e.id === selectedElement)?.crop}
+        />
+      )}
     </div>
   );
 }

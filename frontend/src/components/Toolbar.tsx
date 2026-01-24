@@ -11,9 +11,10 @@ interface ToolbarProps {
   onAddElement: (element: CanvasElement) => void;
   selectedElement?: CanvasElement;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+  onCrop?: () => void;
 }
 
-export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: ToolbarProps) {
+export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop }: ToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
 
   const optionTypes = [
@@ -149,6 +150,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
                 onAddElement={onAddElement}
                 selectedElement={selectedElement}
                 onUpdateElement={onUpdateElement}
+                onCrop={onCrop}
               />
             )}
             {selectedElement.type === 'gallery' && (

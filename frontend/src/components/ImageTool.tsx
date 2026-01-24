@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Upload, RotateCw, Image as ImageIcon, Sparkles, Wand2, Sliders, ChevronDown, Crop } from 'lucide-react';
+import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop } from 'lucide-react';
 import { IMAGE_PRESETS } from '../constants/filters';
-import { ImageCropModal } from './ImageCropModal';
 import {
   Collapsible,
   CollapsibleContent,
@@ -11,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -27,12 +27,12 @@ interface ImageToolProps {
   onAddElement: (element: CanvasElement) => void;
   selectedElement?: CanvasElement;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+  onCrop?: () => void;
 }
 
-export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: ImageToolProps) {
+export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop }: ImageToolProps) {
   const [removeBgType, setRemoveBgType] = useState<'js' | 'rembg'>(selectedElement?.removeBgType || 'js');
   const [isRemovingBg, setIsRemovingBg] = useState(false);
-  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [userImages, setUserImages] = useState<any[]>([]);
   const fetch = useAuthenticatedFetch();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -150,16 +150,6 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
     }
   };
 
-  const handleCropComplete = (croppedAreaPixels: { x: number, y: number, width: number, height: number }) => {
-    if (!selectedElement) return;
-
-    handleUpdate({
-      crop: croppedAreaPixels,
-      width: croppedAreaPixels.width,
-      height: croppedAreaPixels.height
-    });
-  };
-
   const updateFilters = (filterUpdates: Partial<NonNullable<CanvasElement['imageFilters']>>) => {
     if (!selectedElement) return;
     const currentFilters = selectedElement.imageFilters || {
@@ -210,104 +200,87 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
 
   return (
     <div className="space-y-6 pb-6">
-      {!selectedElement && (
-        <>
-          {userImages.length > 0 && (
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" />
-                Asset Gallery
-              </Label>
-              <div className="grid grid-cols-3 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100 max-h-48 overflow-y-auto">
-                {userImages.map((img: any) => (
-                  <button
-                    key={img.id}
-                    onClick={() => handleAddFromGallery(img.value)}
-                    className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-500 transition-colors bg-white shadow-sm"
-                  >
-                    <img src={img.value} alt={img.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
-                      <Plus className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* 1. Permanent Upload Section */}
+      <div className="space-y-6">
+        <div>
+          <Label className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-tight flex items-center gap-2">
+            <Upload className="w-4 h-4 text-indigo-600" />
+            Upload Asset
+          </Label>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all font-medium text-gray-400 bg-gray-50/30 group"
+          >
+            <Upload className="w-8 h-8 text-gray-300 mx-auto mb-2 group-hover:text-indigo-400 group-hover:scale-110 transition-all" />
+            <p className="text-sm font-bold text-gray-500 group-hover:text-indigo-600">Drop files or click to browse</p>
+            <p className="text-[10px] text-gray-400 mt-1">PNG, JPG, SVG, PDF up to 10MB</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.psd"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </div>
+        </div>
 
+        {userImages.length > 0 && (
           <div>
-            <Label className="text-sm font-medium text-gray-700 mb-2">Upload Image</Label>
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all font-medium text-gray-500"
-            >
-              <Upload className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm">Click to upload assets</p>
-              <p className="text-xs text-gray-400 mt-1">Supports PNG, JPG, SVG, PDF, PSD</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf,.psd"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+            <Label className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2 uppercase tracking-tight">
+              <ImageIcon className="w-4 h-4 text-indigo-600" />
+              Your Assets
+            </Label>
+            <div className="grid grid-cols-3 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100 max-h-48 overflow-y-auto shadow-inner">
+              {userImages.map((img: any) => (
+                <button
+                  key={img.id}
+                  onClick={() => handleAddFromGallery(img.value)}
+                  className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-500 transition-all bg-white shadow-sm hover:shadow-md"
+                >
+                  <img src={img.value} alt={img.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
+                    <Plus className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
 
+      <Separator />
+
+      {/* 2. Selection Specific Settings */}
       {selectedElement?.type === 'image' && (
         <div className="space-y-4">
-          <div className="flex flex-col gap-1 mb-2">
-            <Label className="text-sm font-bold text-gray-900 uppercase tracking-tight">Active Image</Label>
-            <div className="flex items-start gap-4">
-              <div className="h-24 w-fit aspect-square bg-gray-100 rounded-xl border border-gray-200 overflow-hidden relative group shadow-sm">
-                <img src={selectedElement.src} className="w-full h-full object-contain" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Button variant="ghost" size="sm" className="text-white hover:text-white text-[10px] h-7" onClick={() => fileInputRef.current?.click()}>Replace</Button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 flex-1">
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="h-11 flex-1 rounded-xl font-bold border-indigo-100 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-200 shadow-none gap-2"
-                    onClick={() => setIsCropModalOpen(true)}
-                  >
-                    <Crop className="w-4 h-4" />
-                    Crop
-                  </Button>
-                  {selectedElement.crop && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-11 w-11 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-100"
-                      title="Reset Crop"
-                      onClick={() => {
-                        handleUpdate({
-                          crop: undefined,
-                          width: 200, // Reset to a standard default or keep current height
-                          height: 200
-                        });
-                      }}
-                    >
-                      <RotateCw className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-                <p className="text-[10px] text-gray-500 leading-tight">Cut unwanted parts or change the aspect ratio.</p>
-              </div>
+          <div className="flex items-center justify-between pb-2">
+            <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Image Style</Label>
+            <div className="flex gap-2">
+              {onCrop && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[10px] text-indigo-600 hover:bg-indigo-50 gap-1 px-2 border border-indigo-100/50"
+                  onClick={onCrop}
+                >
+                  <Crop className="w-3 h-3" />
+                  Crop
+                </Button>
+              )}
+              {selectedElement.crop && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[10px] text-red-500 hover:bg-red-50 gap-1 px-2 border border-red-100/50"
+                  onClick={() => handleUpdate({ crop: undefined, width: 200, height: 200 })}
+                >
+                  <RotateCw className="w-3 h-3" />
+                  Reset
+                </Button>
+              )}
             </div>
           </div>
-
-          <ImageCropModal
-            isOpen={isCropModalOpen}
-            onClose={() => setIsCropModalOpen(false)}
-            imageUrl={selectedElement.src || ''}
-            onCropComplete={handleCropComplete}
-            initialCrop={selectedElement.crop}
-          />
 
           {/* Filters Presets */}
           <Collapsible className="space-y-2" defaultOpen>
@@ -315,7 +288,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-indigo-50 border border-indigo-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <Wand2 className="w-4 h-4 text-indigo-600" />
-                  <span className="text-sm font-bold text-indigo-900">Artistic Filters</span>
+                  <span className="text-sm font-bold text-indigo-900 uppercase">Artistic Filters</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-indigo-400 group-data-[state=open]:rotate-180 transition-transform" />
               </div>
@@ -357,7 +330,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-emerald-50 border border-emerald-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <Sliders className="w-4 h-4 text-emerald-600" />
-                  <span className="text-sm font-bold text-emerald-900">Adjustments</span>
+                  <span className="text-sm font-bold text-emerald-900 uppercase">Adjustments</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-emerald-400 group-data-[state=open]:rotate-180 transition-transform" />
               </div>
@@ -417,7 +390,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
                     brightness: 100, contrast: 100, saturate: 100, hueRotate: 0, sepia: 0, grayscale: 0, preset: 'none'
                   })}
                 >
-                  Reset Settings
+                  Reset Adjustments
                 </Button>
               </div>
             </CollapsibleContent>
@@ -427,7 +400,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
           <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
-                <Label className="text-sm font-bold text-gray-700">Background Removal</Label>
+                <Label className="text-sm font-bold text-gray-700 uppercase tracking-tight">Background Removal</Label>
                 <p className="text-[10px] text-gray-500">Apply magic filters or AI</p>
               </div>
             </div>
@@ -500,7 +473,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement }: Im
                   {isRemovingBg ? (
                     <RotateCw className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Sparkles className="w-4 h-4" />
+                    <Upload className="w-4 h-4" />
                   )}
                   {isRemovingBg ? "Processing..." : "Remove Background Now"}
                 </Button>
