@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Type, Image, Settings2, FormInput, LayoutGrid } from 'lucide-react';
+import { Type, Image, Settings2, FormInput } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { TextTool } from '@/components/TextTool';
 import { ImageTool } from '@/components/ImageTool';
 import { FieldsTool } from '@/components/FieldsTool';
-import { AssetsTool } from '@/components/AssetsTool';
 import { CanvasElement } from '@/types';
 
 interface ToolbarProps {
@@ -21,11 +20,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
     <div className="w-80 bg-white/80 backdrop-blur-xl border-r border-gray-200 p-4 overflow-y-auto">
       <Card className="border-0 shadow-lg rounded-2xl overflow-hidden bg-white">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-4 p-1 bg-gray-100 rounded-xl m-2">
-            <TabsTrigger value="assets" className="rounded-lg gap-2 data-[state=active]:bg-white data-[state=active]:shadow text-[10px] px-1">
-              <LayoutGrid className="w-3.5 h-3.5" />
-              Assets
-            </TabsTrigger>
+          <TabsList className="w-full grid grid-cols-3 p-1 bg-gray-100 rounded-xl m-2">
             <TabsTrigger value="text" className="rounded-lg gap-2 data-[state=active]:bg-white data-[state=active]:shadow text-[10px] px-1">
               <Type className="w-3.5 h-3.5" />
               Text
@@ -40,13 +35,6 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="assets" className="p-4 mt-0">
-            <AssetsTool
-              onAddElement={onAddElement}
-              selectedElement={selectedElement}
-              onUpdateElement={onUpdateElement}
-            />
-          </TabsContent>
 
           <TabsContent value="text" className="p-4 mt-0">
             <TextTool
