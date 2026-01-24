@@ -230,6 +230,14 @@ export default function App() {
     fetchDesigns();
   }, [productId]);
 
+  // Sync elements with active page
+  useEffect(() => {
+    const activePage = pages.find(p => p.id === activePageId);
+    if (activePage) {
+      setElements(activePage.elements);
+    }
+  }, [activePageId, pages]);
+
   const loadDesign = (design: any) => {
     setCurrentDesignId(design.id);
     setDesignName(design.name);
@@ -339,35 +347,30 @@ export default function App() {
   };
 
   const addElement = (element: CanvasElement) => {
-    setPages(prevPages => {
-      const updatedPages = prevPages.map(p => {
-        if (p.id === activePageId || (activePageId === 'default' && prevPages.length === 1)) {
-          const nextZ = p.elements.length > 0 ? Math.max(...p.elements.map(e => e.zIndex)) + 1 : 1;
-          const newElements = [...p.elements, { ...element, zIndex: nextZ }];
-          setElements(newElements);
-          return { ...p, elements: newElements };
-        }
-        return p;
-      });
-      addToHistory(updatedPages);
-      return updatedPages;
-    });
+    const nextZ = elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 1;
+    const newElement = { ...element, zIndex: nextZ };
+    const newElements = [...elements, newElement];
+
+    const updatedPages = pages.map(p =>
+      p.id === activePageId ? { ...p, elements: newElements } : p
+    );
+
+    setPages(updatedPages);
     setSelectedElement(element.id);
+    addToHistory(updatedPages);
   };
 
   const updateElement = (id: string, updates: Partial<CanvasElement>, skipHistory = false) => {
-    setPages(prevPages => {
-      const updatedPages = prevPages.map(p => {
-        if (p.id === activePageId || (activePageId === 'default' && prevPages.length === 1)) {
-          const newEls = p.elements.map(el => el.id === id ? { ...el, ...updates } : el);
-          setElements(newEls);
-          return { ...p, elements: newEls };
-        }
-        return p;
-      });
-      if (!skipHistory) addToHistory(updatedPages);
-      return updatedPages;
-    });
+    const newEls = elements.map(el => el.id === id ? { ...el, ...updates } : el);
+
+    const updatedPages = pages.map(p =>
+      p.id === activePageId ? { ...p, elements: newEls } : p
+    );
+
+    setPages(updatedPages);
+    if (!skipHistory) {
+      addToHistory(updatedPages);
+    }
   };
 
   const deleteElement = (id: string) => {
