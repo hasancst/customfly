@@ -342,6 +342,7 @@ export default function App() {
     const nextZ = elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 1;
     const newElements = [...elements, { ...element, zIndex: nextZ }];
     setElements(newElements);
+    setSelectedElement(element.id);
     const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: newElements } : p);
     addToHistory(updatedPages);
   };
