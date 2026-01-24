@@ -24,27 +24,37 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         const { width, height } = e.currentTarget;
         const img = e.currentTarget;
 
-        if (initialCrop && initialCrop.width > 0) {
-            // Convert natural pixels back to display pixels
-            const backScaleX = img.width / img.naturalWidth;
-            const backScaleY = img.height / img.naturalHeight;
+        // If we have a saved crop, try to restore it
+        if (initialCrop && initialCrop.width > 0 && img.naturalWidth > 0) {
+            const backScaleX = width / img.naturalWidth;
+            const backScaleY = height / img.naturalHeight;
 
-            setCrop({
-                unit: 'px',
-                x: initialCrop.x * backScaleX,
-                y: initialCrop.y * backScaleY,
-                width: initialCrop.width * backScaleX,
-                height: initialCrop.height * backScaleY
-            });
-            return;
+            // Only apply pixel-based restore if we have valid dimensions
+            if (backScaleX > 0 && backScaleY > 0) {
+                setCrop({
+                    unit: 'px',
+                    x: initialCrop.x * backScaleX,
+                    y: initialCrop.y * backScaleY,
+                    width: initialCrop.width * backScaleX,
+                    height: initialCrop.height * backScaleY
+                });
+                return;
+            }
         }
 
+        // Fallback or Initial: Use Percentage for robustness
         const initial = centerCrop(
-            aspect
-                ? makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.8 }, aspect, width, height)
-                : { unit: 'px', width: width * 0.8, height: height * 0.8 },
-            width,
-            height
+            makeAspectCrop(
+                {
+                    unit: '%',
+                    width: 80,
+                },
+                aspect || undefined as any,
+                width || 100,
+                height || 100
+            ),
+            width || 100,
+            height || 100
         );
 
         setCrop(initial);
@@ -84,7 +94,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
             if (imgRef.current) {
                 const { width, height } = imgRef.current;
                 const newCrop = centerCrop(
-                    makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.8 }, 1, width, height),
+                    makeAspectCrop({ unit: '%', width: 80 }, 1, width, height),
                     width, height
                 );
                 setCrop(newCrop);
@@ -125,18 +135,17 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         if (imgRef.current) {
             const { width, height } = imgRef.current;
             const newCrop = centerCrop(
-                aspect
-                    ? makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.8 }, aspect, width, height)
-                    : { unit: 'px', width: width * 0.8, height: height * 0.8 },
-                width,
-                height
+                makeAspectCrop({ unit: '%', width: 80 }, aspect || undefined as any, width, height),
+                width, height
             );
             setCrop(newCrop);
         }
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+            if (!open) onClose();
+        }}>
             <DialogContent className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl z-[50]">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
