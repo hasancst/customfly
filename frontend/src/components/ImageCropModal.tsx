@@ -51,21 +51,27 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     }
 
     const centerHorizontal = () => {
+        if (!imgRef.current || !crop) return;
+        const { width } = imgRef.current;
         setCrop((c) => {
             if (!c) return c;
+            const containerWidth = c.unit === '%' ? 100 : width;
             return {
                 ...c,
-                x: (100 - (c.width || 0)) / 2,
+                x: (containerWidth - (c.width || 0)) / 2,
             };
         });
     };
 
     const centerVertical = () => {
+        if (!imgRef.current || !crop) return;
+        const { height } = imgRef.current;
         setCrop((c) => {
             if (!c) return c;
+            const containerHeight = c.unit === '%' ? 100 : height;
             return {
                 ...c,
-                y: (100 - (c.height || 0)) / 2,
+                y: (containerHeight - (c.height || 0)) / 2,
             };
         });
     };
@@ -87,13 +93,15 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     };
 
     const fullImage = () => {
+        if (!imgRef.current) return;
+        const { width, height } = imgRef.current;
         setAspect(undefined);
         setCrop({
-            unit: '%',
+            unit: 'px',
             x: 0,
             y: 0,
-            width: 100,
-            height: 100
+            width: width,
+            height: height
         });
     };
 
@@ -129,7 +137,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
+            <DialogContent className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl z-[50]">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
                         <CropIcon className="w-5 h-5 text-indigo-600" />
@@ -157,16 +165,16 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                 </div>
 
                 <div className="p-6 bg-white border-t border-gray-100">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center bg-gray-100 p-1 rounded-xl gap-1">
-                            <TooltipProvider>
+                    <TooltipProvider delayDuration={0}>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center bg-gray-100 p-1 rounded-xl gap-1">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" onClick={centerHorizontal}>
                                             <AlignCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Center Horizontal</TooltipContent>
+                                    <TooltipContent className="z-[70]" side="top">Center Horizontal</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -174,7 +182,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignVerticalJustifyCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Center Vertical</TooltipContent>
+                                    <TooltipContent className="z-[70]" side="top">Center Vertical</TooltipContent>
                                 </Tooltip>
                                 <div className="w-px h-4 bg-gray-300 mx-1" />
                                 <Tooltip>
@@ -188,7 +196,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Square className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Square 1:1</TooltipContent>
+                                    <TooltipContent className="z-[70]" side="top">Square 1:1</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -196,7 +204,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Maximize className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Fit to Image</TooltipContent>
+                                    <TooltipContent className="z-[70]" side="top">Fit to Image</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -204,30 +212,30 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <RotateCcw className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Reset Area</TooltipContent>
+                                    <TooltipContent className="z-[70]" side="top">Reset Area</TooltipContent>
                                 </Tooltip>
-                            </TooltipProvider>
-                        </div>
+                            </div>
 
-                        <div className="flex-1" />
+                            <div className="flex-1" />
 
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                className="rounded-xl h-11 font-bold border-gray-200 hover:bg-gray-50 px-6 text-gray-600 transition-all"
-                                onClick={onClose}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                className="rounded-xl h-11 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 px-8 transition-all gap-2"
-                                onClick={handleSave}
-                                disabled={!completedCrop?.width || !completedCrop?.height}
-                            >
-                                <Check className="w-5 h-5" /> Save Changes
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    className="rounded-xl h-11 font-bold border-gray-200 hover:bg-gray-50 px-6 text-gray-600 transition-all"
+                                    onClick={onClose}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    className="rounded-xl h-11 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 px-8 transition-all gap-2"
+                                    onClick={handleSave}
+                                    disabled={!completedCrop?.width || !completedCrop?.height}
+                                >
+                                    <Check className="w-5 h-5" /> Save Changes
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    </TooltipProvider>
                 </div>
             </DialogContent>
         </Dialog>
