@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Type, Image, Settings2, FormInput } from 'lucide-react';
+import { Type, Image, Settings2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { TextTool } from '@/components/TextTool';
 import { ImageTool } from '@/components/ImageTool';
-import { FieldsTool } from '@/components/FieldsTool';
 import { CanvasElement } from '@/types';
 
 interface ToolbarProps {
@@ -20,7 +19,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
     <div className="w-80 bg-white/80 backdrop-blur-xl border-r border-gray-200 p-4 overflow-y-auto">
       <Card className="border-0 shadow-lg rounded-2xl overflow-hidden bg-white">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 p-1 bg-gray-100 rounded-xl m-2">
+          <TabsList className="w-full grid grid-cols-2 p-1 bg-gray-100 rounded-xl m-2">
             <TabsTrigger value="text" className="rounded-lg gap-2 data-[state=active]:bg-white data-[state=active]:shadow text-[10px] px-1">
               <Type className="w-3.5 h-3.5" />
               Text
@@ -28,10 +27,6 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
             <TabsTrigger value="image" className="rounded-lg gap-2 data-[state=active]:bg-white data-[state=active]:shadow text-[10px] px-1">
               <Image className="w-3.5 h-3.5" />
               Image
-            </TabsTrigger>
-            <TabsTrigger value="fields" className="rounded-lg gap-2 data-[state=active]:bg-white data-[state=active]:shadow text-[10px] px-1">
-              <FormInput className="w-3.5 h-3.5" />
-              Fields
             </TabsTrigger>
           </TabsList>
 
@@ -52,13 +47,6 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement }: Tool
             />
           </TabsContent>
 
-          <TabsContent value="fields" className="p-4 mt-0">
-            <FieldsTool
-              onAddElement={onAddElement}
-              selectedElement={selectedElement}
-              onUpdateElement={onUpdateElement}
-            />
-          </TabsContent>
         </Tabs>
       </Card>
 
