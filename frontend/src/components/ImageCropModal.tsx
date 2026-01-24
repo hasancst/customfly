@@ -26,76 +26,83 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
 
         const { width, height, naturalWidth, naturalHeight } = img;
 
-        // Safety check: wait for layout dimensions
         if (width <= 0 || height <= 0) {
             return;
         }
 
-        // 1. If we have a saved crop, try to restore it
+        // 1. Restore saved crop if exists
         if (initialCrop && initialCrop.width > 0 && naturalWidth > 0) {
-            const backScaleX = width / naturalWidth;
-            const backScaleY = height / naturalHeight;
+            const scaleX = width / naturalWidth;
+            const scaleY = height / naturalHeight;
 
-            if (backScaleX > 0 && backScaleY > 0) {
-                setCrop({
-                    unit: 'px',
-                    x: initialCrop.x * backScaleX,
-                    y: initialCrop.y * backScaleY,
-                    width: initialCrop.width * backScaleX,
-                    height: initialCrop.height * backScaleY
-                });
-                return;
-            }
+            setCrop({
+                unit: 'px',
+                x: initialCrop.x * scaleX,
+                y: initialCrop.y * scaleY,
+                width: initialCrop.width * scaleX,
+                height: initialCrop.height * scaleY
+            });
+            return;
         }
 
-        // 2. Default: 80% centered box
-        const percentCrop = centerCrop(
+        // 2. Large Initial Selection (90% of image)
+        const initialWidth = width * 0.9;
+        const initial = centerCrop(
             makeAspectCrop(
-                { unit: '%', width: 80 },
+                { unit: 'px', width: initialWidth },
                 aspect || (undefined as any),
                 width,
                 height
             ),
-            100,
-            100
+            width,
+            height
         );
-        setCrop(percentCrop);
+
+        // If no aspect, make it a nice large rectangle manually to be sure
+        if (!aspect) {
+            initial.x = width * 0.05;
+            initial.y = height * 0.05;
+            initial.width = width * 0.9;
+            initial.height = height * 0.9;
+        }
+
+        setCrop(initial);
     };
 
-    // Re-initialize when modal opens or image changes
     useEffect(() => {
         if (isOpen) {
-            // Give layout a tiny bit of time
             const timer = setTimeout(() => {
                 if (imgRef.current && imgRef.current.complete) {
                     initializeCrop();
                 }
-            }, 50);
+            }, 100);
             return () => clearTimeout(timer);
         } else {
             setCrop(undefined);
             setCompletedCrop(undefined);
         }
-    }, [isOpen, imageUrl, initialCrop]);
+    }, [isOpen, imageUrl]);
 
     const centerHorizontal = () => {
+        if (!imgRef.current) return;
+        const { width } = imgRef.current;
         setCrop((c) => {
-            if (!c) return c;
-            const containerWidth = c.unit === '%' ? 100 : (imgRef.current?.width || 100);
+            if (!c || c.unit !== 'px') return c;
             return {
                 ...c,
-                x: (containerWidth - (c.width || 0)) / 2,
+                x: (width - (c.width || 0)) / 2,
             };
         });
     };
 
     const centerVertical = () => {
+        if (!imgRef.current) return;
+        const { height } = imgRef.current;
         setCrop((c) => {
-            if (!c) return c;
-            const containerHeight = c.unit === '%' ? 100 : (imgRef.current?.height || 100);
+            if (!c || c.unit !== 'px') return c;
             return {
                 ...c,
-                y: (containerHeight - (c.height || 0)) / 2,
+                y: (height - (c.height || 0)) / 2,
             };
         });
     };
@@ -106,12 +113,12 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
 
         if (imgRef.current) {
             const { width, height } = imgRef.current;
-            const percentCrop = centerCrop(
-                makeAspectCrop({ unit: '%', width: 80 }, newAspect || (undefined as any), width, height),
-                100,
-                100
+            const newCrop = centerCrop(
+                makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.9 }, newAspect || (undefined as any), width, height),
+                width,
+                height
             );
-            setCrop(percentCrop);
+            setCrop(newCrop);
         }
     };
 
@@ -128,8 +135,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         });
     };
 
-    const handleSave = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
+    const handleSave = () => {
         if (completedCrop && imgRef.current) {
             const img = imgRef.current;
             const scaleX = img.naturalWidth / img.width;
@@ -146,50 +152,49 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     };
 
     const resetCrop = () => {
-        if (imgRef.current) {
-            const { width, height } = imgRef.current;
-            const percentCrop = centerCrop(
-                makeAspectCrop({ unit: '%', width: 80 }, aspect || (undefined as any), width, height),
-                100,
-                100
-            );
-            setCrop(percentCrop);
-        }
+        initializeCrop();
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => {
             if (!open) onClose();
         }}>
-            <DialogContent className="sm:max-w-[820px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
-                <DialogHeader className="p-6 pb-2">
+            <DialogContent className="sm:max-w-[850px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col max-h-[90vh]">
+                <DialogHeader className="p-6 pb-2 shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
                         <CropIcon className="w-5 h-5 text-indigo-600" />
                         Adjust Crop Area
                     </DialogTitle>
-                    <p className="text-sm text-gray-500">Drag handles to resize. Drag center to move. Non-destructive.</p>
+                    <p className="text-sm text-gray-500">Drag handles to resize. Drag center to move.</p>
                 </DialogHeader>
 
-                <div className="relative max-h-[500px] overflow-auto bg-gray-900/5 p-8 flex justify-center items-center">
-                    <ReactCrop
-                        crop={crop}
-                        onChange={(c) => setCrop(c)}
-                        onComplete={(c) => setCompletedCrop(c)}
-                        aspect={aspect}
-                        className="shadow-2xl border-4 border-white rounded-lg overflow-hidden"
-                    >
-                        <img
-                            ref={imgRef}
-                            src={imageUrl}
-                            onLoad={() => initializeCrop()}
-                            className="max-w-full block select-none"
-                            crossOrigin="anonymous"
-                            draggable={false}
-                        />
-                    </ReactCrop>
+                <div className="relative flex-1 overflow-hidden bg-gray-100/50 p-4 flex justify-center items-center min-h-0">
+                    <div className="relative max-w-full max-h-full overflow-auto custom-scrollbar shadow-inner rounded-xl p-4 bg-white/40">
+                        <ReactCrop
+                            crop={crop}
+                            onChange={(c) => setCrop(c)}
+                            onComplete={(c) => setCompletedCrop(c)}
+                            aspect={aspect}
+                            className="shadow-xl rounded-lg overflow-hidden border-2 border-white"
+                        >
+                            <img
+                                ref={imgRef}
+                                src={imageUrl}
+                                onLoad={initializeCrop}
+                                className="max-w-full block select-none touch-none"
+                                crossOrigin="anonymous"
+                                draggable={false}
+                                style={{
+                                    userSelect: 'none',
+                                    WebkitUserDrag: 'none',
+                                    pointerEvents: 'auto',
+                                }}
+                            />
+                        </ReactCrop>
+                    </div>
                 </div>
 
-                <div className="p-6 bg-white border-t border-gray-100">
+                <div className="p-6 bg-white border-t border-gray-100 shrink-0">
                     <TooltipProvider delayDuration={0}>
                         <div className="flex items-center gap-3">
                             <div className="flex items-center bg-gray-100 p-1 rounded-xl gap-1">
