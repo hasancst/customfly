@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import Cropper from 'react-easy-crop';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useState, useRef, useEffect } from 'react';
+import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Crop, RotateCcw, Check, X } from 'lucide-react';
+import { Crop as CropIcon, Check, X, RotateCcw } from 'lucide-react';
 
 interface ImageCropModalProps {
     isOpen: boolean;
@@ -14,80 +14,107 @@ interface ImageCropModalProps {
     initialCrop?: { x: number; y: number; width: number; height: number };
 }
 
-export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, initialCrop }: ImageCropModalProps) {
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete }: ImageCropModalProps) {
+    const [crop, setCrop] = useState<Crop>();
+    const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+    const imgRef = useRef<HTMLImageElement>(null);
 
-    const onCropChange = (crop: { x: number; y: number }) => {
-        setCrop(crop);
-    };
+    function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+        const { width, height } = e.currentTarget;
 
-    const onZoomChange = (zoom: number) => {
-        setZoom(zoom);
-    };
+        // Set an initial crop area (80% of image)
+        const initialCrop = centerCrop(
+            makeAspectCrop(
+                {
+                    unit: '%',
+                    width: 80,
+                },
+                undefined, // Aspect ratio undefined for freeform
+                width,
+                height
+            ),
+            width,
+            height
+        );
 
-    const onCropCompleteInternal = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    }, []);
+        setCrop(initialCrop);
+    }
 
     const handleSave = () => {
-        if (croppedAreaPixels) {
-            onCropComplete(croppedAreaPixels);
+        if (completedCrop) {
+            onCropComplete({
+                x: completedCrop.x,
+                y: completedCrop.y,
+                width: completedCrop.width,
+                height: completedCrop.height
+            });
             onClose();
+        }
+    };
+
+    const resetCrop = () => {
+        if (imgRef.current) {
+            const { width, height } = imgRef.current;
+            const newCrop = centerCrop(
+                makeAspectCrop({ unit: '%', width: 80 }, undefined, width, height),
+                width, height
+            );
+            setCrop(newCrop);
         }
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
+            <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
-                        <Crop className="w-5 h-5 text-indigo-600" />
-                        Crop Image
+                        <CropIcon className="w-5 h-5 text-indigo-600" />
+                        Adjust Crop Area
                     </DialogTitle>
-                    <p className="text-sm text-gray-500">Adjust the area you want to keep. This is non-destructive.</p>
+                    <p className="text-sm text-gray-500">Drag handles to resize. Drag center to move. Non-destructive.</p>
                 </DialogHeader>
 
-                <div className="relative h-[400px] w-full bg-gray-900 mt-2">
-                    <Cropper
-                        image={imageUrl}
+                <div className="relative max-h-[500px] overflow-auto bg-gray-100 p-4 flex justify-center">
+                    <ReactCrop
                         crop={crop}
-                        zoom={zoom}
-                        aspect={undefined} // Freeform crop
-                        onCropChange={onCropChange}
-                        onCropComplete={onCropCompleteInternal}
-                        onZoomChange={onZoomChange}
-                    />
+                        onChange={(c) => setCrop(c)}
+                        onComplete={(c) => setCompletedCrop(c)}
+                        className="shadow-lg border-2 border-white rounded-sm"
+                    >
+                        <img
+                            ref={imgRef}
+                            src={imageUrl}
+                            onLoad={onImageLoad}
+                            className="max-w-full block"
+                            crossOrigin="anonymous"
+                        />
+                    </ReactCrop>
                 </div>
 
-                <div className="p-6 bg-white space-y-6">
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Zoom Level</Label>
-                            <span className="text-xs font-bold text-indigo-600">{(zoom * 100).toFixed(0)}%</span>
-                        </div>
-                        <Slider
-                            value={[zoom]}
-                            min={1}
-                            max={3}
-                            step={0.1}
-                            onValueChange={([val]) => setZoom(val)}
-                            className="py-2"
-                        />
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
+                <div className="p-6 bg-white flex flex-col gap-4">
+                    <div className="flex gap-3">
                         <Button
                             variant="outline"
-                            className="flex-1 rounded-xl h-12 font-bold border-gray-200 hover:bg-gray-50 gap-2"
+                            size="sm"
+                            className="rounded-xl h-10 font-bold border-gray-200 hover:bg-gray-50 gap-2 px-4"
+                            onClick={resetCrop}
+                        >
+                            <RotateCcw className="w-4 h-4" /> Reset Area
+                        </Button>
+
+                        <div className="flex-1" />
+
+                        <Button
+                            variant="outline"
+                            className="rounded-xl h-10 font-bold border-gray-200 hover:bg-gray-50 gap-2 px-4 text-gray-500"
                             onClick={onClose}
                         >
                             <X className="w-4 h-4" /> Cancel
                         </Button>
                         <Button
-                            className="flex-1 rounded-xl h-12 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 gap-2"
+                            className="rounded-xl h-10 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 gap-2 px-6"
                             onClick={handleSave}
+                            disabled={!completedCrop?.width || !completedCrop?.height}
                         >
                             <Check className="w-4 h-4" /> Apply Crop
                         </Button>
