@@ -73,6 +73,7 @@ export interface CanvasElement {
   monogramType?: MonogramType;
 
   // Gallery specific
+  galleryMode?: 'all' | 'categorized';
   galleryMaxImages?: number;
   gallerySourceIds?: string[]; // IDs of selected gallery assets
 }
