@@ -178,10 +178,22 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
     const toastId = toast.loading("AI is removing background...");
 
     try {
+      // Convert URL to Base64 (needed because server can't fetch blob: URLs)
+      let imageData = selectedElement.src || '';
+      if (imageData.startsWith('blob:')) {
+        const response = await fetch(imageData);
+        const blob = await response.blob();
+        imageData = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      }
+
       const resp = await fetch('/imcst_api/remove-bg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: selectedElement.src })
+        body: JSON.stringify({ image: imageData })
       });
 
       if (!resp.ok) {
@@ -240,7 +252,14 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                   onClick={() => handleAddFromGallery(img.value)}
                   className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-500 transition-all bg-white shadow-sm hover:shadow-md"
                 >
-                  <img src={img.value} alt={img.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                  <img
+                    src={img.value}
+                    alt={img.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
                     <Plus className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
                   </div>
@@ -288,7 +307,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
           </div>
 
           {/* Image Shapes */}
-          <Collapsible className="space-y-2" defaultOpen>
+          <Collapsible className="space-y-2">
             <CollapsibleTrigger asChild>
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-orange-50 border border-orange-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
@@ -326,7 +345,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
           </Collapsible>
 
           {/* Filters Presets */}
-          <Collapsible className="space-y-2" defaultOpen>
+          <Collapsible className="space-y-2">
             <CollapsibleTrigger asChild>
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-indigo-50 border border-indigo-100 cursor-pointer group">
                 <div className="flex items-center gap-3">

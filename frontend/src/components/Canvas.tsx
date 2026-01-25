@@ -22,6 +22,10 @@ interface CanvasProps {
   safeAreaShape: 'rectangle' | 'circle' | 'oval';
   safeAreaOffset: { x: number; y: number };
   onUpdateSafeAreaOffset: (offset: { x: number; y: number }) => void;
+  baseImage?: string;
+  baseImageColor?: string;
+  baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
+  onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
 }
 
 export function Canvas({
@@ -43,6 +47,10 @@ export function Canvas({
   safeAreaShape,
   safeAreaOffset,
   onUpdateSafeAreaOffset,
+  baseImage,
+  baseImageColor,
+  baseImageProperties,
+  onUpdateBaseImage,
 }: CanvasProps) {
   const dragControls = useDragControls();
   const productColors: Record<string, string> = {
@@ -122,7 +130,11 @@ export function Canvas({
   };
 
   return (
-    <div className="flex-1 p-12 overflow-auto bg-gradient-to-br from-gray-50 to-gray-100 relative">
+    <div
+      className="flex-1 p-12 overflow-auto bg-gradient-to-br from-gray-50 to-gray-100 relative"
+      onPointerDown={() => onSelectElement(null)}
+      onClick={() => onSelectElement(null)}
+    >
       <div className="flex items-center justify-center min-h-full">
         <div className="relative">
           {/* Horizontal Ruler */}
@@ -157,7 +169,60 @@ export function Canvas({
               height: currentHeight,
               backgroundColor: productColors[productVariant.color] || '#ffffff',
             }}
+            onPointerDown={() => onSelectElement(null)}
+            onClick={() => onSelectElement(null)}
           >
+            {/* Base Image Background */}
+            {baseImage && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                <motion.div
+                  drag
+                  dragMomentum={false}
+                  onDragEnd={(_, info) => {
+                    onUpdateBaseImage({
+                      x: baseImageProperties.x + info.offset.x / (zoom / 100),
+                      y: baseImageProperties.y + info.offset.y / (zoom / 100),
+                    });
+                  }}
+                  className="cursor-move select-none pointer-events-auto relative"
+                  style={{
+                    x: baseImageProperties.x * (zoom / 100),
+                    y: baseImageProperties.y * (zoom / 100),
+                    scale: (baseImageProperties.scale || 1) * (zoom / 100),
+                    maxWidth: 'none',
+                  }}
+                >
+                  <div
+                    className="relative overflow-hidden"
+                    style={{
+                      width: baseImageProperties.crop
+                        ? `${baseImageProperties.crop.width}px`
+                        : (baseImageProperties.width ? `${baseImageProperties.width}px` : '500px'),
+                      height: baseImageProperties.crop
+                        ? `${baseImageProperties.crop.height}px`
+                        : (baseImageProperties.height ? `${baseImageProperties.height}px` : '500px'),
+                      backgroundColor: baseImageColor || 'transparent'
+                    }}
+                  >
+                    <img
+                      src={baseImage}
+                      alt="Base"
+                      className="block max-w-none drag-none pointer-events-none"
+                      draggable={false}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                      style={{
+                        transform: baseImageProperties.crop
+                          ? `translate(${-baseImageProperties.crop.x}px, ${-baseImageProperties.crop.y}px)`
+                          : 'none'
+                      }}
+                    />
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
             {/* Safe Print Area Overlay */}
             {/* Safe Print Area Overlay (SVG) - Now Draggable */}
             {showSafeArea && (
@@ -255,6 +320,8 @@ export function Canvas({
             {/* Canvas Elements */}
             <div
               className="absolute inset-0"
+              onPointerDown={() => onSelectElement(null)}
+              onClick={() => onSelectElement(null)}
               style={{
                 clipPath: (() => {
                   if (!showSafeArea) return 'none';

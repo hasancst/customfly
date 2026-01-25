@@ -237,7 +237,14 @@ export function AssetsTool({ onAddElement, selectedElement, onUpdateElement }: A
                                         onClick={() => handleAddImage(img.value)}
                                         className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-500 transition-all bg-white shadow-sm"
                                     >
-                                        <img src={img.value} alt={img.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                        <img
+                                            src={img.value}
+                                            alt={img.name}
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
+                                        />
                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
                                             <Plus className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 shadow-sm" />
                                         </div>

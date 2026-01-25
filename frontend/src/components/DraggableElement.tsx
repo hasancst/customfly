@@ -15,205 +15,7 @@ interface DraggableElementProps {
   enableBounce?: boolean;
 }
 
-const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, width, height, zoom, filter, crop, maskShape, maskViewBox }: {
-  id: string,
-  src: string,
-  removeBg: boolean,
-  removeBgType: 'js' | 'rembg',
-  deep: number,
-  mode: 'light' | 'dark',
-  width: number,
-  height: number,
-  zoom: number,
-  filter?: string,
-  crop?: { x: number, y: number, width: number, height: number },
-  maskShape?: string,
-  maskViewBox?: string
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  const z = zoom / 100;
-
-  useEffect(() => {
-    if (!removeBg || removeBgType !== 'js') return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d', { willReadFrequently: true });
-    const img = imgRef.current;
-
-    if (!canvas || !ctx || !img || !isLoaded) return;
-
-    const process = () => {
-      // Draw to canvas for BG removal
-      if (crop) {
-        canvas.width = crop.width;
-        canvas.height = crop.height;
-        ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
-      } else {
-        canvas.width = img.naturalWidth || width;
-        canvas.height = img.naturalHeight || height;
-        ctx.drawImage(img, 0, 0);
-      }
-
-      if (deep > 0) {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const R = data[i];
-          const G = data[i + 1];
-          const B = data[i + 2];
-
-          if (mode !== 'dark') {
-            if (255 - R < deep && 255 - G < deep && 255 - B < deep) {
-              const alpha = (((255 - R) / deep) + ((255 - G) / deep) + ((255 - B) / deep)) / 3;
-              data[i + 3] = Math.max(0, Math.min(255, alpha * 255));
-            }
-          } else {
-            if (R < deep && G < deep && B < deep) {
-              const alpha = ((R / deep) + (G / deep) + (B / deep)) / 3;
-              data[i + 3] = Math.max(0, Math.min(255, alpha * 255));
-            }
-          }
-        }
-        ctx.putImageData(imageData, 0, 0);
-      }
-    };
-
-    process();
-  }, [src, removeBg, deep, mode, crop, isLoaded]);
-
-  const showProcessed = removeBg && removeBgType === 'js';
-
-  // Core styles for the container
-  const containerStyle: React.CSSProperties = {
-    width: width * z,
-    height: height * z,
-    overflow: 'hidden',
-    position: 'relative',
-  };
-
-  // Base style for the image
-  let imgStyle: React.CSSProperties = {
-    display: showProcessed ? 'none' : 'block',
-    userSelect: 'none',
-    pointerEvents: 'none',
-    filter: filter || 'none',
-    maxWidth: 'none',
-  };
-
-  if (crop) {
-    // If cropped, we must use absolute positioning and transform to show the right slice
-    imgStyle = {
-      ...imgStyle,
-      position: 'absolute',
-      width: 'auto',
-      height: 'auto',
-      transform: `scale(${(width / crop.width) * z}) translate(${-crop.x}px, ${-crop.y}px)`,
-      transformOrigin: '0 0',
-    };
-  } else {
-    // Standard image render: Fill the component dimensions
-    imgStyle = {
-      ...imgStyle,
-      width: width * z,
-      height: height * z,
-      objectFit: 'contain',
-    };
-  }
-
-  const maskId = useMemo(() => `mask-${id}`, [id]);
-
-  const maskTransform = useMemo(() => {
-    if (!maskShape) return "";
-    if (!maskViewBox) return "scale(0.01, 0.01)";
-    const parts = maskViewBox.split(/[ ,]+/).filter(Boolean).map(Number);
-    if (parts.length !== 4) return "scale(0.01, 0.01)";
-    const [minX, minY, vbWidth, vbHeight] = parts;
-
-    if (!vbWidth || !vbHeight) return "scale(0.01, 0.01)";
-
-    // Small margin to prevent edge clipping (2% buffer)
-    const margin = 0.02;
-    const s = 1 - (margin * 2);
-
-    const sx = s / vbWidth;
-    const sy = s / vbHeight;
-
-    return `translate(${margin}, ${margin}) scale(${sx}, ${sy}) translate(${-minX}, ${-minY})`;
-  }, [maskShape, maskViewBox]);
-
-  const clipPathStyle = useMemo(() => ({
-    width: '100%',
-    height: '100%',
-    clipPath: maskShape ? `url(#${maskId})` : 'none',
-    overflow: 'hidden'
-  }), [maskShape, maskId]);
-
-  // Adjust objectFit when masking is active
-  if (maskShape && !crop) {
-    imgStyle = {
-      ...imgStyle,
-      objectFit: 'cover',
-    };
-  }
-
-  return (
-    <div style={containerStyle}>
-      {/* 
-        The SVG needs to be in the DOM to be referencable. 
-        Positioning it far away ensures it doesn't interfere but remains active.
-      */}
-      <svg
-        style={{
-          position: 'fixed',
-          width: 0,
-          height: 0,
-          top: 0,
-          left: 0,
-          pointerEvents: 'none',
-          opacity: 0,
-          zIndex: -1
-        }}
-        aria-hidden="true"
-      >
-        <defs>
-          <clipPath id={maskId} clipPathUnits="objectBoundingBox">
-            {maskShape?.startsWith('M') ? (
-              <path d={maskShape} transform={maskTransform} />
-            ) : maskShape ? (
-              <polygon points={maskShape} transform={maskTransform} />
-            ) : (
-              <rect width="1" height="1" />
-            )}
-          </clipPath>
-        </defs>
-      </svg>
-      <div style={clipPathStyle} key={maskId + (maskShape || '')}>
-        <img
-          ref={imgRef}
-          src={src}
-          onLoad={() => setIsLoaded(true)}
-          style={imgStyle}
-          crossOrigin={showProcessed ? "anonymous" : undefined}
-          draggable={false}
-        />
-        {showProcessed && (
-          <canvas
-            ref={canvasRef}
-            style={{
-              width: width * z,
-              height: height * z,
-              filter: filter || 'none'
-            }}
-          />
-        )}
-      </div>
-    </div>
-  );
-});
+import { ProcessedImage } from '@/components/ProcessedImage';
 
 const BridgeText = ({ element, zoom }: { element: CanvasElement, zoom: number }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1121,6 +923,8 @@ export const DraggableElement = memo(({
           </div>
         );
 
+
+
       default:
         return null;
     }
@@ -1202,7 +1006,7 @@ export const DraggableElement = memo(({
     <div
       ref={elementRef}
       onPointerDown={handlePointerDown}
-      onClick={onSelect}
+      onClick={(e) => e.stopPropagation()}
       className={`absolute cursor-move ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
       style={{
         left: localState.x * (zoom / 100),

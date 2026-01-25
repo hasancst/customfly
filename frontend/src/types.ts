@@ -95,6 +95,10 @@ export interface CanvasElement {
   galleryMode?: 'all' | 'categorized';
   galleryMaxImages?: number;
   gallerySourceIds?: string[]; // IDs of selected gallery assets
+
+  // File Upload specific
+  allowedFileTypes?: string[]; // ['.jpg', '.png', '.pdf', '.ai', etc]
+  maxFileSize?: number; // Size in MB
 }
 
 export interface ProductVariant {

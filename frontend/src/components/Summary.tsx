@@ -8,6 +8,7 @@ import {
   Grid3x3,
   Ruler,
   ChevronRight,
+  Palette
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -52,6 +53,11 @@ interface SummaryProps {
   onPaperSizeChange: (size: string) => void;
   customPaperDimensions: { width: number; height: number };
   onCustomPaperDimensionsChange: (dimensions: { width: number; height: number }) => void;
+  userColors?: any[];
+  selectedColorAssetId?: string | null;
+  onSelectedColorAssetIdChange?: (id: string | null) => void;
+  baseImageColorEnabled?: boolean;
+  onToggleBaseImageColor?: (enabled: boolean) => void;
 }
 
 export function Summary({
@@ -80,6 +86,11 @@ export function Summary({
   onPaperSizeChange,
   customPaperDimensions,
   onCustomPaperDimensionsChange,
+  userColors = [],
+  selectedColorAssetId,
+  onSelectedColorAssetIdChange,
+  baseImageColorEnabled = true,
+  onToggleBaseImageColor,
   onToggleSummary,
 }: SummaryProps & { onToggleSummary?: () => void }) {
 
@@ -297,6 +308,43 @@ export function Summary({
             </div>
           </Card>
 
+          {/* Base Color Settings */}
+          {userColors.length > 0 && (
+            <Card className="border-0 shadow-lg rounded-2xl p-4 bg-indigo-50/50 border-indigo-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-semibold text-indigo-900">Base Color Settings</h3>
+                </div>
+                <Switch
+                  checked={baseImageColorEnabled}
+                  onCheckedChange={onToggleBaseImageColor}
+                />
+              </div>
+              <div className={`space-y-3 transition-opacity duration-200 ${!baseImageColorEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-indigo-400 uppercase">Base Color Source</Label>
+                  <Select
+                    value={selectedColorAssetId || ""}
+                    onValueChange={(val) => onSelectedColorAssetIdChange?.(val)}
+                  >
+                    <SelectTrigger className="h-8 rounded-lg bg-white border-indigo-100 text-xs">
+                      <SelectValue placeholder="Choose color asset..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userColors.map((asset: any) => (
+                        <SelectItem key={asset.id} value={asset.id}>
+                          {asset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[9px] text-indigo-400 italic">This palette will appear in the top header for base mockup color.</p>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* Layers */}
           <Card className="border-0 shadow-lg rounded-2xl p-4 bg-white">
             <div className="flex items-center gap-2 mb-4">
@@ -311,7 +359,7 @@ export function Summary({
               </p>
             ) : (
               <div className="space-y-2">
-                {elements
+                {[...elements]
                   .sort((a, b) => b.zIndex - a.zIndex)
                   .map((element, index) => (
                     <div

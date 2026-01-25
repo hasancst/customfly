@@ -15,7 +15,7 @@ interface GalleryToolProps {
 
 export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: GalleryToolProps) {
     const [galleryMode, setGalleryMode] = useState<'all' | 'categorized'>(
-        selectedElement?.galleryMode || 'all'
+        selectedElement?.galleryMode || 'categorized'
     );
     const [maxImages, setMaxImages] = useState(selectedElement?.galleryMaxImages || 10);
     const [availableGalleries, setAvailableGalleries] = useState<any[]>([]);
@@ -40,13 +40,18 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                 if (res.ok) {
                     const galleries = await res.json();
                     setAvailableGalleries(galleries);
+
+                    // Default to select all galleries if no selection exists and we're not editing an existing element
+                    if (!selectedElement && selectedGalleries.length === 0 && galleries.length > 0) {
+                        setSelectedGalleries(galleries.map((g: any) => g.id));
+                    }
                 }
             } catch (err) {
                 console.error('Failed to fetch galleries:', err);
             }
         }
         fetchGalleries();
-    }, [fetch]);
+    }, [fetch, selectedElement, selectedGalleries.length]);
 
     const handleAddGallery = () => {
         const newElement: CanvasElement = {
@@ -110,9 +115,7 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
                 </ToggleGroup>
 
                 <p className="text-[10px] text-gray-500 italic px-1">
-                    {galleryMode === 'all'
-                        ? 'Show all images in a single grid view'
-                        : 'Organize images into tabs based on gallery names'}
+                    Organize images into tabs based on gallery names. By default it will show all galleries or select sources galleries.
                 </p>
             </div>
 

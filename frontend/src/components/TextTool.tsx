@@ -99,9 +99,10 @@ interface TextToolProps {
   onAddElement: (element: CanvasElement) => void;
   selectedElement?: CanvasElement;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+  onDuplicateElement: (id: string) => void;
 }
 
-export function TextTool({ onAddElement, selectedElement, onUpdateElement }: TextToolProps) {
+export function TextTool({ onAddElement, selectedElement, onUpdateElement, onDuplicateElement }: TextToolProps) {
   const [text, setText] = useState('');
   const [selectedMonogram, setSelectedMonogram] = useState<MonogramShape | null>(null);
   const [fontSize] = useState(selectedElement?.fontSize || 32);
@@ -131,6 +132,12 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement }: Tex
   }, [selectedElement?.id, selectedElement?.text, selectedElement?.textMode, selectedElement?.maxChars, selectedElement?.textCase, selectedElement?.textType]);
 
   const handleAddText = (bridge?: any, isMonogram?: boolean, shape?: any) => {
+    // If duplicating existing text/textarea
+    if (selectedElement && !isMonogram && !bridge) {
+      onDuplicateElement(selectedElement.id);
+      return;
+    }
+
     let finalText = text;
     let selectedFont = fontFamily;
 

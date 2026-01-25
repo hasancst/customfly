@@ -87,7 +87,7 @@ const shopify = shopifyApp({
     },
     sessionStorage: loggingStorage,
     isEmbeddedApp: true,
-    useOnlineTokens: true,
+    useOnlineTokens: false,
     exitIframePath: "/exitiframe",
 });
 

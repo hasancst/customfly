@@ -1,0 +1,135 @@
+import { useState, useEffect } from 'react';
+import { UploadCloud, FileText, Settings2, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { CanvasElement } from '@/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+
+interface FileUploadToolProps {
+    onAddElement: (element: CanvasElement) => void;
+    selectedElement?: CanvasElement;
+    onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+}
+
+const COMMON_FILE_TYPES = [
+    { id: '.jpg', label: 'JPG Image' },
+    { id: '.png', label: 'PNG Image' },
+    { id: '.pdf', label: 'PDF Document' },
+    { id: '.ai', label: 'Adobe Illustrator' },
+    { id: '.psd', label: 'Photoshop' },
+    { id: '.eps', label: 'EPS Vector' },
+    { id: '.zip', label: 'ZIP Archive' }
+];
+
+export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement }: FileUploadToolProps) {
+    const [allowedTypes, setAllowedTypes] = useState<string[]>(
+        selectedElement?.allowedFileTypes || ['.jpg', '.png', '.pdf']
+    );
+    const [maxSize, setMaxSize] = useState(selectedElement?.maxFileSize || 10);
+    const [label, setLabel] = useState(selectedElement?.label || 'Upload your file');
+
+    useEffect(() => {
+        if (selectedElement) {
+            if (selectedElement.allowedFileTypes) setAllowedTypes(selectedElement.allowedFileTypes);
+            if (selectedElement.maxFileSize) setMaxSize(selectedElement.maxFileSize);
+            if (selectedElement.label) setLabel(selectedElement.label);
+        }
+    }, [selectedElement]);
+
+    const handleUpdate = (updates: Partial<CanvasElement>) => {
+        if (selectedElement) {
+            onUpdateElement(selectedElement.id, updates);
+        }
+    };
+
+    const toggleFileType = (type: string) => {
+        const newTypes = allowedTypes.includes(type)
+            ? allowedTypes.filter(t => t !== type)
+            : [...allowedTypes, type];
+
+        setAllowedTypes(newTypes);
+        handleUpdate({ allowedFileTypes: newTypes });
+    };
+
+    return (
+        <div className="space-y-6 pb-4">
+            {/* Label Edit */}
+            <div className="px-1 space-y-2">
+                <Label className="text-sm font-bold text-gray-700">Button Label</Label>
+                <Input
+                    value={label}
+                    onChange={(e) => {
+                        setLabel(e.target.value);
+                        handleUpdate({ label: e.target.value });
+                    }}
+                    className="h-9 rounded-lg"
+                    placeholder="e.g. Upload Logo"
+                />
+            </div>
+
+            {/* Allowed File Types */}
+            <div className="px-1 space-y-3">
+                <Label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-500" />
+                    Allowed File Types
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                    {COMMON_FILE_TYPES.map((type) => (
+                        <div key={type.id} className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                            <Checkbox
+                                id={`file-type-${type.id}`}
+                                checked={allowedTypes.includes(type.id)}
+                                onCheckedChange={() => toggleFileType(type.id)}
+                                className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                            />
+                            <label
+                                htmlFor={`file-type-${type.id}`}
+                                className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer w-full"
+                            >
+                                {type.label}
+                            </label>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Max File Size */}
+            <div className="px-1 space-y-4">
+                <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold text-gray-700">Max File Size</Label>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                        {maxSize} MB
+                    </span>
+                </div>
+                <Slider
+                    value={[maxSize]}
+                    onValueChange={([val]) => {
+                        setMaxSize(val);
+                        handleUpdate({ maxFileSize: val });
+                    }}
+                    min={1}
+                    max={100}
+                    step={1}
+                    className="py-1"
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 font-medium px-1">
+                    <span>1 MB</span>
+                    <span>100 MB</span>
+                </div>
+            </div>
+
+            {/* Info Card */}
+            <div className="mx-1 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-[10px] text-emerald-800 space-y-1">
+                        <p className="font-bold">How File Upload works:</p>
+                        <p>This button allows customers to attach a file to their order. The file is not rendered on the canvas but is sent securely with the order details.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

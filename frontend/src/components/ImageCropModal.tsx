@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'react-image-crop';
+import ReactCrop, { type Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Crop as CropIcon, Check, RotateCcw, AlignCenter, AlignVerticalJustifyCenter, Square, Maximize } from 'lucide-react';
+import { Check, RotateCcw, AlignCenter, AlignVerticalJustifyCenter, Square, Maximize, Crop as CropIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ImageCropModalProps {
@@ -24,49 +24,43 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         const img = imgRef.current;
         if (!img) return;
 
-        const { width, height, naturalWidth, naturalHeight } = img;
+        const { naturalWidth, naturalHeight } = img;
 
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-
-        // 1. Restore saved crop if exists
+        // 1. Restore saved crop if exists (Convert to %)
         if (initialCrop && initialCrop.width > 0 && naturalWidth > 0) {
-            const scaleX = width / naturalWidth;
-            const scaleY = height / naturalHeight;
-
             setCrop({
-                unit: 'px',
-                x: initialCrop.x * scaleX,
-                y: initialCrop.y * scaleY,
-                width: initialCrop.width * scaleX,
-                height: initialCrop.height * scaleY
+                unit: '%',
+                x: (initialCrop.x / naturalWidth) * 100,
+                y: (initialCrop.y / naturalHeight) * 100,
+                width: (initialCrop.width / naturalWidth) * 100,
+                height: (initialCrop.height / naturalHeight) * 100
             });
             return;
         }
 
-        // 2. Large Initial Selection (90% of image)
-        const initialWidth = width * 0.9;
-        const initial = centerCrop(
-            makeAspectCrop(
-                { unit: 'px', width: initialWidth },
-                aspect || (undefined as any),
-                width,
-                height
-            ),
-            width,
-            height
-        );
+        // 2. Default to Full Image Selection (100%) so everything is visible
+        const newCrop: Crop = {
+            unit: '%',
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100
+        };
 
-        // If no aspect, make it a nice large rectangle manually to be sure
-        if (!aspect) {
-            initial.x = width * 0.05;
-            initial.y = height * 0.05;
-            initial.width = width * 0.9;
-            initial.height = height * 0.9;
+        if (aspect) {
+            // Adjust for aspect if present
+            const { width, height } = img;
+            const imgAspect = width / height;
+            if (imgAspect > aspect) {
+                newCrop.width = (80 * aspect) / imgAspect;
+                newCrop.x = (100 - newCrop.width) / 2;
+            } else {
+                newCrop.height = 80 / (aspect / imgAspect);
+                newCrop.y = (100 - newCrop.height) / 2;
+            }
         }
 
-        setCrop(initial);
+        setCrop(newCrop);
     };
 
     useEffect(() => {
@@ -84,25 +78,21 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     }, [isOpen, imageUrl]);
 
     const centerHorizontal = () => {
-        if (!imgRef.current) return;
-        const { width } = imgRef.current;
         setCrop((c) => {
-            if (!c || c.unit !== 'px') return c;
+            if (!c || c.unit !== '%') return c;
             return {
                 ...c,
-                x: (width - (c.width || 0)) / 2,
+                x: (100 - (c.width || 0)) / 2,
             };
         });
     };
 
     const centerVertical = () => {
-        if (!imgRef.current) return;
-        const { height } = imgRef.current;
         setCrop((c) => {
-            if (!c || c.unit !== 'px') return c;
+            if (!c || c.unit !== '%') return c;
             return {
                 ...c,
-                y: (height - (c.height || 0)) / 2,
+                y: (100 - (c.height || 0)) / 2,
             };
         });
     };
@@ -110,43 +100,30 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     const toggleSquare = () => {
         const newAspect = aspect === 1 ? undefined : 1;
         setAspect(newAspect);
-
-        if (imgRef.current) {
-            const { width, height } = imgRef.current;
-            const newCrop = centerCrop(
-                makeAspectCrop({ unit: 'px', width: Math.min(width, height) * 0.9 }, newAspect || (undefined as any), width, height),
-                width,
-                height
-            );
-            setCrop(newCrop);
-        }
+        initializeCrop();
     };
 
     const fullImage = () => {
-        if (!imgRef.current) return;
-        const { width, height } = imgRef.current;
         setAspect(undefined);
         setCrop({
-            unit: 'px',
+            unit: '%',
             x: 0,
             y: 0,
-            width: width,
-            height: height
+            width: 100,
+            height: 100
         });
     };
 
     const handleSave = () => {
         if (completedCrop && imgRef.current) {
             const img = imgRef.current;
-            const scaleX = img.naturalWidth / img.width;
-            const scaleY = img.naturalHeight / img.height;
+            // Always use natural proportions for the output
+            const x = (completedCrop.x / 100) * img.naturalWidth;
+            const y = (completedCrop.y / 100) * img.naturalHeight;
+            const w = (completedCrop.width / 100) * img.naturalWidth;
+            const h = (completedCrop.height / 100) * img.naturalHeight;
 
-            onCropComplete({
-                x: completedCrop.x * scaleX,
-                y: completedCrop.y * scaleY,
-                width: completedCrop.width * scaleX,
-                height: completedCrop.height * scaleY
-            });
+            onCropComplete({ x, y, width: w, height: h });
             onClose();
         }
     };
@@ -159,7 +136,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         <Dialog open={isOpen} onOpenChange={(open) => {
             if (!open) onClose();
         }}>
-            <DialogContent className="sm:max-w-[850px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col max-h-[90vh]">
+            <DialogContent className="sm:max-w-4xl p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col max-h-[95vh]">
                 <DialogHeader className="p-6 pb-2 shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
                         <CropIcon className="w-5 h-5 text-indigo-600" />
@@ -168,27 +145,22 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                     <p className="text-sm text-gray-500">Drag handles to resize. Drag center to move.</p>
                 </DialogHeader>
 
-                <div className="relative flex-1 overflow-hidden bg-gray-100/50 p-4 flex justify-center items-center min-h-0">
-                    <div className="relative max-w-full max-h-full overflow-auto custom-scrollbar shadow-inner rounded-xl p-4 bg-white/40">
+                <div className="relative flex-1 bg-gray-100/30 p-20 flex justify-center items-center overflow-hidden min-h-0">
+                    <div className="relative w-full h-full flex items-center justify-center">
                         <ReactCrop
                             crop={crop}
                             onChange={(c) => setCrop(c)}
                             onComplete={(c) => setCompletedCrop(c)}
                             aspect={aspect}
-                            className="shadow-xl rounded-lg overflow-hidden border-2 border-white"
+                            className="shadow-2xl rounded-lg overflow-hidden border-4 border-white bg-white"
                         >
                             <img
                                 ref={imgRef}
                                 src={imageUrl}
                                 onLoad={initializeCrop}
-                                className="max-w-full block select-none touch-none"
+                                className="w-[500px] h-auto block select-none"
                                 crossOrigin="anonymous"
                                 draggable={false}
-                                style={{
-                                    userSelect: 'none',
-                                    WebkitUserDrag: 'none',
-                                    pointerEvents: 'auto',
-                                } as any}
                             />
                         </ReactCrop>
                     </div>
