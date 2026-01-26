@@ -1,0 +1,15 @@
+name = "Customfly"
+type = "theme"
+
+[extension]
+handle = "customfly"
+
+[[blocks]]
+name = "Customizer Auto Load"
+type = "app-embed"
+target = "body"
+
+[[blocks]]
+name = "Design It Button"
+type = "design-button"
+target = "section"

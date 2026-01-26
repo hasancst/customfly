@@ -65,7 +65,19 @@ const parseAssetColors = (value: string) => {
 export default function App() {
   const [searchParams] = useSearchParams();
   const { productId: routeProductId } = useParams();
-  const productId = routeProductId || searchParams.get('productId');
+
+  const dataParam = searchParams.get('data');
+  const parsedData = useMemo(() => {
+    if (!dataParam) return null;
+    try {
+      return JSON.parse(dataParam);
+    } catch (e) {
+      console.error("Failed to parse data param", e);
+      return null;
+    }
+  }, [dataParam]);
+
+  const productId = routeProductId || searchParams.get('productId') || parsedData?.product_id;
 
   const [pages, setPages] = useState<PageData[]>([{ id: 'default', name: 'Side 1', elements: [] }]);
   const [activePageId, setActivePageId] = useState<string>('default');
@@ -80,7 +92,7 @@ export default function App() {
   const [safeAreaOffset, setSafeAreaOffset] = useState({ x: 0, y: 0 });
 
   const [productData, setProductData] = useState<ShopifyProduct | null>(null);
-  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(parsedData?.variant_id || '');
   const [showRulers, setShowRulers] = useState(false);
   const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>('cm');
   const [paperSize, setPaperSize] = useState<string>('Custom');
@@ -176,7 +188,9 @@ export default function App() {
           if (response.ok) {
             const data = await response.json();
             setProductData(data);
-            if (data.variants && data.variants.length > 0) setSelectedVariantId(data.variants[0].id);
+            if (data.variants && data.variants.length > 0) {
+              setSelectedVariantId(prev => prev || data.variants[0].id);
+            }
           }
         } catch (error) { console.error('Failed to fetch product data:', error); }
       }
