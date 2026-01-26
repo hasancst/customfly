@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, memo, useEffect } from 'react';
+import { useRef, useState, useMemo, memo, useEffect, useCallback } from 'react';
 import { CanvasElement } from '../types';
 import { Input } from './ui/input';
 import {
@@ -159,6 +159,8 @@ export const DraggableElement = memo(({
   const elementRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [textScale, setTextScale] = useState({ x: 1, y: 1 });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(element.text || '');
 
   // Local state for smooth interactions
   const [localState, setLocalState] = useState({
@@ -231,7 +233,45 @@ export const DraggableElement = memo(({
     if (contentRef.current) observer.observe(contentRef.current);
 
     return () => observer.disconnect();
-  }, [element.text, localState.width, localState.fontSize, element.textMode, element.type, zoom]);
+  }, [element.text, localState.width, localState.height, localState.fontSize, element.textMode, element.type, zoom]);
+
+  useEffect(() => {
+    setEditValue(element.text || '');
+  }, [element.text]);
+
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (!isEditing) return;
+    const target = e.target as HTMLElement;
+    if (elementRef.current && !elementRef.current.contains(target)) {
+      setIsEditing(false);
+      onUpdate({ text: editValue }, false);
+    }
+  }, [isEditing, editValue, onUpdate]);
+
+  useEffect(() => {
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [handleClickOutside]);
+
+  useEffect(() => {
+    setEditValue(element.text || '');
+  }, [element.text]);
+
+  // Handle outside click to save editing
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (elementRef.current && !elementRef.current.contains(target)) {
+        setIsEditing(false);
+        onUpdate({ text: editValue }, false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isEditing, editValue, onUpdate]);
 
   // State to track initial interaction data
   const interactionRef = useRef<{
@@ -336,7 +376,10 @@ export const DraggableElement = memo(({
         let localOffsetY = 0;
 
         const isFieldType = ['field', 'phone', 'date'].includes(element.type);
-        const maintainAspect = element.type === 'image' || element.type === 'monogram' || element.type === 'text';
+        const isWrapMode = element.type === 'text' && element.textMode === 'wrap';
+        const maintainAspect = element.type === 'image'
+          ? (element.lockAspectRatio !== false)
+          : (element.type === 'monogram' || (element.type === 'text' && element.textMode === 'shrink'));
 
         // handle logic
         switch (resizeHandle) {
@@ -392,10 +435,23 @@ export const DraggableElement = memo(({
 
         let newFontSize = startFontSize;
         if (element.type === 'text') {
-          // Selalu proposional untuk teks dari handle mana pun
-          const scale = newWidth / startWidth;
-          newFontSize = startFontSize * scale;
-          newHeight = startHeight * scale;
+          const isEdgeHandle = ['n', 's', 'e', 'w'].includes(resizeHandle || '');
+
+          if (element.textMode === 'shrink') {
+            // MODE SHRINK: Selalu proposional dari handle mana pun
+            const scale = newWidth / startWidth;
+            newFontSize = startFontSize * scale;
+            newHeight = startHeight * scale;
+          } else {
+            // MODE WRAP:
+            // 1. Tarik Garis (Side): Hanya ganti lebar/tinggi, font tetap.
+            // 2. Tarik Pojok (Corner): Proposional + Ganti Font.
+            if (!isEdgeHandle) {
+              const scale = newWidth / startWidth;
+              newFontSize = startFontSize * scale;
+              newHeight = startHeight * scale;
+            }
+          }
         }
 
         setLocalState(prev => ({
@@ -671,7 +727,7 @@ export const DraggableElement = memo(({
               fontWeight: element.fontWeight || 400,
               fontStyle: element.italic ? 'italic' : 'normal',
               textDecoration: element.underline ? 'underline' : 'none',
-              textAlign: 'center',
+              textAlign: (element.textAlign || 'center') as any,
               whiteSpace: isWrap ? 'pre-wrap' : 'nowrap',
               wordBreak: isWrap ? 'break-word' : 'normal',
               userSelect: 'none',
@@ -680,9 +736,13 @@ export const DraggableElement = memo(({
               height: isWrap ? 'auto' : '100%',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
+              justifyContent:
+                element.textAlign === 'left' ? 'flex-start' :
+                  element.textAlign === 'right' ? 'flex-end' :
+                    'center',
               overflow: 'visible',
               padding: 0,
+              visibility: isEditing ? 'hidden' : 'visible'
             }}
           >
             <div
@@ -692,6 +752,7 @@ export const DraggableElement = memo(({
                 transformOrigin: 'center center',
                 width: isWrap ? '100%' : 'fit-content',
                 whiteSpace: isWrap ? 'pre-wrap' : 'nowrap',
+                textAlign: (element.textAlign || 'center') as any,
                 ...getGradientStyle(),
                 ...getStrokeStyle(),
                 color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
@@ -1366,7 +1427,8 @@ export const DraggableElement = memo(({
     filterString,
     localState.width,
     localState.height,
-    localState.fontSize
+    localState.fontSize,
+    isEditing
   ]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -1449,6 +1511,11 @@ export const DraggableElement = memo(({
     <div
       ref={elementRef}
       onPointerDown={handlePointerDown}
+      onDoubleClick={() => {
+        if (element.type === 'text' || element.type === 'textarea' || element.type === 'monogram') {
+          setIsEditing(true);
+        }
+      }}
       onClick={(e) => e.stopPropagation()}
       className={`absolute ${isResizing || isRotating ? 'cursor-not-allowed' : 'cursor-move'}`}
       style={{
@@ -1463,6 +1530,37 @@ export const DraggableElement = memo(({
       }}
     >
       {content}
+
+      {/* Inline Text Editing Overlay */}
+      {isEditing && (
+        <textarea
+          autoFocus
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              setIsEditing(false);
+              onUpdate({ text: editValue }, false);
+            }
+            if (e.key === 'Escape') {
+              setIsEditing(false);
+              setEditValue(element.text || '');
+            }
+          }}
+          className="absolute inset-0 bg-white/90 focus:outline-none z-[2000] p-0 border-none resize-none"
+          style={{
+            fontSize: localState.fontSize * (zoom / 100),
+            fontFamily: element.fontFamily || 'Inter',
+            fontWeight: element.fontWeight || 400,
+            fontStyle: element.italic ? 'italic' : 'normal',
+            lineHeight: 1.1,
+            textAlign: (element.textAlign || 'center') as any,
+            color: element.color || '#000000',
+            overflow: 'hidden'
+          }}
+        />
+      )}
 
       {/* Selection Bounding Box & Handles */}
       {isSelected && (

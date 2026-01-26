@@ -129,11 +129,18 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
       setTextType(selectedElement.textType || 'all');
     } else {
       setText('');
-      setMaxChars(0);
       setTextCase('none');
       setTextType('all');
     }
-  }, [selectedElement?.id, selectedElement?.text, selectedElement?.textMode, selectedElement?.maxChars, selectedElement?.textCase, selectedElement?.textType]);
+  }, [
+    selectedElement?.id,
+    selectedElement?.text,
+    selectedElement?.type,
+    selectedElement?.textMode,
+    selectedElement?.maxChars,
+    selectedElement?.textCase,
+    selectedElement?.textType
+  ]);
 
   const handleUpdate = (updates: Partial<CanvasElement>) => {
     if (selectedElement) {

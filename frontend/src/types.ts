@@ -65,6 +65,7 @@ export interface CanvasElement {
   };
   maskShape?: string; // Path/SVG for masking
   maskViewBox?: string; // viewBox for masking
+  lockAspectRatio?: boolean;
 
   // Engraving specific
   isEngraved?: boolean;

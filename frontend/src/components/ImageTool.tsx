@@ -306,35 +306,88 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
           </div>
 
           {/* Smooth Resize Controls */}
-          <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/50 space-y-3">
+          <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/50 space-y-4">
             <div className="flex items-center justify-between">
-              <Label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Image Dimensions</Label>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-col">
+                <Label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Maintain Aspect Ratio</Label>
+                <p className="text-[9px] text-gray-400">Turn off to stretch or squash the image freely</p>
+              </div>
+              <Switch
+                checked={selectedElement.lockAspectRatio !== false}
+                onCheckedChange={(checked) => handleUpdate({ lockAspectRatio: checked })}
+                className="scale-75"
+              />
+            </div>
+
+            <Separator className="bg-indigo-100/50" />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-bold text-gray-500 uppercase">Width (W)</Label>
+                  <span className="text-[9px] font-bold text-indigo-400">PX</span>
+                </div>
                 <Input
                   type="number"
                   value={Math.round(selectedElement.width || 200)}
                   onChange={(e) => {
                     const val = parseInt(e.target.value);
                     if (!isNaN(val)) {
-                      const ratio = (selectedElement.height || 200) / (selectedElement.width || 200);
-                      handleUpdate({ width: val, height: val * ratio });
+                      if (selectedElement.lockAspectRatio !== false) {
+                        const ratio = (selectedElement.height || 200) / (selectedElement.width || 200);
+                        handleUpdate({ width: val, height: val * ratio });
+                      } else {
+                        handleUpdate({ width: val });
+                      }
                     }
                   }}
-                  className="w-14 h-7 text-[10px] font-bold text-center bg-white border-indigo-100"
+                  className="h-8 text-[10px] font-bold text-center bg-white border-indigo-100"
                 />
-                <span className="text-[9px] font-bold text-indigo-400">PX</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-bold text-gray-500 uppercase">Height (H)</Label>
+                  <span className="text-[9px] font-bold text-indigo-400">PX</span>
+                </div>
+                <Input
+                  type="number"
+                  value={Math.round(selectedElement.height || 200)}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val)) {
+                      if (selectedElement.lockAspectRatio !== false) {
+                        const ratio = (selectedElement.width || 200) / (selectedElement.height || 200);
+                        handleUpdate({ height: val, width: val * ratio });
+                      } else {
+                        handleUpdate({ height: val });
+                      }
+                    }
+                  }}
+                  className="h-8 text-[10px] font-bold text-center bg-white border-indigo-100"
+                />
               </div>
             </div>
-            <Slider
-              value={[selectedElement.width || 200]}
-              onValueChange={([val]) => {
-                const ratio = (selectedElement.height || 200) / (selectedElement.width || 200);
-                handleUpdate({ width: val, height: val * ratio });
-              }}
-              min={10}
-              max={1200}
-              step={1}
-            />
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label className="text-[10px] font-bold text-gray-500 uppercase">Quick Resize</Label>
+                <span className="text-[9px] font-bold text-indigo-500">{Math.round(selectedElement.width || 0)}px</span>
+              </div>
+              <Slider
+                value={[selectedElement.width || 200]}
+                onValueChange={([val]) => {
+                  if (selectedElement.lockAspectRatio !== false) {
+                    const ratio = (selectedElement.height || 200) / (selectedElement.width || 200);
+                    handleUpdate({ width: val, height: val * ratio });
+                  } else {
+                    handleUpdate({ width: val });
+                  }
+                }}
+                min={10}
+                max={1200}
+                step={1}
+              />
+            </div>
           </div>
 
           {/* Image Shapes */}

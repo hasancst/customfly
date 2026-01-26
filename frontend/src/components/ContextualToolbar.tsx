@@ -117,7 +117,7 @@ export function ContextualToolbar({
         if (!selectedElement) return;
 
         // Apply automatic formatting if text, type, case or maxChars are changed
-        if (selectedElement.type === 'text' || selectedElement.type === 'textarea' || selectedElement.type === 'number') {
+        if (selectedElement.type === 'text' || selectedElement.type === 'textarea' || selectedElement.type === 'number' || selectedElement.type === 'monogram') {
             const currentText = updates.text !== undefined ? updates.text : selectedElement.text || '';
             const currentType = updates.textType !== undefined ? updates.textType : (selectedElement.textType || 'all');
             const currentCase = updates.textCase !== undefined ? updates.textCase : (selectedElement.textCase || 'none');
