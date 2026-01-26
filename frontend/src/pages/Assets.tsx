@@ -72,6 +72,8 @@ export default function Assets() {
         fetchAssets();
     }, [fetchAssets]);
 
+
+
     const handleTabChange = (index: number) => {
         setSelectedTab(index);
         setSearchQuery('');
@@ -119,13 +121,11 @@ export default function Assets() {
 
             if (response.ok) {
                 showToast("Asset created successfully");
-                console.log("Asset created successfully");
                 setIsModalOpen(false);
                 setAssetName('');
                 fetchAssets();
             } else {
                 const errorData = await response.json().catch(() => ({}));
-                console.error("Server error creating asset:", errorData);
                 alert("Failed to create asset: " + (errorData.message || response.statusText));
             }
         } catch (error) {
@@ -426,7 +426,7 @@ export default function Assets() {
                                             'e.g. General Settings'
                             }
                         />
-
+                        {/* Option subtype selection removed per user request (moved to item level) */}
                     </FormLayout>
                 </Modal.Section>
             </Modal>

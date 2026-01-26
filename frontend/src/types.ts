@@ -66,6 +66,12 @@ export interface CanvasElement {
   maskShape?: string; // Path/SVG for masking
   maskViewBox?: string; // viewBox for masking
 
+  // Engraving specific
+  isEngraved?: boolean;
+  engraveThreshold?: number; // 0-255
+  engraveColor?: string; // Color of the "engraving"
+  engraveInvert?: boolean;
+
   // Field specific
   fieldType?: 'text' | 'email' | 'number' | 'textarea';
   placeholder?: string;
@@ -99,6 +105,71 @@ export interface CanvasElement {
   // File Upload specific
   allowedFileTypes?: string[]; // ['.jpg', '.png', '.pdf', '.ai', etc]
   maxFileSize?: number; // Size in MB
+  // Dropdown specific
+  dropdownOptions?: string[];
+  linkedAssetId?: string;
+  isRequired?: boolean;
+  buttonOptions?: string[];
+  enabledOptions?: string[];
+  checkboxOptions?: string[];
+  enabledCheckboxOptions?: string[];
+  isMultiple?: boolean;
+  minSelection?: number;
+  maxSelection?: number;
+  showOtherOption?: boolean;
+  buttonStyle?: 'solid' | 'outline' | 'soft';
+  buttonShape?: 'square' | 'rounded' | 'pill';
+  dropdownStyle?: 'classic' | 'outline' | 'soft';
+  isSearchable?: boolean;
+  helpText?: string;
+  swatchShape?: 'circle' | 'square' | 'rounded';
+  minValue?: number;
+  maxValue?: number;
+  stepValue?: number;
+  defaultValue?: number | string;
+  numberPrefix?: string;
+  numberSuffix?: string;
+  hideLabel?: boolean;
+  logic?: ElementLogic;
+}
+
+export interface VisibilityRule {
+  id: string;
+  sourceType: 'shopify_variant' | 'shopify_option' | 'element_value';
+  sourceKey: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than';
+  value: any;
+}
+
+export interface ElementLogic {
+  rules: VisibilityRule[];
+  matchType: 'all' | 'any';
+  action: 'show' | 'hide';
+}
+
+export interface ShopifyVariant {
+  id: string;
+  title: string;
+  price: string;
+  sku?: string;
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+  image?: string | null;
+}
+
+export interface ShopifyOption {
+  name: string;
+  position: number;
+  values: string[];
+}
+
+export interface ShopifyProduct {
+  id: string;
+  title: string;
+  variants: ShopifyVariant[];
+  options: ShopifyOption[];
+  images: string[];
 }
 
 export interface ProductVariant {

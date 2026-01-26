@@ -18,7 +18,7 @@ import {
     CaseLower,
     Hash,
     Type as TypeIcon,
-    Info,
+
     Underline,
     Crop
 } from 'lucide-react';
@@ -117,7 +117,7 @@ export function ContextualToolbar({
         if (!selectedElement) return;
 
         // Apply automatic formatting if text, type, case or maxChars are changed
-        if (selectedElement.type === 'text' || selectedElement.type === 'textarea') {
+        if (selectedElement.type === 'text' || selectedElement.type === 'textarea' || selectedElement.type === 'number') {
             const currentText = updates.text !== undefined ? updates.text : selectedElement.text || '';
             const currentType = updates.textType !== undefined ? updates.textType : (selectedElement.textType || 'all');
             const currentCase = updates.textCase !== undefined ? updates.textCase : (selectedElement.textCase || 'none');
@@ -167,7 +167,11 @@ export function ContextualToolbar({
         }, 50);
     };
 
-    const isText = selectedElement?.type === 'text' || selectedElement?.type === 'monogram' || selectedElement?.type === 'textarea';
+    const isText = selectedElement?.type === 'text' || selectedElement?.type === 'monogram' || selectedElement?.type === 'textarea' || selectedElement?.type === 'number' || selectedElement?.type === 'phone' || selectedElement?.type === 'date' || selectedElement?.type === 'time';
+    const isNumber = selectedElement?.type === 'number';
+    const isPhone = selectedElement?.type === 'phone';
+    const isDate = selectedElement?.type === 'date';
+    const isTime = selectedElement?.type === 'time';
     const isTextArea = selectedElement?.type === 'textarea';
     const isMonogram = selectedElement?.type === 'monogram';
     const isField = selectedElement?.type === 'field' || selectedElement?.type === 'phone' || selectedElement?.type === 'date' || selectedElement?.type === 'map' || selectedElement?.type === 'swatch';
@@ -177,7 +181,7 @@ export function ContextualToolbar({
             {selectedElement ? (
                 <>
                     {/* Font Family */}
-                    {(isText || isField) && (
+                    {(isText || isField) && !isNumber && !isPhone && !isDate && !isTime && (
                         <>
                             <Select
                                 value={selectedElement.fontFamily || 'Inter'}
@@ -199,7 +203,7 @@ export function ContextualToolbar({
                     )}
 
                     {/* Font Size */}
-                    {(isText || isField) && (
+                    {(isText || isField) && !isNumber && !isPhone && !isDate && !isTime && (
                         <>
                             <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg h-9 px-1">
                                 <Button
@@ -230,7 +234,7 @@ export function ContextualToolbar({
                     )}
 
                     {/* Text Formatting (Bold, Italic, Underline) */}
-                    {(isText || isField) && (
+                    {(isText || isField) && !isNumber && !isPhone && !isDate && !isTime && (
                         <>
                             <div className="flex items-center bg-gray-50 rounded-lg border border-gray-100 p-0.5">
                                 <ToggleGroup
@@ -265,7 +269,7 @@ export function ContextualToolbar({
                     )}
 
                     {/* Alignment */}
-                    {isText && (
+                    {isText && !isNumber && !isPhone && !isDate && !isTime && (
                         <>
                             <ToggleGroup
                                 type="single"
@@ -382,47 +386,12 @@ export function ContextualToolbar({
                             </div>
                             <Separator orientation="vertical" className="h-6 mx-1" />
 
-                            {/* Max Chars Popover */}
-                            <Popover>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    className={`h-9 px-2 gap-1.5 rounded-lg font-bold text-xs ${selectedElement.maxChars ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600'}`}
-                                                >
-                                                    <Info className="w-4 h-4" />
-                                                    {selectedElement.maxChars ? `${selectedElement.maxChars} Limit` : 'No Limit'}
-                                                </Button>
-                                            </PopoverTrigger>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Character Limit</TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <PopoverContent className="w-48 p-3" side="bottom">
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Max Characters</Label>
-                                        <div className="flex gap-2">
-                                            <Input
-                                                type="number"
-                                                min="0"
-                                                defaultValue={selectedElement.maxChars || 0}
-                                                onBlur={(e) => handleUpdate({ maxChars: parseInt(e.target.value) || 0 })}
-                                                className="h-8 text-xs font-bold"
-                                            />
-                                            <Button size="sm" className="h-8 px-2" variant="outline" onClick={() => handleUpdate({ maxChars: 0 })}>Reset</Button>
-                                        </div>
-                                        <p className="text-[9px] text-gray-400 italic">0 means unlimited characters.</p>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-                            <Separator orientation="vertical" className="h-6 mx-1" />
+
                         </>
                     )}
 
                     {/* Fill Mode (Solid / Gradient) */}
-                    {isText && !isTextArea && (
+                    {isText && !isTextArea && !isNumber && !isPhone && !isDate && !isTime && (
                         <>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -445,7 +414,7 @@ export function ContextualToolbar({
                                         <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[280px] p-3 drop-shadow-2xl border-indigo-100 rounded-xl z-[10000]">
+                                <PopoverContent className="w-[280px] p-3 drop-shadow-2xl border-indigo-100 rounded-xl">
                                     <Tabs defaultValue={selectedElement.fillType || 'solid'} className="w-full">
                                         <TabsList className="grid w-full grid-cols-2 mb-4 bg-gray-50 p-1 rounded-lg">
                                             <TabsTrigger value="solid" className="text-[10px] font-bold py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">Solid</TabsTrigger>
@@ -531,7 +500,7 @@ export function ContextualToolbar({
                                         <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[280px] p-3 drop-shadow-2xl border-indigo-100 rounded-xl z-[10000]">
+                                <PopoverContent className="w-[280px] p-3 drop-shadow-2xl border-indigo-100 rounded-xl">
                                     <div className="space-y-3">
                                         <HexColorPicker color={localColor} onChange={handleColorChange} />
                                         <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t border-gray-100">
@@ -552,7 +521,7 @@ export function ContextualToolbar({
                     )}
 
                     {/* Stroke Controls - Hide for Text Area and Monogram */}
-                    {isText && !isTextArea && !isMonogram && (
+                    {isText && !isTextArea && !isMonogram && !isNumber && !isPhone && !isDate && !isTime && (
                         <>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -571,7 +540,7 @@ export function ContextualToolbar({
                                         <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[280px] p-4 drop-shadow-2xl border-indigo-100 rounded-xl space-y-4 z-[10000]">
+                                <PopoverContent className="w-[280px] p-4 drop-shadow-2xl border-indigo-100 rounded-xl space-y-4">
                                     <div className="space-y-3">
                                         <Label className="text-[10px] uppercase font-bold text-gray-400">Stroke Color</Label>
                                         <HexColorPicker color={localStrokeColor} onChange={handleStrokeColorChange} />

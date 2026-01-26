@@ -8,7 +8,9 @@ import {
   Grid3x3,
   Ruler,
   ChevronRight,
-  Palette
+  Palette,
+  Settings,
+  EyeOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -18,13 +20,21 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { CanvasElement } from '@/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ShopifyVariant {
   id: string;
   title: string;
   price: string;
   sku?: string;
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+}
+
+interface ShopifyOption {
+  name: string;
+  position: number;
+  values: string[];
 }
 
 interface SummaryProps {
@@ -43,6 +53,7 @@ interface SummaryProps {
   onResetSafeAreaOffset: () => void;
   onReset: () => void;
   shopifyVariants?: ShopifyVariant[];
+  shopifyOptions?: ShopifyOption[];
   selectedVariantId?: string;
   onVariantChange?: (variantId: string) => void;
   showRulers: boolean;
@@ -58,6 +69,7 @@ interface SummaryProps {
   onSelectedColorAssetIdChange?: (id: string | null) => void;
   baseImageColorEnabled?: boolean;
   onToggleBaseImageColor?: (enabled: boolean) => void;
+  safeAreaOffset?: { x: number; y: number };
 }
 
 export function Summary({
@@ -91,8 +103,39 @@ export function Summary({
   onSelectedColorAssetIdChange,
   baseImageColorEnabled = true,
   onToggleBaseImageColor,
+  shopifyOptions = [],
   onToggleSummary,
+  safeAreaOffset = { x: 0, y: 0 },
 }: SummaryProps & { onToggleSummary?: () => void }) {
+  const selectedVariant = React.useMemo(() =>
+    shopifyVariants.find(v => v.id === selectedVariantId),
+    [shopifyVariants, selectedVariantId]
+  );
+
+  const handleOptionChange = (optionIndex: number, value: string) => {
+    if (!selectedVariant || !onVariantChange) return;
+
+    // Get current options
+    const currentOptions = [
+      selectedVariant.option1,
+      selectedVariant.option2,
+      selectedVariant.option3,
+    ];
+
+    // Update the specific option (Shopify uses 1-based index for options array position, but we use 0-based for array)
+    currentOptions[optionIndex] = value;
+
+    // Find first variant that matches all specified options
+    const match = shopifyVariants.find(v =>
+      (currentOptions[0] === undefined || currentOptions[0] === null || v.option1 === currentOptions[0]) &&
+      (currentOptions[1] === undefined || currentOptions[1] === null || v.option2 === currentOptions[1]) &&
+      (currentOptions[2] === undefined || currentOptions[2] === null || v.option3 === currentOptions[2])
+    );
+
+    if (match) {
+      onVariantChange(match.id);
+    }
+  };
 
   // Helper function to determine if we should show variants
   const shouldShowVariants = () => {
@@ -117,35 +160,123 @@ export function Summary({
         <ChevronRight className="w-4 h-4" />
       </Button>
 
-      <ScrollArea className="flex-1 p-4">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
         <div className="space-y-4">
           {/* Product Variants (Shopify) */}
           {hasVariants && (
             <Card className="border-0 shadow-lg rounded-2xl p-4 bg-white">
               <h3 className="font-semibold text-gray-900 mb-4">Product Variants</h3>
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-sm text-gray-700 mb-2">Select Variant</Label>
-                  <Select
-                    value={selectedVariantId}
-                    onValueChange={(value: string) => onVariantChange?.(value)}
-                  >
-                    <SelectTrigger className="rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shopifyVariants.map((variant) => (
-                        <SelectItem key={variant.id} value={variant.id}>
-                          {variant.title} - ${variant.price}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-4">
+                {shopifyOptions.length > 0 ? (
+                  shopifyOptions.map((option, idx) => (
+                    <div key={option.name}>
+                      <Label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">
+                        {option.name}
+                      </Label>
+                      <Select
+                        value={(() => {
+                          if (idx === 0) return selectedVariant?.option1 || "";
+                          if (idx === 1) return selectedVariant?.option2 || "";
+                          if (idx === 2) return selectedVariant?.option3 || "";
+                          return "";
+                        })()}
+                        onValueChange={(value) => handleOptionChange(idx, value)}
+                      >
+                        <SelectTrigger className="h-9 rounded-lg text-sm bg-gray-50 border-gray-100">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {option.values.map((val) => (
+                            <SelectItem key={val} value={val}>
+                              {val}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))
+                ) : (
+                  <div>
+                    <Label className="text-sm text-gray-700 mb-2">Select Variant</Label>
+                    <Select
+                      value={selectedVariantId}
+                      onValueChange={(value: string) => onVariantChange?.(value)}
+                    >
+                      <SelectTrigger className="rounded-lg">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shopifyVariants.map((variant) => (
+                          <SelectItem key={variant.id} value={variant.id}>
+                            {variant.title} - ${variant.price}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {selectedVariant && (
+                  <div className="pt-2 border-t border-gray-50 flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Price</span>
+                    <span className="text-sm font-bold text-indigo-600">${selectedVariant.price}</span>
+                  </div>
+                )}
               </div>
             </Card>
           )}
 
+
+          {/* Advanced Settings */}
+          {userColors.length > 0 && (
+            <Card className="border-0 shadow-lg rounded-2xl p-4 bg-slate-50 border-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-slate-600" />
+                  <h3 className="font-semibold text-slate-900">Advanced Settings</h3>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Mockup Color Control */}
+                <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Palette className="w-3.5 h-3.5 text-indigo-500" />
+                      <Label className="text-xs font-bold text-slate-700">Mockup Color</Label>
+                    </div>
+                    <Switch
+                      checked={baseImageColorEnabled}
+                      onCheckedChange={onToggleBaseImageColor}
+                    />
+                  </div>
+
+                  <div className={`space-y-2 transition-opacity duration-200 ${!baseImageColorEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Active Color Palette</Label>
+                    <Select
+                      value={selectedColorAssetId || ""}
+                      onValueChange={(val) => onSelectedColorAssetIdChange?.(val)}
+                    >
+                      <SelectTrigger className="h-8 rounded-lg bg-slate-50 border-slate-200 text-xs font-medium">
+                        <SelectValue placeholder="Select palette..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userColors.map((asset: any) => (
+                          <SelectItem key={asset.id} value={asset.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
+                              {asset.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[9px] text-slate-400 italic leading-tight">Pick an asset to define colors for your mockup overlay.</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Canvas Controls */}
           <Card className="border-0 shadow-lg rounded-2xl p-4 bg-white">
@@ -211,6 +342,10 @@ export function Summary({
                         step={1}
                         className="py-1"
                       />
+                    </div>
+                    {/* Safe Area Position Display */}
+                    <div className="pt-1 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">Position: {Math.round(safeAreaOffset.x)}, {Math.round(safeAreaOffset.y)}</span>
                     </div>
                     <Button
                       variant="ghost"
@@ -308,43 +443,6 @@ export function Summary({
             </div>
           </Card>
 
-          {/* Base Color Settings */}
-          {userColors.length > 0 && (
-            <Card className="border-0 shadow-lg rounded-2xl p-4 bg-indigo-50/50 border-indigo-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-indigo-600" />
-                  <h3 className="font-semibold text-indigo-900">Base Color Settings</h3>
-                </div>
-                <Switch
-                  checked={baseImageColorEnabled}
-                  onCheckedChange={onToggleBaseImageColor}
-                />
-              </div>
-              <div className={`space-y-3 transition-opacity duration-200 ${!baseImageColorEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold text-indigo-400 uppercase">Base Color Source</Label>
-                  <Select
-                    value={selectedColorAssetId || ""}
-                    onValueChange={(val) => onSelectedColorAssetIdChange?.(val)}
-                  >
-                    <SelectTrigger className="h-8 rounded-lg bg-white border-indigo-100 text-xs">
-                      <SelectValue placeholder="Choose color asset..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userColors.map((asset: any) => (
-                        <SelectItem key={asset.id} value={asset.id}>
-                          {asset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[9px] text-indigo-400 italic">This palette will appear in the top header for base mockup color.</p>
-                </div>
-              </div>
-            </Card>
-          )}
-
           {/* Layers */}
           <Card className="border-0 shadow-lg rounded-2xl p-4 bg-white">
             <div className="flex items-center gap-2 mb-4">
@@ -365,12 +463,20 @@ export function Summary({
                     <div
                       key={element.id}
                       onClick={() => onSelectElement(element.id)}
-                      className={`p-3 rounded-lg cursor-pointer transition-all ${selectedElement === element.id
+                      className={`p-3 rounded-lg cursor-pointer transition-all ${(element as any).isHiddenByLogic ? 'opacity-50 grayscale' : ''} ${selectedElement === element.id
                         ? 'bg-indigo-50 border-2 border-indigo-500'
                         : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
                         }`}
                     >
                       <div className="flex items-center justify-between">
+                        {(element as any).isHiddenByLogic && (
+                          <div className="absolute top-1 right-1">
+                            <div className="bg-amber-100 text-amber-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                              <EyeOff className="w-2 h-2" />
+                              HIDDEN
+                            </div>
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {element.type === 'text'
@@ -430,7 +536,7 @@ export function Summary({
             )}
           </Card>
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Actions */}
       <div className="p-4 border-t border-gray-200 bg-white">

@@ -52,6 +52,7 @@ model SavedDesign {
   updatedAt        DateTime @updatedAt
   shopifyProductId String?
   name             String   @default("Untitled Design")
+  isTemplate       Boolean  @default(false)
 
   @@index([shop, shopifyProductId])
 }
@@ -68,7 +69,8 @@ model Asset {
 
   @@index([shop, type])
 }
+
 model GoogleFont {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
+  id   Int    @id @default(autoincrement())
+  name String @unique
 }

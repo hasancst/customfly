@@ -1,45 +1,21 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAppBridge } from '@shopify/app-bridge-react';
+import { Fullscreen } from '@shopify/app-bridge/actions';
 import { Toolbar } from '../components/Toolbar';
 import { Canvas } from '../components/Canvas';
 import { Summary } from '../components/Summary';
 import { Header } from '../components/Header';
 import { ContextualToolbar } from '../components/ContextualToolbar';
 import { ImageCropModal } from '../components/ImageCropModal';
-import { CanvasElement } from '../types';
+import { BaseImageModal } from '../components/BaseImageModal';
+import { CanvasElement, ShopifyVariant, ShopifyOption, ShopifyProduct } from '../types';
+import { evaluateVisibility } from '../utils/logicEvaluator';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 import { toast } from 'sonner';
-import { ChevronLeft, Pencil, X, Image as ImageIcon, UploadCloud, Crop } from 'lucide-react';
+import { ChevronLeft, Pencil, X, Image as ImageIcon, UploadCloud, Crop, Palette } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "../components/ui/dialog";
-import { Label } from '../components/ui/label';
-import { Input } from '../components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
-import { Palette } from 'lucide-react';
-
-interface ShopifyVariant {
-  id: string;
-  title: string;
-  price: string;
-  sku?: string;
-}
-
-interface ShopifyProduct {
-  id: string;
-  title: string;
-  variants: ShopifyVariant[];
-}
 
 interface PageData {
   id: string;
@@ -56,6 +32,7 @@ interface PageData {
   };
   baseImageColor?: string;
   baseImageColorEnabled?: boolean;
+  useVariantImage?: boolean;
 }
 
 const parseAssetColors = (value: string) => {
@@ -86,72 +63,160 @@ const parseAssetColors = (value: string) => {
 };
 
 export default function App() {
-  // console.log("Designer component initializing...");
   const [searchParams] = useSearchParams();
   const { productId: routeProductId } = useParams();
   const productId = routeProductId || searchParams.get('productId');
+
   const [pages, setPages] = useState<PageData[]>([{ id: 'default', name: 'Side 1', elements: [] }]);
   const [activePageId, setActivePageId] = useState<string>('default');
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [history, setHistory] = useState<PageData[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [zoom, setZoom] = useState(100);
+  const [history, setHistory] = useState<PageData[][]>([[{ id: 'default', name: 'Side 1', elements: [] }]]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [zoom, setZoom] = useState(50);
+
   const [showSafeArea, setShowSafeArea] = useState(true);
   const [safeAreaPadding, setSafeAreaPadding] = useState(10);
   const [safeAreaShape, setSafeAreaShape] = useState<'rectangle' | 'circle' | 'oval'>('rectangle');
   const [safeAreaOffset, setSafeAreaOffset] = useState({ x: 0, y: 0 });
+
   const [productData, setProductData] = useState<ShopifyProduct | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string>('');
-  const [productVariant] = useState({
-    color: 'white',
-    size: 'M',
-    material: 'cotton'
-  });
   const [showRulers, setShowRulers] = useState(false);
   const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>('cm');
   const [paperSize, setPaperSize] = useState<string>('Custom');
-  const [customPaperDimensions, setCustomPaperDimensions] = useState({ width: 264.5833, height: 264.5833 }); // 1000px x 1000px
-  const [enableBounce] = useState(false);
+  const [customPaperDimensions, setCustomPaperDimensions] = useState({ width: 264.5833, height: 264.5833 });
+
   const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
   const [designName, setDesignName] = useState('');
   const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
+  const [allDesigns, setAllDesigns] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
   const [userFonts, setUserFonts] = useState<any[]>([]);
   const [userColors, setUserColors] = useState<any[]>([]);
+  const [userOptions, setUserOptions] = useState<any[]>([]);
   const [selectedColorAssetId, setSelectedColorAssetId] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(true);
-  const [renamingPage, setRenamingPage] = useState<{ id: string, name: string } | null>(null);
-  const [newPageName, setNewPageName] = useState('');
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
-  const [isBaseImageCropModalOpen, setIsBaseImageCropModalOpen] = useState(false);
+  const [isBaseImageModalOpen, setIsBaseImageModalOpen] = useState(false);
+  const [productVariant] = useState({ color: 'white', size: 'M', material: 'cotton' });
+  const [enableBounce] = useState(false);
+
   const fetch = useAuthenticatedFetch();
-  const hasFetchedProduct = useRef(false);
+  const shopifyApp = useAppBridge();
 
-  // Auto-select first color asset if none selected
+  // Fullscreen
   useEffect(() => {
-    if (userColors.length > 0 && !selectedColorAssetId) {
-      setSelectedColorAssetId(userColors[0].id);
+    if (shopifyApp) {
+      const fullscreen = Fullscreen.create(shopifyApp);
+      fullscreen.dispatch(Fullscreen.Action.ENTER);
+      return () => { fullscreen.dispatch(Fullscreen.Action.EXIT); };
     }
-  }, [userColors, selectedColorAssetId]);
+  }, [shopifyApp]);
 
-  // Derived parsed colors from selected asset
+  // Lock scroll
+  useEffect(() => {
+    if (productId) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [productId]);
+
+  const addToHistory = useCallback((currentPages: PageData[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push(JSON.parse(JSON.stringify(currentPages)));
+      if (newHistory.length > 50) newHistory.shift();
+      return newHistory;
+    });
+    setHistoryIndex(prev => prev + 1);
+  }, [historyIndex]);
+
+  const fetchAssets = useCallback(async () => {
+    try {
+      const [fontsRes, colorsRes, optionsRes] = await Promise.all([
+        fetch('/imcst_api/assets?type=font'),
+        fetch('/imcst_api/assets?type=color'),
+        fetch('/imcst_api/assets?type=option')
+      ]);
+      if (fontsRes.ok) setUserFonts(await fontsRes.json());
+      if (colorsRes.ok) setUserColors(await colorsRes.json());
+      if (optionsRes.ok) setUserOptions(await optionsRes.json());
+    } catch (err) {
+      console.error("Failed to fetch assets:", err);
+    }
+  }, [fetch]);
+
+  useEffect(() => { fetchAssets(); }, [fetchAssets]);
+
+  const fetchDesigns = useCallback(async () => {
+    if (!productId) return;
+    try {
+      const response = await fetch(`/imcst_api/design/product/${productId}`);
+      if (response.ok) {
+        const designs = await response.json();
+        setSavedDesigns(designs);
+      }
+
+      const allRes = await fetch('/imcst_api/design');
+      if (allRes.ok) {
+        const allDesignsData = await allRes.json();
+        setAllDesigns(allDesignsData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch designs:', error);
+    }
+  }, [productId, fetch]);
+
+  useEffect(() => {
+    if (productId) {
+      async function fetchProductData() {
+        try {
+          const response = await fetch(`/imcst_api/products/${productId}`);
+          if (response.ok) {
+            const data = await response.json();
+            setProductData(data);
+            if (data.variants && data.variants.length > 0) setSelectedVariantId(data.variants[0].id);
+          }
+        } catch (error) { console.error('Failed to fetch product data:', error); }
+      }
+      fetchProductData();
+      fetchDesigns();
+    }
+  }, [productId, fetch, fetchDesigns]);
+
+  // Derived filters
+  const filteredUserFonts = useMemo(() => userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userFonts, productId]);
+  const filteredUserColors = useMemo(() => userColors.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userColors, productId]);
+  const filteredUserOptions = useMemo(() => userOptions.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userOptions, productId]);
+
   const activePaletteColors = useMemo(() => {
-    const asset = userColors.find(a => a.id === selectedColorAssetId);
+    const asset = filteredUserColors.find(a => a.id === selectedColorAssetId);
     if (!asset) return [];
     return parseAssetColors(asset.value);
-  }, [userColors, selectedColorAssetId]);
+  }, [filteredUserColors, selectedColorAssetId]);
 
-  // Helper to get active page and sync elements
-  const elements = useMemo(() => {
-    const activePageIndex = pages.findIndex(p => p.id === activePageId);
-    const activePage = pages[activePageIndex] || pages[0];
-    return activePage.elements;
+  const currentElements = useMemo(() => {
+    const p = pages.find(p => p.id === activePageId);
+    return p ? p.elements : (pages[0]?.elements || []);
   }, [pages, activePageId]);
 
-  const setElements = (newElements: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[])) => {
+  const processedElements = useMemo(() => {
+    const opts: Record<string, string> = {};
+    const variant = productData?.variants.find(v => v.id === selectedVariantId);
+    if (variant && productData) productData.options.forEach((o, i) => { const v = (variant as any)[`option${i + 1}`]; if (v) opts[o.name] = v; });
+    const vals: Record<string, string> = {};
+    currentElements.forEach(e => { if (e.type === 'text') vals[e.id] = e.text || ''; });
+    return currentElements.map(el => ({
+      ...el,
+      isHiddenByLogic: !evaluateVisibility(el, { variantId: selectedVariantId, options: opts, elementValues: vals })
+    }));
+  }, [currentElements, selectedVariantId, productData]);
+
+  const setElements = useCallback((newElements: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[])) => {
     setPages(prev => {
       const updated = prev.map(p => {
-        if (p.id === activePageId || (activePageId === 'default' && prev.length === 1)) {
+        if (p.id === activePageId) {
           return {
             ...p,
             elements: typeof newElements === 'function' ? newElements(p.elements) : newElements
@@ -161,302 +226,178 @@ export default function App() {
       });
       return updated;
     });
+  }, [activePageId]);
+
+  const updateElement = useCallback((id: string, updates: Partial<CanvasElement>, skipHistory = false) => {
+    setPages(prev => {
+      const updated = prev.map(p => {
+        if (p.id === activePageId) {
+          const newEls = p.elements.map(el => el.id === id ? { ...el, ...updates } : el);
+          return { ...p, elements: newEls };
+        }
+        return p;
+      });
+      if (!skipHistory) addToHistory(updated);
+      return updated;
+    });
+  }, [activePageId, addToHistory]);
+
+  const deleteElement = useCallback((id: string) => {
+    setPages(prev => {
+      const updated = prev.map(p => {
+        if (p.id === activePageId) return { ...p, elements: p.elements.filter(el => el.id !== id) };
+        return p;
+      });
+      addToHistory(updated);
+      return updated;
+    });
+    setSelectedElement(null);
+  }, [activePageId, addToHistory]);
+
+  const duplicateElement = useCallback((id: string) => {
+    setPages(prev => {
+      const updated = prev.map(p => {
+        if (p.id === activePageId) {
+          const el = p.elements.find(e => e.id === id);
+          if (el) {
+            const nextZ = p.elements.length > 0 ? Math.max(...p.elements.map(e => e.zIndex)) + 1 : 1;
+            const newEl = { ...el, id: `${el.type}-${Date.now()}`, x: el.x + 20, y: el.y + 20, zIndex: nextZ };
+            return { ...p, elements: [...p.elements, newEl] };
+          }
+        }
+        return p;
+      });
+      addToHistory(updated);
+      return updated;
+    });
+  }, [activePageId, addToHistory]);
+
+  const addElement = useCallback((element: CanvasElement) => {
+    let finalX = element.x;
+    let finalY = element.y;
+    if (element.opacity !== 0 && element.x > -500) {
+      const mmToPx = 3.7795275591;
+      const canvasWidth = customPaperDimensions.width * mmToPx;
+      const canvasHeight = customPaperDimensions.height * mmToPx;
+      finalX = (canvasWidth / 2) - ((element.width || 200) / 2);
+      finalY = (canvasHeight / 2) - ((element.height || 100) / 2);
+    }
+    setPages(prev => {
+      const updated = prev.map(p => {
+        if (p.id === activePageId) {
+          const nextZ = p.elements.length > 0 ? Math.max(...p.elements.map(e => e.zIndex)) + 1 : 1;
+          return { ...p, elements: [...p.elements, { ...element, x: finalX, y: finalY, zIndex: nextZ }] };
+        }
+        return p;
+      });
+      addToHistory(updated);
+      return updated;
+    });
+    setSelectedElement(element.id);
+  }, [activePageId, addToHistory, customPaperDimensions]);
+
+  const loadDesign = (design: any, mode: 'full' | 'base_only' | 'options_only' = 'full') => {
+    if (mode === 'full') {
+      setCurrentDesignId(design.id);
+      setDesignName(design.name);
+    }
+
+    const designJson = design.designJson;
+    if (!Array.isArray(designJson) || designJson.length === 0) return;
+
+    const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
+
+    if (mode === 'full') {
+      setPages(normalizedPages);
+      setActivePageId(normalizedPages[0].id);
+      addToHistory(normalizedPages);
+    } else if (mode === 'base_only') {
+      setPages(prev => prev.map(p => p.id === activePageId ? {
+        ...p,
+        baseImage: normalizedPages[0].baseImage,
+        baseImageProperties: normalizedPages[0].baseImageProperties,
+        baseImageColor: normalizedPages[0].baseImageColor,
+        baseImageColorEnabled: normalizedPages[0].baseImageColorEnabled,
+        useVariantImage: normalizedPages[0].useVariantImage
+      } : p));
+    } else if (mode === 'options_only') {
+      setPages(prev => prev.map(p => {
+        if (p.id === activePageId) {
+          const newElements = normalizedPages[0].elements.map((el: any) => ({
+            ...el,
+            id: `${el.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          }));
+          return { ...p, elements: [...p.elements, ...newElements] };
+        }
+        return p;
+      }));
+    }
+    toast.success(`Applied ${mode.replace('_', ' ')} from ${design.name}`);
   };
 
-  useEffect(() => {
-    async function fetchAssets() {
-      try {
-        const [fontsRes, colorsRes] = await Promise.all([
-          fetch('/imcst_api/assets?type=font'),
-          fetch('/imcst_api/assets?type=color')
-        ]);
-        if (fontsRes.ok) setUserFonts(await fontsRes.json());
-        if (colorsRes.ok) setUserColors(await colorsRes.json());
-      } catch (err) {
-        console.error("Failed to fetch assets in Designer:", err);
-      }
-    }
-    fetchAssets();
-  }, [fetch]);
-
-  // Handle Dynamic Font Loading (Google & Custom)
-  useEffect(() => {
-    if (userFonts.length > 0) {
-      // 1. Prepare Google Fonts
-      const googleFontsToLoad = new Set<string>();
-      userFonts.forEach(font => {
-        if (font.config?.fontType === 'google') {
-          if (font.config?.googleConfig === 'specific' && font.config?.specificFonts) {
-            const names = font.config.specificFonts.split(/[,\n]/).map((n: string) => n.trim()).filter(Boolean);
-            names.forEach((n: string) => googleFontsToLoad.add(n));
-          } else if (font.config?.googleConfig === 'all') {
-            POPULAR_GOOGLE_FONTS.forEach(n => googleFontsToLoad.add(n));
-          }
-        }
-      });
-
-      if (googleFontsToLoad.size > 0) {
-        const linkId = 'google-fonts-loader';
-        let link = document.getElementById(linkId) as HTMLLinkElement;
-        if (!link) {
-          link = document.createElement('link');
-          link.id = linkId;
-          link.rel = 'stylesheet';
-          document.head.appendChild(link);
-        }
-        const families = Array.from(googleFontsToLoad).map(f => f.replace(/ /g, '+')).join('|');
-        link.href = `https://fonts.googleapis.com/css?family=${families}&display=swap`;
-      }
-
-      // 2. Prepare Custom Fonts (@font-face)
-      const styleId = 'custom-fonts-loader';
-      let style = document.getElementById(styleId) as HTMLStyleElement;
-      if (!style) {
-        style = document.createElement('style');
-        style.id = styleId;
-        document.head.appendChild(style);
-      }
-
-      let css = '';
-      userFonts.forEach(font => {
-        if (font.config?.fontType === 'custom' && font.value) {
-          css += `
-            @font-face {
-              font-family: "${font.name}";
-              src: url("${font.value}");
-              font-display: swap;
-            }
-          `;
-        }
-      });
-      style.textContent = css;
-    }
-  }, [userFonts]);
-
-  // Responsive Zoom: Default to 50%
-  useEffect(() => {
-    setZoom(50);
-  }, []);
-
-  // Fetch product data
-  useEffect(() => {
-    if (!productId || hasFetchedProduct.current) return;
-    hasFetchedProduct.current = true;
-
-    async function fetchProductData() {
-      try {
-        const response = await fetch(`/imcst_api/products/${productId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setProductData(data);
-          if (data.variants && data.variants.length > 0) {
-            setSelectedVariantId(data.variants[0].id);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch product data:', error);
-      }
-    }
-
-    fetchProductData();
-  }, [productId]);
-
-  const fetchDesigns = useCallback(async () => {
-    if (!productId) return;
-    try {
-      const response = await fetch(`/imcst_api/design/product/${productId}`);
-      if (response.ok) {
-        const designs = await response.json();
-        setSavedDesigns(designs);
-
-        if (!currentDesignId && designs.length > 0) {
-          const latest = designs[0];
-          setCurrentDesignId(latest.id);
-          setDesignName(latest.name);
-
-          if (Array.isArray(latest.designJson) && latest.designJson.length > 0 && !latest.designJson[0].elements) {
-            const mig = [{ id: 'default', name: 'Side 1', elements: latest.designJson }];
-            setPages(mig);
-            addToHistory(mig);
-          } else {
-            setPages(latest.designJson);
-            setActivePageId(latest.designJson[0].id);
-            addToHistory(latest.designJson);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch designs:', error);
-    }
-  }, [productId, currentDesignId, fetch]);
-
-  useEffect(() => {
-    fetchDesigns();
-  }, [productId]);
-
-  const loadDesign = (design: any) => {
-    setCurrentDesignId(design.id);
-    setDesignName(design.name);
-    if (Array.isArray(design.designJson) && design.designJson.length > 0 && !design.designJson[0].elements) {
-      const mig = [{ id: 'default', name: 'Side 1', elements: design.designJson }];
-      setPages(mig);
-      setActivePageId('default');
-      addToHistory(mig);
-    } else {
-      setPages(design.designJson);
-      setActivePageId(design.designJson[0].id);
-      addToHistory(design.designJson);
-    }
-    toast.success(`Loaded design: ${design.name}`);
-  };
-
-  const saveDesign = useCallback(async (nameOverride?: string) => {
+  const saveDesign = useCallback(async (isTemplate = false) => {
     setIsSaving(true);
-    let finalName = nameOverride || designName;
-    if (!finalName || finalName === 'Untitled Design') {
-      finalName = `design-${savedDesigns.length + 1}`;
-      setDesignName(finalName);
-    }
+    let finalName = designName || (isTemplate ? `Template-${Date.now()}` : `Design-${savedDesigns.length + 1}`);
 
     try {
       const response = await fetch('/imcst_api/design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: currentDesignId,
-          shopifyProductId: productId,
+          id: isTemplate ? null : currentDesignId,
+          shopifyProductId: isTemplate ? null : productId,
           name: finalName,
-          designJson: pages, // Save full pages array
-          previewUrl: '',
+          designJson: pages,
+          isTemplate: !!isTemplate
         }),
       });
-      const data = await response.json();
-      if (!currentDesignId) setCurrentDesignId(data.id);
-
-      const listRes = await fetch(`/imcst_api/design/product/${productId}`);
-      if (listRes.ok) setSavedDesigns(await listRes.json());
+      if (response.ok) {
+        const data = await response.json();
+        if (!isTemplate) setCurrentDesignId(data.id);
+        fetchDesigns();
+        toast.success(isTemplate ? `Saved to Store Library as Template` : `Saved successfully`);
+      }
     } catch (error) {
-      console.error('Failed to save design:', error);
       toast.error('Save failed');
     } finally {
       setIsSaving(false);
     }
-  }, [productId, currentDesignId, designName, pages, fetch, savedDesigns]);
+  }, [productId, currentDesignId, designName, pages, fetch, savedDesigns, fetchDesigns]);
 
   const deleteDesign = async (id: string, name: string) => {
+    if (!confirm(`Delete ${name}?`)) return;
     try {
       const response = await fetch(`/imcst_api/design/${id}`, { method: 'DELETE' });
       if (response.ok) {
         toast.success(`Deleted: ${name}`);
         if (id === currentDesignId) createNewDesign();
-        await fetchDesigns();
+        fetchDesigns();
       }
-    } catch (error) {
-      toast.error('Delete failed');
-    }
+    } catch (error) { toast.error('Delete failed'); }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMod = e.ctrlKey || e.metaKey;
-      const target = e.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-
-      if (isMod && !isInput) {
-        if (e.key.toLowerCase() === 'z') {
-          e.preventDefault();
-          if (e.shiftKey) redo(); else undo();
-          return;
-        }
-        if (e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
-        if (e.key.toLowerCase() === 's') { e.preventDefault(); saveDesign(); return; }
-      }
-
-      if (!isInput) {
-        if (e.key === '+' || e.key === '=') { setZoom(prev => Math.min(200, prev + 10)); return; }
-        if (e.key === '-' || e.key === '_') { setZoom(prev => Math.max(50, prev - 10)); return; }
-        if (e.key === '0') { setZoom(100); return; }
-      }
-
-      if (!selectedElement || isInput) return;
-      const element = elements.find(el => el.id === selectedElement);
-      if (!element) return;
-      const step = e.shiftKey ? 10 : 1;
-      switch (e.key) {
-        case 'ArrowUp': e.preventDefault(); updateElement(selectedElement, { y: element.y - step }); break;
-        case 'ArrowDown': e.preventDefault(); updateElement(selectedElement, { y: element.y + step }); break;
-        case 'ArrowLeft': e.preventDefault(); updateElement(selectedElement, { x: element.x - step }); break;
-        case 'ArrowRight': e.preventDefault(); updateElement(selectedElement, { x: element.x + step }); break;
-        case 'Delete': case 'Backspace': e.preventDefault(); deleteElement(selectedElement); break;
-      }
+  const handleBaseImageSelect = (url: string, isVariantImage: boolean = false) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(900 / img.naturalWidth, 900 / img.naturalHeight, 1);
+      setPages(prev => {
+        const updated = prev.map(p => p.id === activePageId ? {
+          ...p, baseImage: url, useVariantImage: isVariantImage,
+          baseImageProperties: { x: 0, y: 0, scale, width: img.naturalWidth, height: img.naturalHeight }
+        } : p);
+        addToHistory(updated);
+        return updated;
+      });
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElement, elements, historyIndex, history, zoom]);
-
-  const addToHistory = (currentPages: PageData[]) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(JSON.parse(JSON.stringify(currentPages)));
-    if (newHistory.length > 50) newHistory.shift();
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  };
-
-  const addElement = (element: CanvasElement) => {
-    const nextZ = elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 1;
-    const newElement = { ...element, zIndex: nextZ };
-    const newElements = [...elements, newElement];
-
-    const updatedPages = pages.map(p =>
-      p.id === activePageId ? { ...p, elements: newElements } : p
-    );
-
-    setPages(updatedPages);
-    setSelectedElement(element.id);
-    addToHistory(updatedPages);
-  };
-
-  const updateElement = (id: string, updates: Partial<CanvasElement>, skipHistory = false) => {
-    const newEls = elements.map(el => el.id === id ? { ...el, ...updates } : el);
-
-    const updatedPages = pages.map(p =>
-      p.id === activePageId ? { ...p, elements: newEls } : p
-    );
-
-    setPages(updatedPages);
-    if (!skipHistory) {
-      addToHistory(updatedPages);
-    }
-  };
-
-  const deleteElement = useCallback((id: string) => {
-    const newEls = elements.filter(el => el.id !== id);
-    setElements(newEls);
-    setSelectedElement(null);
-    const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: newEls } : p);
-    addToHistory(updatedPages);
-  }, [elements, pages, activePageId]);
-
-  const duplicateElement = (id: string) => {
-    const element = elements.find(el => el.id === id);
-    if (element) {
-      const nextZ = elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 1;
-      const newEl = { ...element, id: `${element.type}-${Date.now()}`, x: element.x + 20, y: element.y + 20, zIndex: nextZ };
-      const newEls = [...elements, newEl];
-      setElements(newEls);
-      setSelectedElement(newEl.id);
-      const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: newEls } : p);
-      addToHistory(updatedPages);
-    }
+    img.src = url;
   };
 
   const addPage = () => {
-    if (pages.length >= 20) { toast.error('Limit of 20 sides reached'); return; }
+    if (pages.length >= 20) return;
     const newId = `page-${Date.now()}`;
     const newPages = [...pages, { id: newId, name: `Side ${pages.length + 1}`, elements: [] }];
     setPages(newPages);
     setActivePageId(newId);
-    setSelectedElement(null);
     addToHistory(newPages);
   };
 
@@ -469,498 +410,160 @@ export default function App() {
   };
 
   const renamePage = (id: string, name: string) => {
-    const newPages = pages.map(p => p.id === id ? { ...p, name } : p);
-    setPages(newPages);
-    addToHistory(newPages);
-  };
-
-  const undo = () => {
-    if (historyIndex > 0) {
-      const p = history[historyIndex - 1];
-      setPages(p);
-      setHistoryIndex(historyIndex - 1);
-    }
-  };
-
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const p = history[historyIndex + 1];
-      setPages(p);
-      setHistoryIndex(historyIndex + 1);
-    }
-  };
-
-  const resetCanvas = () => {
-    setElements([]);
-    setSelectedElement(null);
-    const updatedPages = pages.map(p => p.id === activePageId ? { ...p, elements: [] } : p);
-    addToHistory(updatedPages);
+    const updated = pages.map(p => p.id === id ? { ...p, name } : p);
+    setPages(updated);
+    addToHistory(updated);
   };
 
   const createNewDesign = () => {
-    if (confirm('Start a new design?')) {
-      const newPages = [{ id: 'default', name: 'Side 1', elements: [] }];
-      setPages(newPages);
-      setActivePageId('default');
-      setSelectedElement(null);
-      setHistory([]);
-      setHistoryIndex(-1);
-      setCurrentDesignId(null);
-      setDesignName('');
-      toast.success('Started new design');
-    }
+    const fresh = [{ id: 'default', name: 'Side 1', elements: [] }];
+    setPages(fresh);
+    setActivePageId('default');
+    setCurrentDesignId(null);
+    setDesignName('');
+    setHistory([fresh]);
+    setHistoryIndex(0);
   };
 
-  const startRenaming = (page: PageData) => {
-    setRenamingPage({ id: page.id, name: page.name });
-    setNewPageName(page.name);
-  };
+  const undo = () => { if (historyIndex > 0) { setPages(history[historyIndex - 1]); setHistoryIndex(historyIndex - 1); } };
+  const redo = () => { if (historyIndex < history.length - 1) { setPages(history[historyIndex + 1]); setHistoryIndex(historyIndex + 1); } };
 
-  const handleRenameSubmit = () => {
-    if (renamingPage && newPageName.trim()) {
-      renamePage(renamingPage.id, newPageName.trim());
-      setRenamingPage(null);
-    }
-  };
   const handleCropComplete = (croppedAreaPixels: { x: number, y: number, width: number, height: number }) => {
-    const el = elements.find(e => e.id === selectedElement);
+    const el = pages.find(p => p.id === activePageId)?.elements.find(e => e.id === selectedElement);
     if (el && el.type === 'image') {
-      const currentWidth = el.width || 200;
-      const aspectRatio = croppedAreaPixels.width / croppedAreaPixels.height;
-
-      updateElement(el.id, {
-        crop: croppedAreaPixels,
-        width: currentWidth,
-        height: currentWidth / aspectRatio
-      }, false);
+      updateElement(el.id, { crop: croppedAreaPixels, width: el.width, height: el.width! / (croppedAreaPixels.width / croppedAreaPixels.height) });
     }
   };
+
+  const handleSaveAsset = useCallback(async (asset: any) => {
+    const res = await fetch(asset.id ? `/imcst_api/assets/${asset.id}` : '/imcst_api/assets', {
+      method: asset.id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(asset)
+    });
+    if (res.ok) { fetchAssets(); return await res.json(); }
+    return null;
+  }, [fetch, fetchAssets]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.ctrlKey || e.metaKey;
+      if (isMod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+      if (isMod && e.key.toLowerCase() === 's') { e.preventDefault(); saveDesign(); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, saveDesign]);
+
+  if (!productId) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="text-center"><Palette className="w-12 h-12 text-gray-300 mx-auto mb-4" /><h2 className="text-xl font-bold">No Product</h2></div></div>;
 
   return (
-    <>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
-        <Header
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={historyIndex > 0}
-          canRedo={historyIndex < history.length - 1}
-          title={productData?.title}
-          onSave={() => saveDesign()}
-          designName={designName}
-          onDesignNameChange={setDesignName}
-          isSaving={isSaving}
-          savedDesigns={savedDesigns}
-          onLoadDesign={loadDesign}
-          onDeleteDesign={deleteDesign}
-          onNewDesign={createNewDesign}
-          showSummary={showSummary}
-          onToggleSummary={() => setShowSummary(!showSummary)}
+    <div className="fixed inset-0 z-[99999] bg-gray-100 flex flex-col overflow-hidden">
+      <Header
+        onUndo={undo} onRedo={redo} canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1}
+        title={productData?.title} onSave={saveDesign} designName={designName} onDesignNameChange={setDesignName}
+        isSaving={isSaving} savedDesigns={savedDesigns} allDesigns={allDesigns} onLoadDesign={loadDesign} onDeleteDesign={deleteDesign}
+        showSummary={showSummary} onToggleSummary={() => setShowSummary(!showSummary)} onClose={() => window.history.back()}
+      />
+      <div className="flex flex-1 overflow-hidden">
+        <Toolbar
+          onAddElement={addElement} selectedElement={currentElements.find(el => el.id === selectedElement)}
+          onUpdateElement={updateElement} onDuplicateElement={duplicateElement} onCrop={() => setIsCropModalOpen(true)}
+          elements={currentElements} productData={productData} userColors={filteredUserColors} userOptions={filteredUserOptions}
+          onRefreshAssets={fetchAssets} onSaveAsset={handleSaveAsset} onSelectElement={setSelectedElement} canvasDimensions={customPaperDimensions}
         />
-
-        <div className="flex flex-1 overflow-hidden">
-          <Toolbar
-            onAddElement={addElement}
-            selectedElement={elements.find(el => el.id === selectedElement)}
-            onUpdateElement={updateElement}
-            onDuplicateElement={duplicateElement}
-            onCrop={() => setIsCropModalOpen(true)}
-            elements={elements}
+        <div className="flex-1 flex flex-col relative overflow-hidden">
+          <ContextualToolbar
+            selectedElement={currentElements.find(el => el.id === selectedElement)} onUpdateElement={updateElement}
+            onDeleteElement={deleteElement} onDuplicateElement={duplicateElement}
+            userFonts={filteredUserFonts} userColors={filteredUserColors} onCrop={() => setIsCropModalOpen(true)}
           />
-
-          <div className="flex-1 flex flex-col relative bg-gray-100 overflow-hidden">
-            <ContextualToolbar
-              selectedElement={elements.find(el => el.id === selectedElement)}
-              onUpdateElement={updateElement}
-              onDeleteElement={deleteElement}
-              onDuplicateElement={duplicateElement}
-              userFonts={userFonts}
-              userColors={userColors}
-              onCrop={() => setIsCropModalOpen(true)}
-            />
-
-            {/* Page Navigation at the top of canvas area */}
-            <div className="h-10 bg-white border-b border-gray-200 flex items-center px-4 gap-3 z-30 shrink-0">
-              <div className="flex items-center gap-1.5 py-1 px-2.5 bg-gray-50 rounded-md border border-gray-100">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Side:</span>
-                <span className="text-xs font-bold text-indigo-600">{pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
-              </div>
-
-              <div className="w-px h-5 bg-gray-200" />
-
-              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full scrollbar-hide py-1">
-                {pages.map((page) => (
-                  <div key={page.id} className="group/page relative flex items-center">
-                    <button
-                      onClick={() => setActivePageId(page.id)}
-                      className={`h-7 px-3 rounded-md text-[10px] font-bold transition-all flex items-center gap-2 whitespace-nowrap border ${activePageId === page.id
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                        }`}
-                    >
-                      {page.name}
-                      <div
-                        onClick={(e) => { e.stopPropagation(); startRenaming(page); }}
-                        className="p-1 hover:bg-black/10 rounded transition-colors cursor-pointer"
-                      >
-                        <Pencil className="w-2.5 h-2.5 opacity-60 group-hover/page:opacity-100 transition-opacity text-current" />
-                      </div>
-                    </button>
-                    {pages.length > 1 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deletePage(page.id); }}
-                        className={`absolute -top-1 -right-1 w-3.5 h-3.5 bg-white text-gray-400 border border-gray-200 rounded-full flex items-center justify-center opacity-0 group-hover/page:opacity-100 transition-opacity hover:bg-red-500 hover:text-white hover:border-red-500 z-10 shadow-sm`}
-                      >
-                        <X className="w-2 h-2" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  onClick={addPage}
-                  disabled={pages.length >= 20}
-                  className="h-7 w-7 flex items-center justify-center bg-white border border-dashed border-gray-300 text-gray-400 rounded-md hover:border-indigo-500 hover:text-indigo-600 transition-all shrink-0"
-                  title="Add Side"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5 rotate-180" />
-                </button>
-              </div>
-
-              <div className="ml-auto flex items-center gap-2">
-                <input
-                  type="file"
-                  id="base-image-upload"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (event) => {
-                        const url = event.target?.result as string;
-                        const img = new Image();
-                        img.onload = () => {
-                          const canvasSize = 1000;
-                          const targetSize = canvasSize * 0.9;
-                          const scale = Math.min(targetSize / img.naturalWidth, targetSize / img.naturalHeight, 1);
-
-                          setPages(prev => prev.map(p => p.id === activePageId ? {
-                            ...p,
-                            baseImage: url,
-                            baseImageProperties: { x: 0, y: 0, scale: scale, width: img.naturalWidth, height: img.naturalHeight }
-                          } : p));
-                        };
-                        img.src = url;
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-[10px] font-bold text-gray-500 hover:text-indigo-600 gap-1.5"
-                  onClick={() => document.getElementById('base-image-upload')?.click()}
-                >
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  {pages.find(p => p.id === activePageId)?.baseImage ? 'Change Base' : 'Set Base Image'}
-                </Button>
-
-                {pages.find(p => p.id === activePageId)?.baseImage && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50"
-                      onClick={() => setIsBaseImageCropModalOpen(true)}
-                      title="Crop Base Image"
-                    >
-                      <Crop className="w-3.5 h-3.5" />
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                      onClick={() => {
-                        setPages(prev => prev.map(p => p.id === activePageId ? {
-                          ...p,
-                          baseImage: undefined,
-                          baseImageProperties: undefined,
-                          baseImageColor: undefined
-                        } : p));
-                        toast.success("Base image deleted");
-                      }}
-                      title="Delete Base Image"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-
-                    <div className="flex items-center gap-1.5 ml-2 border-l border-gray-200 pl-2">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Base:</span>
-
-                      {pages.find(p => p.id === activePageId)?.baseImageColorEnabled !== false ? (
-                        <>
-                          {activePaletteColors.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              {/* Top 5 Colors from Active Palette */}
-                              <div className="flex items-center gap-0.5 ml-0.5">
-                                {activePaletteColors.slice(0, 5).map((color, idx) => (
-                                  <button
-                                    key={`${selectedColorAssetId}-${idx}`}
-                                    onClick={() => {
-                                      setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color.value } : p));
-                                    }}
-                                    className={`w-4 h-4 rounded-full border border-gray-200 shadow-sm hover:scale-110 transition-transform ${pages.find(p => p.id === activePageId)?.baseImageColor === color.value ? 'ring-1 ring-indigo-500 ring-offset-1' : ''}`}
-                                    style={{ backgroundColor: color.value }}
-                                    title={color.name}
-                                  />
-                                ))}
-                              </div>
-
-                              {/* Main Palette Dropdown (All colors in active asset) */}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="w-4 h-4 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center hover:bg-gray-200 transition-colors">
-                                    <Palette className="w-2.5 h-2.5 text-gray-500" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 p-2 rounded-xl shadow-xl border-gray-100">
-                                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight p-1 block mb-1">
-                                    {userColors.find(a => a.id === selectedColorAssetId)?.name} Palette
-                                  </span>
-                                  <div className="grid grid-cols-6 gap-1.5 max-h-48 overflow-y-auto p-1 custom-scrollbar">
-                                    {activePaletteColors.map((color, idx) => (
-                                      <button
-                                        key={`${selectedColorAssetId}-full-${idx}`}
-                                        className={`w-7 h-7 rounded-sm border border-gray-100 shadow-sm hover:scale-110 transition-transform ${pages.find(p => p.id === activePageId)?.baseImageColor === color.value ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
-                                        style={{ backgroundColor: color.value }}
-                                        title={color.name}
-                                        onClick={() => {
-                                          setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color.value } : p));
-                                        }}
-                                      />
-                                    ))}
-                                  </div>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          )}
-
-                          {/* Native Picker */}
-                          <div className="relative w-5 h-5 rounded-full overflow-hidden border border-gray-200 shadow-sm cursor-pointer hover:scale-110 transition-transform ml-1">
-                            <input
-                              type="color"
-                              value={(() => {
-                                const val = pages.find(p => p.id === activePageId)?.baseImageColor;
-                                return (val && /^#[0-9A-Fa-f]{6}$/.test(val)) ? val : '#ffffff';
-                              })()}
-                              onChange={(e) => {
-                                setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: e.target.value } : p));
-                              }}
-                              className="absolute inset-0 w-[150%] h-[150%] -top-1/4 -left-1/4 cursor-pointer p-0 border-0"
-                            />
-                          </div>
-
-                          {pages.find(p => p.id === activePageId)?.baseImageColor && (
-                            <button
-                              onClick={() => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: undefined } : p))}
-                              className="text-gray-400 hover:text-red-500 ml-0.5"
-                              title="Clear Color"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 italic">Disabled</span>
-                      )}
-                    </div>
-                  </>
-                )}
-                {productData?.variants?.length && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-[10px] font-bold text-gray-500 hover:text-indigo-600 gap-1.5"
-                    onClick={() => {
-                      // Try to find image for selected variant, or first variant, or product image
-                      // Since we don't have images in current interface, we might need to assume or fetch.
-                      // Assuming fetchProductData populates images in variants if available? 
-                      // The user said "use image from variant...".
-                      // I will add a placeholder logic or use productData if it has images.
-                      // For now, let's assume standard Shopify structure where we might need to fetch or use what we have.
-                      // If productData is strict typed locally without images, I should update type.
-                      // But to be safe, I'll log or alert if no image found.
-
-                      // NOTE: Real implementation would require `images` on Product/Variant types.
-                      // I will assume for this step I just add the upload button mostly.
-                      // I'll add the "Use Product Image" button but it might need type updates.
-                      toast.info("Select a product image feature coming soon");
-                    }}
-                  >
-                    <UploadCloud className="w-3.5 h-3.5" />
-                    Product Image
-                  </Button>
-                )}
-              </div>
+          <div className="h-10 bg-white border-b flex items-center px-4 gap-3 z-30 shrink-0">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Side: {pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+              {pages.map(page => (
+                <div key={page.id} className="group relative flex items-center">
+                  <button onClick={() => setActivePageId(page.id)} className={`h-7 px-3 rounded-md text-[10px] font-bold border transition-all ${activePageId === page.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>{page.name}</button>
+                  <button onClick={(e) => { e.stopPropagation(); const n = prompt('Name:', page.name); if (n) renamePage(page.id, n); }} className="p-1 opacity-0 group-hover:opacity-100"><Pencil className="w-2.5 h-2.5" /></button>
+                  {pages.length > 1 && <button onClick={(e) => { e.stopPropagation(); deletePage(page.id); }} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500"><X className="w-2 h-2" /></button>}
+                </div>
+              ))}
+              <button onClick={addPage} className="h-7 w-7 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-600"><UploadCloud className="w-3.5 h-3.5" /></button>
             </div>
 
-            <div className="flex-1 relative overflow-hidden group">
-              <Canvas
-                elements={elements}
-                selectedElement={selectedElement}
-                onSelectElement={setSelectedElement}
-                onUpdateElement={updateElement}
-                onDeleteElement={deleteElement}
-                onDuplicateElement={duplicateElement}
-                zoom={zoom}
-                showSafeArea={showSafeArea}
-                productVariant={productVariant}
-                showRulers={showRulers}
-                unit={unit}
-                enableBounce={enableBounce}
-                paperSize={paperSize}
-                customPaperDimensions={customPaperDimensions}
-                safeAreaPadding={safeAreaPadding}
-                safeAreaShape={safeAreaShape}
-                safeAreaOffset={safeAreaOffset}
-                onUpdateSafeAreaOffset={setSafeAreaOffset}
-                baseImage={pages.find(p => p.id === activePageId)?.baseImage}
-                baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColorEnabled !== false ? pages.find(p => p.id === activePageId)?.baseImageColor : undefined}
-                baseImageProperties={pages.find(p => p.id === activePageId)?.baseImageProperties || { x: 0, y: 0, scale: 0.8 }}
-                onUpdateBaseImage={(props) => {
-                  setPages(prev => prev.map(p =>
-                    p.id === activePageId ? { ...p, baseImageProperties: { ...p.baseImageProperties, ...props } as any } : p
-                  ));
-                }}
-              />
-
-              {!showSummary && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowSummary(true)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-50 h-10 w-6 rounded-l-xl rounded-r-none bg-white border border-r-0 border-gray-200 shadow-lg hover:bg-gray-50 text-indigo-600 animate-in slide-in-from-right duration-300"
-                >
-                  <ChevronLeft className="w-4 h-4" />
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-gray-500 hover:text-indigo-600 gap-1.5" onClick={() => setIsBaseImageModalOpen(true)}>
+                <ImageIcon className="w-3.5 h-3.5" />
+                {pages.find(p => p.id === activePageId)?.baseImage ? 'Change Base' : 'Set Base Image'}
+              </Button>
+              {pages.find(p => p.id === activePageId)?.baseImage && (
+                <Button variant="ghost" size="sm" className="h-7 w-7 text-gray-400 hover:text-red-500" onClick={() => { setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImage: undefined } : p)); }}>
+                  <X className="w-3.5 h-3.5" />
                 </Button>
               )}
             </div>
           </div>
-
-          <div className={`transition-all duration-500 ease-in-out overflow-hidden flex shrink-0 ${showSummary ? 'w-80 opacity-100' : 'w-0 opacity-0'}`}>
-            <div className="w-80 h-full">
-              <Summary
-                elements={elements}
-                selectedElement={selectedElement}
-                onSelectElement={setSelectedElement}
-                onDeleteElement={deleteElement}
-                zoom={zoom}
-                onZoomChange={setZoom}
-                showSafeArea={showSafeArea}
-                onToggleSafeArea={setShowSafeArea}
-                safeAreaPadding={safeAreaPadding}
-                onSafeAreaPaddingChange={setSafeAreaPadding}
-                safeAreaShape={safeAreaShape}
-                onSafeAreaShapeChange={setSafeAreaShape}
-                onReset={resetCanvas}
-                shopifyVariants={productData?.variants || []}
-                selectedVariantId={selectedVariantId}
-                onVariantChange={setSelectedVariantId}
-                showRulers={showRulers}
-                onToggleRulers={setShowRulers}
-                unit={unit}
-                onUnitChange={setUnit}
-                paperSize={paperSize}
-                onPaperSizeChange={setPaperSize}
-                customPaperDimensions={customPaperDimensions}
-                onCustomPaperDimensionsChange={setCustomPaperDimensions}
-                onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
-                onToggleSummary={() => setShowSummary(false)}
-                userColors={userColors}
-                selectedColorAssetId={selectedColorAssetId}
-                onSelectedColorAssetIdChange={setSelectedColorAssetId}
-                baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled !== false}
-                onToggleBaseImageColor={(enabled) => {
-                  setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p));
-                }}
-              />
-            </div>
+          <div className="flex-1 relative overflow-hidden bg-gray-200">
+            <Canvas
+              elements={processedElements.filter(e => !e.isHiddenByLogic)}
+              selectedElement={selectedElement}
+              onSelectElement={setSelectedElement}
+              onUpdateElement={updateElement}
+              onDeleteElement={deleteElement}
+              onDuplicateElement={duplicateElement}
+              zoom={zoom}
+              showSafeArea={showSafeArea}
+              productVariant={productVariant}
+              showRulers={showRulers}
+              unit={unit}
+              enableBounce={enableBounce}
+              safeAreaPadding={safeAreaPadding}
+              safeAreaShape={safeAreaShape}
+              safeAreaOffset={safeAreaOffset}
+              onUpdateSafeAreaOffset={(offset) => setSafeAreaOffset(offset)}
+              baseImage={pages.find(p => p.id === activePageId)?.baseImage}
+              baseImageProperties={pages.find(p => p.id === activePageId)?.baseImageProperties as any}
+              baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
+              paperSize={paperSize}
+              customPaperDimensions={customPaperDimensions}
+              onUpdateBaseImage={(props) => {
+                setPages(prev => prev.map(p =>
+                  p.id === activePageId ? { ...p, baseImageProperties: { ...p.baseImageProperties, ...props } as any } : p
+                ));
+              }}
+            />
+            {!showSummary && <Button variant="ghost" size="icon" onClick={() => setShowSummary(true)} className="absolute right-0 top-1/2 -translate-y-1/2 bg-white border border-gray-200 shadow-lg rounded-l-xl z-50"><ChevronLeft className="w-4 h-4" /></Button>}
           </div>
         </div>
-
-        <Dialog open={!!renamingPage} onOpenChange={(open) => !open && setRenamingPage(null)}>
-          <DialogContent className="sm:max-w-[425px] rounded-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-gray-900">Rename Design Side</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="side-name" className="text-sm font-semibold text-gray-700">Side Name</Label>
-                <Input
-                  id="side-name"
-                  value={newPageName}
-                  onChange={(e) => setNewPageName(e.target.value)}
-                  className="h-11 bg-gray-50 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
-                  onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
-                  autoFocus
-                />
-                <p className="text-[10px] text-gray-500 italic">Example: Front, Back, Left Sleeve, etc.</p>
-              </div>
-            </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                variant="outline"
-                onClick={() => setRenamingPage(null)}
-                className="rounded-xl font-bold h-11"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleRenameSubmit}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold h-11 border-b-2 border-indigo-800"
-              >
-                Update Side Name
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {
-          selectedElement && elements.find(e => e.id === selectedElement)?.type === 'image' && (
-            <ImageCropModal
-              isOpen={isCropModalOpen}
-              onClose={() => setIsCropModalOpen(false)}
-              imageUrl={elements.find(e => e.id === selectedElement)?.src || ''}
-              onCropComplete={handleCropComplete}
-              initialCrop={elements.find(e => e.id === selectedElement)?.crop}
-            />
-          )
-        }
-
-        {
-          pages.find(p => p.id === activePageId)?.baseImage && (
-            <ImageCropModal
-              isOpen={isBaseImageCropModalOpen}
-              onClose={() => setIsBaseImageCropModalOpen(false)}
-              imageUrl={pages.find(p => p.id === activePageId)?.baseImage || ''}
-              onCropComplete={(croppedAreaPixels) => {
-                setPages(prev => prev.map(p => p.id === activePageId ? {
-                  ...p,
-                  baseImageProperties: {
-                    ...p.baseImageProperties,
-                    x: p.baseImageProperties?.x || 0,
-                    y: p.baseImageProperties?.y || 0,
-                    scale: p.baseImageProperties?.scale || 0.8,
-                    crop: croppedAreaPixels
-                  } as any
-                } : p));
-              }}
-              initialCrop={pages.find(p => p.id === activePageId)?.baseImageProperties?.crop}
-            />
-          )
-        }
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-80 opacity-100' : 'w-0 opacity-0'}`}>
+          <Summary
+            elements={processedElements as any} selectedElement={selectedElement} onSelectElement={setSelectedElement} onDeleteElement={deleteElement}
+            zoom={zoom} onZoomChange={setZoom} showSafeArea={showSafeArea} onToggleSafeArea={setShowSafeArea} safeAreaPadding={safeAreaPadding} onSafeAreaPaddingChange={setSafeAreaPadding}
+            safeAreaShape={safeAreaShape} onSafeAreaShapeChange={setSafeAreaShape} safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
+            onToggleRulers={() => setShowRulers(!showRulers)} showRulers={showRulers} unit={unit} onUnitChange={setUnit} paperSize={paperSize} onPaperSizeChange={setPaperSize}
+            customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={setCustomPaperDimensions} onReset={() => { setElements([]); addToHistory(pages.map(p => p.id === activePageId ? { ...p, elements: [] } : p)); }}
+            userColors={filteredUserColors} selectedColorAssetId={selectedColorAssetId} onSelectedColorAssetIdChange={setSelectedColorAssetId} onToggleSummary={() => setShowSummary(false)}
+            baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled || false}
+            onToggleBaseImageColor={(enabled) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p))}
+            shopifyOptions={productData?.options || []} shopifyVariants={productData?.variants || []} selectedVariantId={selectedVariantId} onVariantChange={setSelectedVariantId}
+          />
+        </div>
       </div>
-    </>
+      <ImageCropModal
+        isOpen={isCropModalOpen}
+        onClose={() => setIsCropModalOpen(false)}
+        imageUrl={(currentElements.find(e => e.id === selectedElement) as any)?.url || (currentElements.find(e => e.id === selectedElement) as any)?.src || ''}
+        onCropComplete={handleCropComplete}
+        initialCrop={currentElements.find(e => e.id === selectedElement)?.crop}
+      />
+      <BaseImageModal
+        isOpen={isBaseImageModalOpen}
+        onClose={() => setIsBaseImageModalOpen(false)}
+        productData={productData}
+        selectedVariantId={selectedVariantId}
+        onSelectImage={(url) => handleBaseImageSelect(url, productData?.variants.find(v => v.id === selectedVariantId)?.image === url)}
+        currentBaseImage={pages.find(p => p.id === activePageId)?.baseImage}
+      />
+    </div>
   );
 }

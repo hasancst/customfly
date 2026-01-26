@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop, Shapes } from 'lucide-react';
+import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop, Shapes, Zap } from 'lucide-react';
 import { IMAGE_PRESETS } from '../constants/filters';
 import { IMAGE_SHAPES } from '../constants/shapes';
 import {
@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { CanvasElement } from '@/types';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 interface ImageToolProps {
@@ -100,7 +101,6 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
         const toastId = toast.loading(`Processing PSD: ${file.name}...`);
         try {
           const PSD = (await import('psd.js') as any).default;
-          // Use a URL instead of file to avoid buffer issues in some environments
           const psd = await PSD.fromURL(URL.createObjectURL(file));
           url = psd.image.toBase64();
           toast.success("PSD imported successfully", { id: toastId });
@@ -178,7 +178,6 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
     const toastId = toast.loading("AI is removing background...");
 
     try {
-      // Convert URL to Base64 (needed because server can't fetch blob: URLs)
       let imageData = selectedElement.src || '';
       if (imageData.startsWith('blob:')) {
         const response = await fetch(imageData);
@@ -304,6 +303,38 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 </Button>
               )}
             </div>
+          </div>
+
+          {/* Smooth Resize Controls */}
+          <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Image Dimensions</Label>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  value={Math.round(selectedElement.width || 200)}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val)) {
+                      const ratio = (selectedElement.height || 200) / (selectedElement.width || 200);
+                      handleUpdate({ width: val, height: val * ratio });
+                    }
+                  }}
+                  className="w-14 h-7 text-[10px] font-bold text-center bg-white border-indigo-100"
+                />
+                <span className="text-[9px] font-bold text-indigo-400">PX</span>
+              </div>
+            </div>
+            <Slider
+              value={[selectedElement.width || 200]}
+              onValueChange={([val]) => {
+                const ratio = (selectedElement.height || 200) / (selectedElement.width || 200);
+                handleUpdate({ width: val, height: val * ratio });
+              }}
+              min={10}
+              max={1200}
+              step={1}
+            />
           </div>
 
           {/* Image Shapes */}
@@ -454,6 +485,107 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 >
                   Reset Adjustments
                 </Button>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Engraving Effect */}
+          <Collapsible className="space-y-2">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 w-full rounded-xl bg-violet-50 border border-violet-100 cursor-pointer group">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-4 h-4 text-violet-600" />
+                  <span className="text-sm font-bold text-violet-900 uppercase">Engraving Effect</span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-violet-400 group-data-[state=open]:rotate-180 transition-transform" />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1">
+              <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Enable Engraving</Label>
+                    <p className="text-[9px] text-gray-400">Convert image to etched style</p>
+                  </div>
+                  <Switch
+                    checked={!!selectedElement.isEngraved}
+                    onCheckedChange={(checked) => {
+                      handleUpdate({ isEngraved: checked });
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Invert Etching</Label>
+                    <p className="text-[9px] text-gray-400">Flip dark/light areas</p>
+                  </div>
+                  <Switch
+                    checked={!!selectedElement.engraveInvert}
+                    onCheckedChange={(checked) => handleUpdate({ engraveInvert: checked })}
+                  />
+                </div>
+
+                {selectedElement.isEngraved && (
+                  <>
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 mb-2">
+                      <p className="text-[10px] text-amber-800 font-medium leading-tight flex items-center gap-2">
+                        <Zap className="w-3 h-3" />
+                        Tip: If your logo is WHITE, turn ON "Invert Etching" to make it visible.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <Label className="text-[10px] font-bold text-gray-500 uppercase">Detail Threshold</Label>
+                        <span className="text-[10px] font-bold text-violet-600">{selectedElement.engraveThreshold ?? 128}</span>
+                      </div>
+                      <Slider
+                        value={[selectedElement.engraveThreshold ?? 128]}
+                        onValueChange={([val]) => handleUpdate({ engraveThreshold: val })}
+                        min={0} max={255} step={1}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold text-gray-500 uppercase">Simulated Material Color</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {['#000000', '#4A3728', '#2C1E12', '#5C4033', '#1A1110'].map((color) => (
+                          <button
+                            key={color}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${selectedElement.engraveColor === color ? 'border-violet-600 scale-110 shadow-md' : 'border-white'}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => handleUpdate({ engraveColor: color })}
+                          />
+                        ))}
+                        <div className="relative w-8 h-8 group/color">
+                          <Input
+                            type="color"
+                            value={selectedElement.engraveColor || '#000000'}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdate({ engraveColor: e.target.value })}
+                            className="absolute inset-0 w-8 h-8 p-0 border-none rounded-full overflow-hidden cursor-pointer opacity-0 z-10"
+                          />
+                          <div
+                            className="w-8 h-8 rounded-full border-2 border-white shadow-sm flex items-center justify-center bg-gradient-to-tr from-gray-100 to-white"
+                            style={{ backgroundColor: selectedElement.engraveColor }}
+                          >
+                            {!selectedElement.engraveColor && <Plus className="w-3 h-3 text-gray-400" />}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full h-8 text-[9px] font-bold text-gray-400 hover:text-red-500 gap-1.5"
+                      onClick={() => handleUpdate({ isEngraved: false, engraveInvert: false, engraveThreshold: 128 })}
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      Reset Engraving
+                    </Button>
+                  </>
+                )}
               </div>
             </CollapsibleContent>
           </Collapsible>

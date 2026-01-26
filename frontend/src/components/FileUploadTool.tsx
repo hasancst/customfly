@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { UploadCloud, FileText, Settings2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { FileText, AlertCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CanvasElement } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 
 interface FileUploadToolProps {
     onAddElement: (element: CanvasElement) => void;
@@ -56,18 +57,43 @@ export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement 
     return (
         <div className="space-y-6 pb-4">
             {/* Label Edit */}
-            <div className="px-1 space-y-2">
-                <Label className="text-sm font-bold text-gray-700">Button Label</Label>
-                <Input
-                    value={label}
-                    onChange={(e) => {
-                        setLabel(e.target.value);
-                        handleUpdate({ label: e.target.value });
-                    }}
-                    className="h-9 rounded-lg"
-                    placeholder="e.g. Upload Logo"
-                />
+            <div className="px-1 space-y-4">
+                <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Button Label</Label>
+                    <Input
+                        value={label}
+                        onChange={(e) => {
+                            setLabel(e.target.value);
+                            handleUpdate({ label: e.target.value });
+                        }}
+                        className="h-9 rounded-lg"
+                        placeholder="e.g. Upload Logo"
+                    />
+                </div>
+
+                <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Instruction Text</Label>
+                    <Input
+                        value={selectedElement?.helpText || ''}
+                        onChange={(e) => handleUpdate({ helpText: e.target.value })}
+                        className="h-9 rounded-lg"
+                        placeholder="e.g. Min resolution 300dpi"
+                    />
+                </div>
+
+                <div className="flex items-center justify-between py-2 px-3 bg-emerald-50/30 rounded-lg border border-emerald-100 shadow-sm">
+                    <div className="space-y-0.5">
+                        <Label className="text-[11px] font-bold text-gray-700">Required Upload</Label>
+                        <p className="text-[9px] text-gray-400">Customer must attach a file</p>
+                    </div>
+                    <Switch
+                        checked={!!selectedElement?.isRequired}
+                        onCheckedChange={(val) => handleUpdate({ isRequired: val })}
+                    />
+                </div>
             </div>
+
+            <Separator className="bg-gray-100" />
 
             {/* Allowed File Types */}
             <div className="px-1 space-y-3">

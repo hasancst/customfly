@@ -19,6 +19,8 @@ const PATTERN_LIBRARY = [
     { name: 'Honey Comb', url: 'https://images.unsplash.com/photo-1581093458791-9f3c3900df4b?q=80&w=300&auto=format&fit=crop' },
 ];
 
+const isValidHex = (hex: string) => /^#[0-9A-Fa-f]{6}$/.test(hex);
+
 interface Asset {
     id: string;
     type: 'font' | 'color' | 'gallery' | 'option';
@@ -61,7 +63,11 @@ export default function AssetDetail() {
     const [newItemName, setNewItemName] = useState('');
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
+    const [optionItemType, setOptionItemType] = useState<'text' | 'image' | 'color'>('text');
+    const [optionImageFile, setOptionImageFile] = useState<File | null>(null);
+    const [queuedOptions, setQueuedOptions] = useState<{ name: string, value: string, type: string }[]>([]);
     const [localItems, setLocalItems] = useState<ListItem[]>([]);
+    const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
     // Autocomplete states
     const [googleFontOptions, setGoogleFontOptions] = useState(POPULAR_GOOGLE_FONTS);
@@ -149,7 +155,16 @@ export default function AssetDetail() {
         if (asset.type === 'option') {
             return safeSplit(asset.value).map(pair => {
                 const [name, val] = pair.split('|');
-                return { name: name?.trim() || '', hex: val?.trim() || '', id: pair };
+                const v = val?.trim() || '';
+                const isImage = v.startsWith('http') || v.startsWith('data:image');
+                const isColor = v.startsWith('#');
+                return {
+                    name: name?.trim() || '',
+                    hex: isColor ? v : undefined,
+                    isPattern: isImage,
+                    patternUrl: isImage ? v : undefined,
+                    id: pair
+                };
             }).filter(i => i.name);
         }
 
@@ -244,7 +259,7 @@ export default function AssetDetail() {
         const currentList = safeSplit(asset.value);
         if (asset.type === 'font') {
             newListStr = currentList.filter(n => n !== itemName).join('\n');
-        } else if (asset.type === 'color') {
+        } else if (asset.type === 'color' || asset.type === 'option') {
             newListStr = currentList.filter(pair => pair.split('|')[0] !== itemName).join('\n');
         } else if (asset.type === 'gallery') {
             newListStr = currentList.filter(pair => {
@@ -266,6 +281,7 @@ export default function AssetDetail() {
 
             if (response.ok) {
                 showToast(`Deleted "${itemName}"`);
+                setSelectedItems([]);
                 fetchDetail();
             } else {
                 alert("Failed to delete item");
@@ -355,6 +371,46 @@ export default function AssetDetail() {
         handleUpdateConfig('fontPrices', updatedPrices);
     };
 
+    const handleBulkDelete = async () => {
+        if (!asset || selectedItems.length === 0) return;
+        if (!confirm(`Delete ${selectedItems.length} selected items?`)) return;
+
+        const currentList = safeSplit(asset.value);
+        let newListStr = '';
+
+        if (asset.type === 'font') {
+            newListStr = currentList.filter(n => !selectedItems.includes(n)).join('\n');
+        } else {
+            // Bulk delete based on IDs (which are the full pair strings)
+            newListStr = currentList.filter(pair => !selectedItems.includes(pair)).join('\n');
+        }
+
+        setIsSubmitting(true);
+        try {
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: newListStr,
+                    config: { ...asset.config, specificFonts: asset.type === 'font' ? newListStr : asset.config.specificFonts }
+                })
+            });
+
+            if (response.ok) {
+                showToast(`Deleted ${selectedItems.length} items`);
+                setSelectedItems([]);
+                fetchDetail();
+            } else {
+                alert("Failed to delete items");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
 
     const updateText = useCallback(
         async (value: string) => {
@@ -411,6 +467,38 @@ export default function AssetDetail() {
             };
             reader.onerror = reject;
         });
+    };
+
+    const handleAddToQueue = async () => {
+        if (!newColorName || !asset) return;
+
+        if (queuedOptions.some(o => o.name.toLowerCase() === newColorName.toLowerCase())) {
+            alert("This name is already in the list.");
+            return;
+        }
+
+        let val = '';
+        if (optionItemType === 'text') {
+            val = 'enabled';
+        } else if (optionItemType === 'color') {
+            val = newColorHex;
+        } else if (optionItemType === 'image') {
+            if (!optionImageFile) {
+                alert("Please select an image first.");
+                return;
+            }
+            try {
+                val = await compressImage(optionImageFile);
+            } catch (err) {
+                alert("Failed to process image.");
+                return;
+            }
+        }
+
+        setQueuedOptions([...queuedOptions, { name: newColorName, value: val, type: optionItemType }]);
+        setNewColorName('');
+        setOptionImageFile(null);
+        setNewColorHex('#000000');
     };
 
     const handleAddItem = async () => {
@@ -472,25 +560,33 @@ export default function AssetDetail() {
                 }
                 newListStr = [...currentList, ...newItems].join('\n');
             } else if (asset.type === 'option') {
-                if (!newColorName) return;
+                // Determine items to add: either the queue or the single inputถ้า queue kosong
+                let itemsToSave = [...queuedOptions];
 
-                const namesToAdd = newColorName.split(/[,\n]/).map(n => n.trim()).filter(Boolean);
-                const newItems: string[] = [];
-
-                for (const name of namesToAdd) {
-                    if (!currentList.some(p => p.split('|')[0].toLowerCase() === name.toLowerCase()) &&
-                        !newItems.some(p => p.split('|')[0].toLowerCase() === name.toLowerCase())) {
-                        newItems.push(`${name}|enabled`);
+                // If queue is empty but name field is filled, treat as a single add
+                if (itemsToSave.length === 0 && newColorName) {
+                    let val = '';
+                    if (optionItemType === 'text') val = 'enabled';
+                    else if (optionItemType === 'color') val = newColorHex;
+                    else if (optionItemType === 'image') {
+                        if (!optionImageFile) {
+                            alert("Please select an image");
+                            setIsSubmitting(false);
+                            return;
+                        }
+                        val = await compressImage(optionImageFile);
                     }
+                    itemsToSave.push({ name: newColorName, value: val, type: optionItemType });
                 }
 
-                if (newItems.length === 0) {
-                    alert("All entered options already exist in this group");
+                if (itemsToSave.length === 0) {
+                    alert("Please add at least one option.");
                     setIsSubmitting(false);
                     return;
                 }
 
-                newListStr = [...currentList, ...newItems].join('\n');
+                const newItemsStrArr = itemsToSave.map(o => `${o.name}|${o.value}`);
+                newListStr = [...currentList, ...newItemsStrArr].join('\n');
             }
 
             const response = await fetch(`/imcst_api/assets/${asset.id}`, {
@@ -513,6 +609,8 @@ export default function AssetDetail() {
                 setPatternFile(null);
                 setSelectedGoogleFonts([]);
                 setGalleryFiles([]);
+                setOptionImageFile(null);
+                setQueuedOptions([]);
             }
         } catch (err) {
             console.error(err);
@@ -585,6 +683,29 @@ export default function AssetDetail() {
                                         asset.type === 'gallery' ? 'Images' :
                                             asset.type === 'option' ? 'Options' : 'Colors'
                                 } in this Group ({items.length})</Text>
+
+                                {selectedItems.length > 0 && sortOrder === 'custom' && (
+                                    <div className="flex items-center gap-4 bg-indigo-50 p-2 rounded-lg border border-indigo-100 animate-in fade-in slide-in-from-top-2">
+                                        <Text variant="bodySm" fontWeight="bold" tone="subdued" as="span">{selectedItems.length} items selected</Text>
+                                        <Button
+                                            tone="critical"
+                                            variant="primary"
+                                            size="slim"
+                                            icon={DeleteIcon}
+                                            onClick={handleBulkDelete}
+                                        >
+                                            Delete Selected
+                                        </Button>
+                                        <Button
+                                            variant="tertiary"
+                                            size="slim"
+                                            onClick={() => setSelectedItems([])}
+                                        >
+                                            Clear
+                                        </Button>
+                                    </div>
+                                )}
+
                                 <div className="flex gap-4">
                                     <div className="flex-1">
                                         <Filters
@@ -629,14 +750,25 @@ export default function AssetDetail() {
                                         >
                                             <div className="flex items-center p-3 justify-between w-full">
                                                 <div className="flex items-center gap-3 flex-1">
+                                                    <div className="flex items-center shrink-0">
+                                                        <Checkbox
+                                                            label=""
+                                                            labelHidden
+                                                            checked={selectedItems.includes(item.id)}
+                                                            onChange={(val) => {
+                                                                if (val) setSelectedItems([...selectedItems, item.id]);
+                                                                else setSelectedItems(selectedItems.filter(i => i !== item.id));
+                                                            }}
+                                                        />
+                                                    </div>
                                                     <div className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-indigo-600">
                                                         <Icon source={DragHandleIcon} />
                                                     </div>
-                                                    {asset.type === 'color' && (
+                                                    {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
                                                         <div
                                                             className="w-12 h-12 rounded border border-gray-200 shadow-sm"
                                                             style={{
-                                                                backgroundColor: item.hex,
+                                                                backgroundColor: item.hex || 'transparent',
                                                                 backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
                                                                 backgroundSize: 'cover'
                                                             }}
@@ -646,14 +778,9 @@ export default function AssetDetail() {
                                                         <Text variant="bodyMd" fontWeight="bold" as="span">
                                                             {item.name}
                                                         </Text>
-                                                        {asset.type === 'color' && (
+                                                        {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
                                                             <Text variant="bodySm" tone="subdued" as="span">
-                                                                {item.isPattern ? 'Pattern' : item.hex}
-                                                            </Text>
-                                                        )}
-                                                        {asset.type === 'option' && (
-                                                            <Text variant="bodySm" tone="subdued" as="span">
-                                                                {item.hex}
+                                                                {item.isPattern ? 'Image/Pattern' : item.hex}
                                                             </Text>
                                                         )}
                                                     </div>
@@ -708,15 +835,31 @@ export default function AssetDetail() {
                                     plural: asset.type === 'gallery' ? 'images' : `${asset.type}s`
                                 }}
                                 items={paginatedItems}
+                                selectedItems={selectedItems}
+                                onSelectionChange={(selected) => setSelectedItems(selected as string[])}
+                                bulkActions={[
+                                    {
+                                        content: 'Delete',
+                                        onAction: handleBulkDelete,
+                                    }
+                                ]}
+                                emptyState={
+                                    <div className="p-12 text-center text-gray-400 italic">
+                                        No matching items found in this group.
+                                    </div>
+                                }
                                 renderItem={(item) => (
-                                    <ResourceItem id={item.id} onClick={() => { }}>
+                                    <ResourceItem
+                                        id={item.id}
+                                        onClick={() => { }}
+                                    >
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-3 flex-1">
-                                                {asset.type === 'color' && (
+                                                {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
                                                     <div
                                                         className="w-12 h-12 rounded border border-gray-200 shadow-sm"
                                                         style={{
-                                                            backgroundColor: item.hex,
+                                                            backgroundColor: item.hex || 'transparent',
                                                             backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
                                                             backgroundSize: 'cover'
                                                         }}
@@ -726,9 +869,9 @@ export default function AssetDetail() {
                                                     <Text variant="bodyMd" fontWeight="bold" as="span">
                                                         {item.name}
                                                     </Text>
-                                                    {asset.type === 'color' && (
+                                                    {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
                                                         <Text variant="bodySm" tone="subdued" as="span">
-                                                            {item.isPattern ? 'Pattern' : item.hex}
+                                                            {item.isPattern ? 'Image/Pattern' : item.hex}
                                                         </Text>
                                                     )}
                                                 </div>
@@ -826,16 +969,24 @@ export default function AssetDetail() {
 
             <Modal
                 open={isAddModalOpen}
-                onClose={() => setIsAddModalOpen(false)}
+                onClose={() => {
+                    setIsAddModalOpen(false);
+                    setQueuedOptions([]);
+                }}
                 title={asset.type === 'font' ? 'Add Fonts to Group' :
                     asset.type === 'gallery' ? 'Add Images to Gallery' :
                         asset.type === 'option' ? 'Add Options' : 'Add New Color'}
                 primaryAction={{
-                    content: 'Add Items',
+                    content: asset.type === 'option' ? (queuedOptions.length > 0 ? `Save ${queuedOptions.length} Items` : 'Save Item') : 'Add Items',
                     onAction: handleAddItem,
                     loading: isSubmitting
                 }}
-                secondaryActions={[{ content: 'Cancel', onAction: () => setIsAddModalOpen(false) }]}
+                secondaryActions={[{
+                    content: 'Cancel', onAction: () => {
+                        setIsAddModalOpen(false);
+                        setQueuedOptions([]);
+                    }
+                }]}
             >
                 <Modal.Section>
                     <BlockStack gap="400">
@@ -937,7 +1088,7 @@ export default function AssetDetail() {
                                         </div>
                                         <input
                                             type="color"
-                                            value={newColorHex}
+                                            value={isValidHex(newColorHex) ? newColorHex : '#000000'}
                                             onChange={(e) => setNewColorHex(e.target.value)}
                                             className="w-10 h-10 p-0 border-0 rounded cursor-pointer overflow-hidden"
                                         />
@@ -1054,15 +1205,124 @@ export default function AssetDetail() {
 
                         {asset.type === 'option' && (
                             <BlockStack gap="400">
-                                <TextField
-                                    label="Option Names"
-                                    value={newColorName}
-                                    onChange={setNewColorName}
-                                    autoComplete="off"
-                                    placeholder="e.g. Mirror Effect&#10;Double Sided&#10;Waterproof"
-                                    multiline={3}
-                                    helpText="You can enter multiple options separated by commas or newlines to add them all at once."
-                                />
+                                <div className="flex items-end gap-3">
+                                    <div className="flex-1">
+                                        <TextField
+                                            label="Option Name"
+                                            value={newColorName}
+                                            onChange={setNewColorName}
+                                            autoComplete="off"
+                                            placeholder="e.g. Mirror Effect"
+                                        />
+                                    </div>
+                                    <div className="w-48">
+                                        <Select
+                                            label="Type"
+                                            options={[
+                                                { label: 'Name Only (Text)', value: 'text' },
+                                                { label: 'Color Palette', value: 'color' },
+                                                { label: 'With Image (Swatch)', value: 'image' },
+                                            ]}
+                                            value={optionItemType}
+                                            onChange={(val: any) => setOptionItemType(val)}
+                                        />
+                                    </div>
+                                    <div className="mb-0.5">
+                                        <Button icon={PlusIcon} onClick={handleAddToQueue} variant="secondary">Add to List</Button>
+                                    </div>
+                                </div>
+
+                                {optionItemType === 'color' && (
+                                    <div className="flex items-center gap-4 p-3 border rounded-lg bg-gray-50">
+                                        <div className="flex-1">
+                                            <TextField
+                                                label="Hex Color"
+                                                labelHidden
+                                                value={newColorHex}
+                                                onChange={setNewColorHex}
+                                                autoComplete="off"
+                                                placeholder="#000000"
+                                                prefix={<div className="w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: newColorHex }} />}
+                                            />
+                                        </div>
+                                        <input
+                                            type="color"
+                                            value={isValidHex(newColorHex) ? newColorHex : '#000000'}
+                                            onChange={(e) => setNewColorHex(e.target.value)}
+                                            className="w-10 h-10 p-0 border-0 rounded cursor-pointer overflow-hidden"
+                                        />
+                                    </div>
+                                )}
+
+                                {optionItemType === 'image' && (
+                                    <BlockStack gap="200">
+                                        <label className="block text-sm font-medium text-gray-700">Swatch Image</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    setOptionImageFile(e.target.files[0]);
+                                                    if (!newColorName) {
+                                                        const fname = e.target.files[0].name.split('.')[0];
+                                                        setNewColorName(fname.charAt(0).toUpperCase() + fname.slice(1));
+                                                    }
+                                                }
+                                            }}
+                                            className="block w-full text-sm text-gray-500
+                                              file:mr-4 file:py-2 file:px-4
+                                              file:rounded-full file:border-0
+                                              file:text-sm file:font-semibold
+                                              file:bg-indigo-50 file:text-indigo-700
+                                              hover:file:bg-indigo-100
+                                            "
+                                        />
+                                        {optionImageFile && (
+                                            <div className="mt-2 text-center rounded border border-dashed border-gray-300 p-2 bg-white">
+                                                <img
+                                                    src={URL.createObjectURL(optionImageFile)}
+                                                    alt="Preview"
+                                                    className="max-h-32 mx-auto rounded"
+                                                />
+                                            </div>
+                                        )}
+                                    </BlockStack>
+                                )}
+
+                                {optionItemType === 'text' && (
+                                    <p className="text-xs text-gray-400 italic">
+                                        Fill in the name and click the plus button to add it to your list.
+                                    </p>
+                                )}
+
+                                {queuedOptions.length > 0 && (
+                                    <div className="mt-4 border-t pt-4">
+                                        <Text variant="headingSm" as="h3">Items in List ({queuedOptions.length})</Text>
+                                        <div className="mt-3 grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                                            {queuedOptions.map((opt, idx) => (
+                                                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-100 group">
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="w-8 h-8 rounded border border-gray-200"
+                                                            style={{
+                                                                backgroundColor: opt.type === 'color' ? opt.value : 'transparent',
+                                                                backgroundImage: opt.type === 'image' ? `url(${opt.value})` : 'none',
+                                                                backgroundSize: 'cover'
+                                                            }}
+                                                        />
+                                                        <Text variant="bodyMd" fontWeight="bold" as="span">{opt.name}</Text>
+                                                    </div>
+                                                    <Button
+                                                        icon={DeleteIcon}
+                                                        tone="critical"
+                                                        variant="plain"
+                                                        onClick={() => setQueuedOptions(queuedOptions.filter((_, i) => i !== idx))}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </BlockStack>
                         )}
                     </BlockStack>

@@ -6,7 +6,7 @@ import Settings from '@/pages/Settings';
 import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
 import { RoutePropagator } from '@/components/RoutePropagator';
-import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import { Provider as AppBridgeProvider, NavigationMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisProvider, Frame } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
@@ -33,42 +33,59 @@ export default function App() {
         <PolarisProvider i18n={enTranslations} linkComponent={LinkComponent}>
             <AppBridgeProvider config={config}>
                 <BrowserRouter>
-                    <Frame>
-                        <RoutePropagator />
-                        <NavigationMenu
-                            navigationLinks={[
-                                {
-                                    label: 'Products',
-                                    destination: '/dashboard',
-                                },
-                                {
-                                    label: 'Assets',
-                                    destination: '/assets',
-                                },
-                                {
-                                    label: 'Settings',
-                                    destination: '/settings',
-                                },
-                                {
-                                    label: 'Help',
-                                    destination: '/help',
-                                }
-                            ]}
-                        />
-                        <Routes>
-                            <Route path="/dashboard" element={<AdminDashboard />} />
-                            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                            <Route path="/assets" element={<Assets />} />
-                            <Route path="/assets/:id" element={<AssetDetail />} />
-                            <Route path="/settings" element={<Settings />} />
-                            <Route path="/help" element={<Help />} />
-                            <Route path="/designer/:productId" element={<Designer />} />
-                            <Route path="/designer" element={<Designer />} />
-                            <Route path="/exitiframe" element={<ExitIframe />} />
-                        </Routes>
-                    </Frame>
+                    <RoutePropagator />
+                    <MainContent />
                 </BrowserRouter>
             </AppBridgeProvider>
         </PolarisProvider>
     );
+}
+
+function MainContent() {
+    const location = useLocation();
+    const isDesigner = location.pathname.includes('/designer');
+
+    const content = (
+        <>
+            {!isDesigner && (
+                <NavigationMenu
+                    navigationLinks={[
+                        {
+                            label: 'Products',
+                            destination: '/dashboard',
+                        },
+                        {
+                            label: 'Assets',
+                            destination: '/assets',
+                        },
+                        {
+                            label: 'Settings',
+                            destination: '/settings',
+                        },
+                        {
+                            label: 'Help',
+                            destination: '/help',
+                        }
+                    ]}
+                />
+            )}
+            <Routes>
+                <Route path="/dashboard" element={<AdminDashboard />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/assets" element={<Assets />} />
+                <Route path="/assets/:id" element={<AssetDetail />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/help" element={<Help />} />
+                <Route path="/designer/:productId" element={<Designer />} />
+                <Route path="/designer" element={<Designer />} />
+                <Route path="/exitiframe" element={<ExitIframe />} />
+            </Routes>
+        </>
+    );
+
+    if (isDesigner) {
+        return content;
+    }
+
+    return <Frame>{content}</Frame>;
 }

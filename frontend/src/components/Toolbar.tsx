@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { Type, Image, Settings2, Plus, AlignLeft, UploadCloud, Palette, ChevronDownSquare, MousePointer2, CheckSquare, Hash, Phone, Calendar, Clock, Images, ChevronLeft } from 'lucide-react';
+import { Type, Image, Settings2, Plus, AlignLeft, UploadCloud, Palette, ChevronDownSquare, MousePointer2, CheckSquare, Hash, Phone, Calendar, Clock, Images, ChevronLeft, Cpu } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TextTool } from '@/components/TextTool';
 import { ImageTool } from '@/components/ImageTool';
 import { GalleryTool } from '@/components/GalleryTool';
 import { FileUploadTool } from '@/components/FileUploadTool';
+import { SwatchTool } from '@/components/SwatchTool';
+import { DropdownTool } from '@/components/DropdownTool';
+import { ButtonTool } from '@/components/ButtonTool';
+import { CheckboxTool } from '@/components/CheckboxTool';
+import { NumberTool } from '@/components/NumberTool';
+import { PhoneTool } from '@/components/PhoneTool';
+import { DateTool } from '@/components/DateTool';
+import { TimeTool } from '@/components/TimeTool';
+import { LogicTool } from './LogicTool';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CanvasElement } from '@/types';
 
 interface ToolbarProps {
@@ -15,9 +25,16 @@ interface ToolbarProps {
   onDuplicateElement: (id: string) => void;
   onCrop?: () => void;
   elements: CanvasElement[];
+  productData?: any;
+  userColors?: any[];
+  userOptions?: any[];
+  onRefreshAssets?: () => void;
+  onSaveAsset?: (asset: any) => Promise<any>;
+  onSelectElement?: (id: string) => void;
+  canvasDimensions?: { width: number; height: number };
 }
 
-export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDuplicateElement, onCrop, elements }: ToolbarProps) {
+export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDuplicateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, canvasDimensions }: ToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
 
   const optionTypes = [
@@ -26,7 +43,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
     { id: 'gallery', label: 'Gallery', icon: Images, color: 'bg-pink-500', desc: 'Image library' },
     { id: 'textarea', label: 'Text Area', icon: AlignLeft, color: 'bg-indigo-500', desc: 'Notes/Lyrics' },
     { id: 'file_upload', label: 'File Upload', icon: UploadCloud, color: 'bg-emerald-500', desc: 'Zip, PDF, etc.' },
-    { id: 'product_color', label: 'Product Color', icon: Palette, color: 'bg-orange-500', desc: 'Color swatches' },
+    { id: 'product_color', label: 'Swatch', icon: Palette, color: 'bg-orange-500', desc: 'Material options' },
     { id: 'dropdown', label: 'Drop Down', icon: ChevronDownSquare, color: 'bg-cyan-500', desc: 'Selection list' },
     { id: 'button', label: 'Button', icon: MousePointer2, color: 'bg-rose-500', desc: 'Preset actions' },
     { id: 'checkbox', label: 'Check Box', icon: CheckSquare, color: 'bg-amber-500', desc: 'Yes/No options' },
@@ -42,13 +59,24 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
     };
 
     if (type === 'text') {
-      onAddElement({ ...commonProps, id: `text-${Date.now()}`, type: 'text', text: 'New Text', fontSize: 24, color: '#000000', fontFamily: 'Inter' });
+      onAddElement({
+        ...commonProps,
+        id: `text-placeholder-${Date.now()}`,
+        type: 'text',
+        text: 'New Text',
+        fontSize: 24,
+        color: '#000000',
+        fontFamily: 'Inter',
+        x: -1000,
+        y: -1000,
+        opacity: 0 // Invisible
+      });
     } else if (type === 'image') {
       onAddElement({ ...commonProps, id: `img-${Date.now()}`, type: 'image', src: 'https://placehold.co/200x200?text=Upload+Image' });
     } else if (type === 'textarea') {
       onAddElement({
         ...commonProps,
-        id: `textarea-${Date.now()}`,
+        id: `textarea-placeholder-${Date.now()}`,
         type: 'textarea',
         text: 'Enter notes here...',
         fontSize: 16,
@@ -57,7 +85,83 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
         fontWeight: 400,
         textAlign: 'left',
         textMode: 'wrap',
-        label: 'Text Area'
+        label: 'Text Area',
+        x: -1000,
+        y: -1000,
+        opacity: 0
+      });
+    } else if (type === 'number') {
+      // Create a temporary placeholder element to show NumberTool
+      // This won't be visible on canvas (opacity: 0) until user clicks Add Number
+      onAddElement({
+        ...commonProps,
+        id: `number-placeholder-${Date.now()}`,
+        type: 'number',
+        x: -1000, // Off-canvas
+        y: -1000,
+        width: 180,
+        height: 60,
+        label: '',
+        defaultValue: 0,
+        text: '0',
+        fontSize: 32,
+        fontFamily: 'Inter',
+        color: '#000000',
+        textAlign: 'center',
+        opacity: 0 // Invisible
+      });
+    } else if (type === 'phone') {
+      // Create a temporary placeholder element for phone
+      onAddElement({
+        ...commonProps,
+        id: `phone-placeholder-${Date.now()}`,
+        type: 'phone',
+        x: -1000,
+        y: -1000,
+        width: 300,
+        height: 60,
+        label: '',
+        text: '+62 812-3456-7890',
+        fontSize: 32,
+        fontFamily: 'Inter',
+        color: '#000000',
+        textAlign: 'center',
+        opacity: 0
+      });
+    } else if (type === 'date') {
+      onAddElement({
+        ...commonProps,
+        id: `date-placeholder-${Date.now()}`,
+        type: 'date',
+        x: -1000,
+        y: -1000,
+        width: 300,
+        height: 60,
+        label: '',
+        text: '31/12/2025',
+        fontSize: 32,
+        fontFamily: 'Inter',
+        color: '#000000',
+        textAlign: 'center',
+        opacity: 0
+      });
+    } else if (type === 'time') {
+      onAddElement({
+        ...commonProps,
+        id: `time-placeholder-${Date.now()}`,
+        type: 'time',
+        x: -1000,
+        y: -1000,
+        width: 300,
+        height: 60,
+        label: '',
+        text: '12:00',
+        defaultValue: '12:00',
+        fontSize: 32,
+        fontFamily: 'Inter',
+        color: '#000000',
+        textAlign: 'center',
+        opacity: 0
       });
     } else {
       // Placeholder for new types
@@ -90,84 +194,52 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
             </div>
           ) : (
             <>
-              <Button
-                onClick={() => setShowPicker(true)}
-                className="w-full h-12 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl border border-indigo-100 flex items-center justify-center gap-2 font-bold text-sm transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                Add Your Option
-              </Button>
+              <div className="flex flex-col gap-4 flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Options</h3>
+                  <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{elements.length}</span>
+                </div>
 
-              <div className="grid grid-cols-1 gap-3 overflow-y-auto">
-                {/* Add Text Card */}
-                <button
-                  onClick={() => handleAddOption('text')}
-                  className="group p-4 bg-white border-2 border-gray-100 rounded-2xl flex items-center gap-4 transition-all hover:border-blue-200 hover:shadow-lg hover:shadow-blue-50/50 hover:-translate-y-0.5 text-left"
-                >
-                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                    <Type className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">Add Text</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">Style with curved & artistic fonts</div>
-                  </div>
-                </button>
+                <div className="flex flex-col gap-2 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
+                  {elements.map((element) => (
+                    <button
+                      key={element.id}
+                      onClick={() => onSelectElement?.(element.id)} // Trigger selection in designer
+                      className={`group flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${(selectedElement as any)?.id === element.id
+                        ? 'border-indigo-500 bg-indigo-50/30'
+                        : 'border-gray-50 bg-white hover:border-gray-200'}`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm ${element.type === 'text' ? 'bg-blue-500' :
+                        element.type === 'image' ? 'bg-purple-500' :
+                          element.type === 'product_color' ? 'bg-orange-500' :
+                            'bg-gray-400'
+                        }`}>
+                        {element.type === 'text' ? <Type className="w-4 h-4" /> :
+                          element.type === 'image' ? <Image className="w-4 h-4" /> :
+                            element.type === 'product_color' ? <Palette className="w-4 h-4" /> :
+                              <Settings2 className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-gray-900 truncate">
+                          {element.label || (element.type === 'product_color' ? 'Swatch' : element.type.charAt(0).toUpperCase() + element.type.slice(1))}
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">
+                          {element.type === 'text' ? element.text : 'Custom element'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
 
-                {/* Upload Image Card */}
-                <button
-                  onClick={() => handleAddOption('image')}
-                  className="group p-4 bg-white border-2 border-gray-100 rounded-2xl flex items-center gap-4 transition-all hover:border-purple-200 hover:shadow-lg hover:shadow-purple-50/50 hover:-translate-y-0.5 text-left"
-                >
-                  <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                    <Image className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">Upload Image</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">Add photos or logo graphics</div>
-                  </div>
-                </button>
-
-                {/* Enter Notes (Text Area) Card */}
-                <button
-                  onClick={() => handleAddOption('textarea')}
-                  className="group p-4 bg-white border-2 border-gray-100 rounded-2xl flex items-center gap-4 transition-all hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-50/50 hover:-translate-y-0.5 text-left"
-                >
-                  <div className="w-12 h-12 bg-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                    <AlignLeft className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">Enter Notes Here</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">Multiple lines for detail notes</div>
-                  </div>
-                </button>
-
-                {/* File Upload Card */}
-                <button
-                  onClick={() => handleAddOption('file_upload')}
-                  className="group p-4 bg-white border-2 border-gray-100 rounded-2xl flex items-center gap-4 transition-all hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-50/50 hover:-translate-y-0.5 text-left"
-                >
-                  <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                    <UploadCloud className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">File Upload</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">Allow customers to send files</div>
-                  </div>
-                </button>
-
-                {/* Gallery Card */}
-                <button
-                  onClick={() => handleAddOption('gallery')}
-                  className="group p-4 bg-white border-2 border-gray-100 rounded-2xl flex items-center gap-4 transition-all hover:border-pink-200 hover:shadow-lg hover:shadow-pink-50/50 hover:-translate-y-0.5 text-left"
-                >
-                  <div className="w-12 h-12 bg-pink-500 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-                    <Images className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">Image Gallery</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">Choose from premium assets</div>
-                  </div>
-                </button>
+                <div className="pt-4 border-t border-gray-100 mt-2">
+                  <Button
+                    onClick={() => setShowPicker(true)}
+                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 font-bold text-sm transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add More Tools
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -226,46 +298,130 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
             </Button>
           </div>
 
-          <Card className="border-0 shadow-none bg-transparent">
-            {['text', 'textarea'].includes(selectedElement.type) && (
-              <TextTool
-                onAddElement={onAddElement}
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-50 p-1 rounded-xl">
+              <TabsTrigger value="general" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+                <Settings2 className="w-3.5 h-3.5" />
+                General
+              </TabsTrigger>
+              <TabsTrigger value="logic" className="text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+                <Cpu className="w-3.5 h-3.5" />
+                Logic
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="general" className="mt-0 space-y-6">
+              <Card className="border-0 shadow-none bg-transparent">
+                {['text', 'textarea'].includes(selectedElement.type) && (
+                  <TextTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                    canvasDimensions={canvasDimensions}
+                  />
+                )}
+                {selectedElement.type === 'image' && (
+                  <ImageTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                    onCrop={onCrop}
+                  />
+                )}
+                {selectedElement.type === 'gallery' && (
+                  <GalleryTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {selectedElement.type === 'file_upload' && (
+                  <FileUploadTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {selectedElement.type === 'product_color' && (
+                  <SwatchTool
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                    productData={productData}
+                    userColors={userColors}
+                    userOptions={userOptions}
+                    onRefreshAssets={onRefreshAssets}
+                    onSaveAsset={onSaveAsset}
+                  />
+                )}
+                {selectedElement.type === 'dropdown' && (
+                  <DropdownTool
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                    productData={productData}
+                    userOptions={userOptions}
+                  />
+                )}
+                {selectedElement.type === 'button' && (
+                  <ButtonTool
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                    userOptions={userOptions}
+                  />
+                )}
+                {selectedElement.type === 'checkbox' && (
+                  <CheckboxTool
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                    userOptions={userOptions}
+                  />
+                )}
+                {selectedElement.type === 'number' && (
+                  <NumberTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {selectedElement.type === 'phone' && (
+                  <PhoneTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {selectedElement.type === 'date' && (
+                  <DateTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {selectedElement.type === 'time' && (
+                  <TimeTool
+                    onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {!['text', 'image', 'gallery', 'textarea', 'file_upload', 'product_color', 'dropdown', 'button', 'checkbox', 'number', 'phone', 'date', 'time'].includes(selectedElement.type) && (
+                  <div className="py-20 text-center">
+                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Settings2 className="w-8 h-8 text-gray-300" />
+                    </div>
+                    <p className="text-sm text-gray-400 italic">Settings for {selectedElement.type} coming soon</p>
+                  </div>
+                )}
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="logic" className="mt-0">
+              <LogicTool
                 selectedElement={selectedElement}
                 onUpdateElement={onUpdateElement}
-                onDuplicateElement={onDuplicateElement}
+                productData={productData}
               />
-            )}
-            {selectedElement.type === 'image' && (
-              <ImageTool
-                onAddElement={onAddElement}
-                selectedElement={selectedElement}
-                onUpdateElement={onUpdateElement}
-                onCrop={onCrop}
-              />
-            )}
-            {selectedElement.type === 'gallery' && (
-              <GalleryTool
-                onAddElement={onAddElement}
-                selectedElement={selectedElement}
-                onUpdateElement={onUpdateElement}
-              />
-            )}
-            {selectedElement.type === 'file_upload' && (
-              <FileUploadTool
-                onAddElement={onAddElement}
-                selectedElement={selectedElement}
-                onUpdateElement={onUpdateElement}
-              />
-            )}
-            {!['text', 'image', 'gallery', 'textarea', 'file_upload'].includes(selectedElement.type) && (
-              <div className="py-20 text-center">
-                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Settings2 className="w-8 h-8 text-gray-300" />
-                </div>
-                <p className="text-sm text-gray-400 italic">Settings for {selectedElement.type} coming soon</p>
-              </div>
-            )}
-          </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 

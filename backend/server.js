@@ -142,6 +142,11 @@ app.get("/imcst_api/products", async (req, res) => {
                             featuredImage {
                                 url
                             }
+                            options {
+                                name
+                                position
+                                values
+                            }
                             variants(first: 20) {
                                 edges {
                                     node {
@@ -149,6 +154,10 @@ app.get("/imcst_api/products", async (req, res) => {
                                         title
                                         sku
                                         price
+                                        selectedOptions {
+                                            name
+                                            value
+                                        }
                                     }
                                 }
                             }
@@ -185,13 +194,28 @@ app.get("/imcst_api/products", async (req, res) => {
                 handle: node.handle,
                 shop: shopDomain,
                 image: node.featuredImage ? { src: node.featuredImage.url } : null,
-                variants: node.variants.edges.map(v => ({
-                    id: v.node.id.split('/').pop(),
-                    gid: v.node.id,
-                    title: v.node.title,
-                    sku: v.node.sku,
-                    price: v.node.price
+                options: node.options.map(o => ({
+                    name: o.name,
+                    position: o.position,
+                    values: o.values
                 })),
+                variants: node.variants.edges.map(v => {
+                    const variant = {
+                        id: v.node.id.split('/').pop(),
+                        gid: v.node.id,
+                        title: v.node.title,
+                        sku: v.node.sku,
+                        price: v.node.price
+                    };
+
+                    if (v.node.selectedOptions) {
+                        v.node.selectedOptions.forEach((opt, index) => {
+                            variant[`option${index + 1}`] = opt.value;
+                        });
+                    }
+
+                    return variant;
+                }),
                 collections: node.collections.edges.map(c => ({
                     id: c.node.id.split('/').pop(),
                     gid: c.node.id,
@@ -226,6 +250,18 @@ app.get("/imcst_api/products/:id", async (req, res) => {
                     featuredImage {
                         url
                     }
+                    images(first: 50) {
+                        edges {
+                            node {
+                                url
+                            }
+                        }
+                    }
+                    options {
+                        name
+                        position
+                        values
+                    }
                     variants(first: 100) {
                         edges {
                             node {
@@ -233,6 +269,13 @@ app.get("/imcst_api/products/:id", async (req, res) => {
                                 title
                                 sku
                                 price
+                                image {
+                                    url
+                                }
+                                selectedOptions {
+                                    name
+                                    value
+                                }
                             }
                         }
                     }
@@ -259,13 +302,30 @@ app.get("/imcst_api/products/:id", async (req, res) => {
             status: node.status,
             handle: node.handle,
             image: node.featuredImage ? { src: node.featuredImage.url } : null,
-            variants: node.variants.edges.map(v => ({
-                id: v.node.id.split('/').pop(),
-                gid: v.node.id,
-                title: v.node.title,
-                sku: v.node.sku,
-                price: v.node.price
-            }))
+            images: node.images.edges.map(img => img.node.url),
+            options: node.options.map(o => ({
+                name: o.name,
+                position: o.position,
+                values: o.values
+            })),
+            variants: node.variants.edges.map(v => {
+                const variant = {
+                    id: v.node.id.split('/').pop(),
+                    gid: v.node.id,
+                    title: v.node.title,
+                    sku: v.node.sku,
+                    price: v.node.price,
+                    image: v.node.image ? v.node.image.url : null
+                };
+
+                if (v.node.selectedOptions) {
+                    v.node.selectedOptions.forEach((opt, index) => {
+                        variant[`option${index + 1}`] = opt.value;
+                    });
+                }
+
+                return variant;
+            })
         };
 
         res.json(product);
@@ -419,7 +479,7 @@ app.get("/imcst_api/configured-products", async (req, res) => {
 // 3. Save or Update Design
 app.post("/imcst_api/design", async (req, res) => {
     try {
-        const { id, name, designJson, previewUrl, shopifyProductId } = req.body;
+        const { id, name, designJson, previewUrl, shopifyProductId, isTemplate } = req.body;
         const shop = res.locals.shopify.session.shop;
 
         if (id) {
@@ -430,6 +490,7 @@ app.post("/imcst_api/design", async (req, res) => {
                     name: name || "Untitled Design",
                     designJson,
                     previewUrl,
+                    isTemplate: !!isTemplate
                 },
             });
             return res.json(updatedDesign);
@@ -442,6 +503,7 @@ app.post("/imcst_api/design", async (req, res) => {
                     name: name || "Untitled Design",
                     designJson,
                     previewUrl,
+                    isTemplate: !!isTemplate
                 },
             });
             return res.json(design);
@@ -452,16 +514,43 @@ app.post("/imcst_api/design", async (req, res) => {
     }
 });
 
-// 4. Get Design by ID
-app.get("/imcst_api/design/:id", async (req, res) => {
+app.get("/imcst_api/design", async (req, res) => {
     try {
-        const { id } = req.params;
+        if (!res.locals.shopify || !res.locals.shopify.session) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
         const shop = res.locals.shopify.session.shop;
+
+        const designs = await prisma.savedDesign.findMany({
+            where: { shop },
+            orderBy: [
+                { isTemplate: 'desc' },
+                { updatedAt: 'desc' }
+            ]
+        });
+        res.json(designs);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 4a. Get Design by ID (SINGULAR)
+app.get("/imcst_api/design/:id", async (req, res, next) => {
+    try {
+        if (req.params.id === 'product') {
+            return next();
+        }
+
+        const { id } = req.params;
+        if (!res.locals.shopify || !res.locals.shopify.session) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        const shop = res.locals.shopify.session.shop;
+
         const design = await prisma.savedDesign.findUnique({
             where: { id }
         });
 
-        // Security check: design must belong to the shop
         if (!design || design.shop !== shop) {
             return res.status(404).json({ error: "Design not found" });
         }
@@ -490,6 +579,7 @@ app.get("/imcst_api/design/product/:productId", async (req, res) => {
 
         res.json(designs);
     } catch (error) {
+        console.error("Get product designs error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -498,11 +588,16 @@ app.get("/imcst_api/design/product/:productId", async (req, res) => {
 app.delete("/imcst_api/design/:id", async (req, res) => {
     try {
         const { id } = req.params;
+        if (!res.locals.shopify || !res.locals.shopify.session) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
         const shop = res.locals.shopify.session.shop;
 
-        const design = await prisma.savedDesign.findUnique({ where: { id } });
+        const design = await prisma.savedDesign.findFirst({
+            where: { id, shop }
+        });
 
-        if (!design || design.shop !== shop) {
+        if (!design) {
             return res.status(404).json({ error: "Design not found" });
         }
 
