@@ -24,6 +24,7 @@ interface CanvasProps {
   onUpdateSafeAreaOffset: (offset: { x: number; y: number }) => void;
   baseImage?: string;
   baseImageColor?: string;
+  baseImageColorEnabled?: boolean;
   baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
 }
@@ -49,6 +50,7 @@ export function Canvas({
   onUpdateSafeAreaOffset,
   baseImage,
   baseImageColor,
+  baseImageColorEnabled = false,
   baseImageProperties,
   onUpdateBaseImage,
 }: CanvasProps) {
@@ -186,36 +188,36 @@ export function Canvas({
                   }}
                   className="cursor-move select-none pointer-events-auto relative"
                   style={{
-                    x: baseImageProperties.x * (zoom / 100),
-                    y: baseImageProperties.y * (zoom / 100),
-                    scale: (baseImageProperties.scale || 1) * (zoom / 100),
+                    x: (baseImageProperties?.x || 0) * (zoom / 100),
+                    y: (baseImageProperties?.y || 0) * (zoom / 100),
+                    scale: (baseImageProperties?.scale || 1) * (zoom / 100),
                     maxWidth: 'none',
                   }}
                 >
                   <div
                     className="relative overflow-hidden"
                     style={{
-                      width: baseImageProperties.crop
+                      width: baseImageProperties?.crop
                         ? `${baseImageProperties.crop.width}px`
-                        : (baseImageProperties.width ? `${baseImageProperties.width}px` : '500px'),
-                      height: baseImageProperties.crop
+                        : (baseImageProperties?.width ? `${baseImageProperties.width}px` : '500px'),
+                      height: baseImageProperties?.crop
                         ? `${baseImageProperties.crop.height}px`
-                        : (baseImageProperties.height ? `${baseImageProperties.height}px` : '500px'),
-                      backgroundColor: baseImageColor || 'transparent'
+                        : (baseImageProperties?.height ? `${baseImageProperties.height}px` : '500px'),
+                      backgroundColor: (baseImageColorEnabled && baseImageColor) ? baseImageColor : 'transparent',
                     }}
                   >
                     <img
                       src={baseImage}
                       alt="Base"
-                      className="block max-w-none drag-none pointer-events-none"
+                      className="block max-w-none drag-none pointer-events-none relative z-10"
                       draggable={false}
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
                       }}
                       style={{
-                        transform: baseImageProperties.crop
+                        transform: baseImageProperties?.crop
                           ? `translate(${-baseImageProperties.crop.x}px, ${-baseImageProperties.crop.y}px)`
-                          : 'none'
+                          : 'none',
                       }}
                     />
                   </div>

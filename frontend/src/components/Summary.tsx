@@ -69,6 +69,9 @@ interface SummaryProps {
   onSelectedColorAssetIdChange?: (id: string | null) => void;
   baseImageColorEnabled?: boolean;
   onToggleBaseImageColor?: (enabled: boolean) => void;
+  baseImageColor?: string;
+  onBaseImageColorChange?: (color: string) => void;
+  activePaletteColors?: { name: string; value: string }[];
   safeAreaOffset?: { x: number; y: number };
 }
 
@@ -103,6 +106,9 @@ export function Summary({
   onSelectedColorAssetIdChange,
   baseImageColorEnabled = true,
   onToggleBaseImageColor,
+  baseImageColor = '',
+  onBaseImageColorChange,
+  activePaletteColors = [],
   shopifyOptions = [],
   onToggleSummary,
   safeAreaOffset = { x: 0, y: 0 },
@@ -271,7 +277,25 @@ export function Summary({
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-[9px] text-slate-400 italic leading-tight">Pick an asset to define colors for your mockup overlay.</p>
+
+                    {activePaletteColors.length > 0 && (
+                      <div className="pt-2">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mb-2 block">Select Color</Label>
+                        <div className="grid grid-cols-6 gap-2">
+                          {activePaletteColors.map((c, i) => (
+                            <button
+                              key={i}
+                              onClick={() => onBaseImageColorChange?.(c.value)}
+                              className={`w-8 h-8 rounded-lg border-2 transition-all ${baseImageColor === c.value ? 'border-indigo-500 scale-110 shadow-md' : 'border-transparent hover:scale-105'
+                                }`}
+                              style={{ backgroundColor: c.value }}
+                              title={c.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[9px] text-slate-400 italic leading-tight mt-2">Pick a color from the palette to apply as an overlay.</p>
                   </div>
                 </div>
               </div>

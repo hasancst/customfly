@@ -491,13 +491,51 @@ app.get("/imcst_api/config/:productId", async (req, res) => {
 
 // 2. Save Product Config
 app.post("/imcst_api/config", async (req, res) => {
-    const { productId, printArea, baseImage } = req.body;
+    const updates = req.body;
     const shop = res.locals.shopify.session.shop;
+    const productId = updates.productId; // Extract productId from updates
+
+    // Get current config to merge or just use partial update
+    const currentConfig = await prisma.merchantConfig.findUnique({
+        where: { shop_shopifyProductId: { shop, shopifyProductId: productId } }
+    });
 
     const config = await prisma.merchantConfig.upsert({
         where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
-        update: { printArea: printArea || {}, baseImage },
-        create: { shop, shopifyProductId: productId, printArea: printArea || {}, baseImage },
+        update: {
+            printArea: updates.printArea !== undefined ? (updates.printArea || {}) : undefined,
+            baseImage: updates.baseImage !== undefined ? updates.baseImage : undefined,
+            baseImageColor: updates.baseImageColor !== undefined ? updates.baseImageColor : undefined,
+            baseImageProperties: updates.baseImageProperties !== undefined ? (updates.baseImageProperties || {}) : undefined,
+            baseImageColorEnabled: updates.baseImageColorEnabled !== undefined ? !!updates.baseImageColorEnabled : undefined,
+            selectedColorAssetId: updates.selectedColorAssetId !== undefined ? updates.selectedColorAssetId : undefined,
+            safeAreaPadding: updates.safeAreaPadding !== undefined ? updates.safeAreaPadding : undefined,
+            safeAreaShape: updates.safeAreaShape !== undefined ? updates.safeAreaShape : undefined,
+            safeAreaOffset: updates.safeAreaOffset !== undefined ? (updates.safeAreaOffset || {}) : undefined,
+            paperSize: updates.paperSize !== undefined ? updates.paperSize : undefined,
+            customPaperDimensions: updates.customPaperDimensions !== undefined ? (updates.customPaperDimensions || {}) : undefined,
+            unit: updates.unit !== undefined ? updates.unit : undefined,
+            showRulers: updates.showRulers !== undefined ? !!updates.showRulers : undefined,
+            showSafeArea: updates.showSafeArea !== undefined ? !!updates.showSafeArea : undefined,
+        },
+        create: {
+            shop,
+            shopifyProductId: productId,
+            printArea: updates.printArea || {},
+            baseImage: updates.baseImage,
+            baseImageColor: updates.baseImageColor,
+            baseImageProperties: updates.baseImageProperties || {},
+            baseImageColorEnabled: !!updates.baseImageColorEnabled,
+            selectedColorAssetId: updates.selectedColorAssetId,
+            safeAreaPadding: updates.safeAreaPadding,
+            safeAreaShape: updates.safeAreaShape,
+            safeAreaOffset: updates.safeAreaOffset || {},
+            paperSize: updates.paperSize,
+            customPaperDimensions: updates.customPaperDimensions || {},
+            unit: updates.unit,
+            showRulers: !!updates.showRulers,
+            showSafeArea: !!updates.showSafeArea,
+        },
     });
 
     res.json(config);

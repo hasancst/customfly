@@ -200,17 +200,21 @@ export default function App() {
             }
           }
 
+          // Fetch config for base settings
+          const configRes = await fetch(`/imcst_api/config/${productId}`);
+          let config: any = null;
+          if (configRes.ok) {
+            config = await configRes.json();
+          }
+
           // Fetch designs for this product
-          const productDesignsResponse = await fetch(`/imcst_api/design/product/${productId}`);
-          if (productDesignsResponse.ok) {
-            const designs = await productDesignsResponse.json();
+          const designsRes = await fetch(`/imcst_api/design/product/${productId}`);
+          let loadedFromDesign = false;
+          if (designsRes.ok) {
+            const designs = await designsRes.json();
             setSavedDesigns(designs);
-
-            // Auto-load the most recent design if it exists
             if (designs && designs.length > 0) {
-              const mostRecent = designs[0]; // Already sorted by updatedAt desc
-              console.log('Auto-loading most recent design:', mostRecent.name);
-
+              const mostRecent = designs[0];
               const designJson = mostRecent.designJson;
               if (Array.isArray(designJson) && designJson.length > 0) {
                 const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
@@ -220,7 +224,31 @@ export default function App() {
                 setDesignName(mostRecent.name);
                 setHistory([normalizedPages]);
                 setHistoryIndex(0);
+                loadedFromDesign = true;
               }
+            }
+          }
+
+          if (config) {
+            if (config.selectedColorAssetId) setSelectedColorAssetId(config.selectedColorAssetId);
+            if (config.safeAreaPadding !== undefined) setSafeAreaPadding(config.safeAreaPadding);
+            if (config.safeAreaShape) setSafeAreaShape(config.safeAreaShape as any);
+            if (config.safeAreaOffset) setSafeAreaOffset(config.safeAreaOffset);
+            if (config.paperSize) setPaperSize(config.paperSize);
+            if (config.customPaperDimensions) setCustomPaperDimensions(config.customPaperDimensions);
+            if (config.unit) setUnit(config.unit as any);
+            if (config.showRulers !== undefined) setShowRulers(config.showRulers);
+            if (config.showSafeArea !== undefined) setShowSafeArea(config.showSafeArea);
+
+            // Always apply base image from config if it exists (even if design was loaded)
+            if (config.baseImage) {
+              setPages(prev => prev.map(p => ({
+                ...p,
+                baseImage: config.baseImage,
+                baseImageColor: config.baseImageColor || p.baseImageColor,
+                baseImageProperties: config.baseImageProperties || p.baseImageProperties,
+                baseImageColorEnabled: typeof config.baseImageColorEnabled === 'boolean' ? config.baseImageColorEnabled : p.baseImageColorEnabled
+              })));
             }
           }
 
@@ -231,13 +259,12 @@ export default function App() {
             setAllDesigns(allDesignsData);
           }
 
-          // Mark this product as initialized
-          hasAutoLoadedRef.current = productId;
         } catch (error) {
           console.error('Failed to initialize product:', error);
         }
       }
       initializeProduct();
+      hasAutoLoadedRef.current = productId;
     }
   }, [productId, fetch]);
 
@@ -420,6 +447,21 @@ export default function App() {
     }
   }, [productId, currentDesignId, designName, pages, fetch, savedDesigns, fetchDesigns]);
 
+  const saveConfig = useCallback(async (updates: any) => {
+    try {
+      await fetch('/imcst_api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId,
+          ...updates
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save config:', error);
+    }
+  }, [productId, fetch]);
+
   const deleteDesign = async (id: string, name: string) => {
     if (!confirm(`Delete ${name}?`)) return;
     try {
@@ -436,14 +478,21 @@ export default function App() {
     const img = new Image();
     img.onload = () => {
       const scale = Math.min(900 / img.naturalWidth, 900 / img.naturalHeight, 1);
+      const props = { x: 0, y: 0, scale, width: img.naturalWidth, height: img.naturalHeight };
       setPages(prev => {
         const updated = prev.map(p => p.id === activePageId ? {
-          ...p, baseImage: url, useVariantImage: isVariantImage,
-          baseImageProperties: { x: 0, y: 0, scale, width: img.naturalWidth, height: img.naturalHeight }
+          ...p,
+          baseImage: url,
+          useVariantImage: isVariantImage,
+          baseImageProperties: props,
+          baseImageColor: p.baseImageColor, // Preserve existing color
+          baseImageColorEnabled: p.baseImageColorEnabled // Preserve existing color enabled state
         } : p);
         addToHistory(updated);
         return updated;
       });
+      // Also save to merchant config for persistence
+      saveConfig({ baseImage: url, baseImageProperties: props });
     };
     img.src = url;
   };
@@ -539,7 +588,12 @@ export default function App() {
             <div className="flex items-center gap-1.5 overflow-x-auto py-1">
               {pages.map(page => (
                 <div key={page.id} className="group relative flex items-center">
-                  <button onClick={() => setActivePageId(page.id)} className={`h-7 px-3 rounded-md text-[10px] font-bold border transition-all ${activePageId === page.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>{page.name}</button>
+                  <button onClick={() => setActivePageId(page.id)} className={`h-7 px-3 rounded-md text-[10px] font-bold border transition-all flex items-center gap-1.5 ${activePageId === page.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    {page.baseImage && (
+                      <img src={page.baseImage} className="w-4 h-4 rounded-sm object-cover border border-white/20" />
+                    )}
+                    {page.name}
+                  </button>
                   <button onClick={(e) => { e.stopPropagation(); const n = prompt('Name:', page.name); if (n) renamePage(page.id, n); }} className="p-1 opacity-0 group-hover:opacity-100"><Pencil className="w-2.5 h-2.5" /></button>
                   {pages.length > 1 && <button onClick={(e) => { e.stopPropagation(); deletePage(page.id); }} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500"><X className="w-2 h-2" /></button>}
                 </div>
@@ -580,12 +634,16 @@ export default function App() {
               baseImage={pages.find(p => p.id === activePageId)?.baseImage}
               baseImageProperties={pages.find(p => p.id === activePageId)?.baseImageProperties as any}
               baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
+              baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled}
               paperSize={paperSize}
               customPaperDimensions={customPaperDimensions}
               onUpdateBaseImage={(props) => {
+                const currentProps = pages.find(p => p.id === activePageId)?.baseImageProperties || {};
+                const newProps = { ...currentProps, ...props };
                 setPages(prev => prev.map(p =>
-                  p.id === activePageId ? { ...p, baseImageProperties: { ...p.baseImageProperties, ...props } as any } : p
+                  p.id === activePageId ? { ...p, baseImageProperties: newProps as any } : p
                 ));
+                saveConfig({ baseImageProperties: newProps });
               }}
             />
             {!showSummary && <Button variant="ghost" size="icon" onClick={() => setShowSummary(true)} className="absolute right-0 top-1/2 -translate-y-1/2 bg-white border border-gray-200 shadow-lg rounded-l-xl z-50"><ChevronLeft className="w-4 h-4" /></Button>}
@@ -594,13 +652,26 @@ export default function App() {
         <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-80 opacity-100' : 'w-0 opacity-0'}`}>
           <Summary
             elements={processedElements as any} selectedElement={selectedElement} onSelectElement={setSelectedElement} onDeleteElement={deleteElement}
-            zoom={zoom} onZoomChange={setZoom} showSafeArea={showSafeArea} onToggleSafeArea={setShowSafeArea} safeAreaPadding={safeAreaPadding} onSafeAreaPaddingChange={setSafeAreaPadding}
-            safeAreaShape={safeAreaShape} onSafeAreaShapeChange={setSafeAreaShape} safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
-            onToggleRulers={() => setShowRulers(!showRulers)} showRulers={showRulers} unit={unit} onUnitChange={setUnit} paperSize={paperSize} onPaperSizeChange={setPaperSize}
-            customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={setCustomPaperDimensions} onReset={() => { setElements([]); addToHistory(pages.map(p => p.id === activePageId ? { ...p, elements: [] } : p)); }}
-            userColors={filteredUserColors} selectedColorAssetId={selectedColorAssetId} onSelectedColorAssetIdChange={setSelectedColorAssetId} onToggleSummary={() => setShowSummary(false)}
+            zoom={zoom} onZoomChange={setZoom} showSafeArea={showSafeArea} onToggleSafeArea={() => { setShowSafeArea(!showSafeArea); saveConfig({ showSafeArea: !showSafeArea }); }}
+            safeAreaPadding={safeAreaPadding} onSafeAreaPaddingChange={(val) => { setSafeAreaPadding(val); saveConfig({ safeAreaPadding: val }); }}
+            safeAreaShape={safeAreaShape} onSafeAreaShapeChange={(val) => { setSafeAreaShape(val); saveConfig({ safeAreaShape: val }); }} safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => { setSafeAreaOffset({ x: 0, y: 0 }); saveConfig({ safeAreaOffset: { x: 0, y: 0 } }); }}
+            onToggleRulers={() => { setShowRulers(!showRulers); saveConfig({ showRulers: !showRulers }); }} showRulers={showRulers} unit={unit} onUnitChange={(val) => { setUnit(val); saveConfig({ unit: val }); }} paperSize={paperSize} onPaperSizeChange={(val) => { setPaperSize(val); saveConfig({ paperSize: val }); }}
+            customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={(val) => { setCustomPaperDimensions(val); saveConfig({ customPaperDimensions: val }); }} onReset={() => { setElements([]); addToHistory(pages.map(p => p.id === activePageId ? { ...p, elements: [] } : p)); }}
+            userColors={filteredUserColors} selectedColorAssetId={selectedColorAssetId} onSelectedColorAssetIdChange={(val) => {
+              setSelectedColorAssetId(val);
+              saveConfig({ selectedColorAssetId: val });
+            }} onToggleSummary={() => setShowSummary(false)}
             baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled || false}
-            onToggleBaseImageColor={(enabled) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p))}
+            onToggleBaseImageColor={(enabled) => {
+              setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p));
+              saveConfig({ baseImageColorEnabled: enabled });
+            }}
+            baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
+            onBaseImageColorChange={(color) => {
+              setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color } : p));
+              saveConfig({ baseImageColor: color });
+            }}
+            activePaletteColors={activePaletteColors}
             shopifyOptions={productData?.options || []} shopifyVariants={productData?.variants || []} selectedVariantId={selectedVariantId} onVariantChange={setSelectedVariantId}
           />
         </div>

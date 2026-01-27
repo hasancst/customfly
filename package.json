@@ -1,0 +1,9 @@
+{
+    "name": "customfly",
+    "version": "1.0.0",
+    "private": true,
+    "dependencies": {
+        "@shopify/cli": "latest",
+        "@shopify/app": "latest"
+    }
+}

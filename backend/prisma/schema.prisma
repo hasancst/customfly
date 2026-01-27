@@ -32,10 +32,22 @@ model MerchantConfig {
   shop             String
   shopifyProductId String
   printArea        Json
-  baseImage        String?
-  masks            Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  baseImage              String?
+  baseImageColor         String?
+  baseImageProperties    Json?
+  baseImageColorEnabled Boolean? @default(false)
+  selectedColorAssetId   String?
+  safeAreaPadding        Float?
+  safeAreaShape          String?
+  safeAreaOffset         Json?
+  paperSize              String?
+  customPaperDimensions Json?
+  unit                   String?
+  showRulers             Boolean? @default(false)
+  showSafeArea           Boolean? @default(false)
+  masks                  Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@unique([shop, shopifyProductId])
 }
