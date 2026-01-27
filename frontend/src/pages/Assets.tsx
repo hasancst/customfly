@@ -105,7 +105,7 @@ export default function Assets() {
                 finalConfig.fontType = 'google';
                 finalConfig.googleConfig = 'specific';
             } else if (currentType === 'option') {
-                finalValue = 'enabled';
+                finalValue = '';
             }
 
             const response = await fetch('/imcst_api/assets', {

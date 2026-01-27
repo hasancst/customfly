@@ -94,15 +94,16 @@ const BridgeText = ({
     // 2. Apply bridge logic
     const ops = element.bridge;
     const w = tempCanvas.width;
-    const h = tempCanvas.height * 3; // Extra space for warping
+    const h = tempCanvas.height * 8; // Increased to 8 to be very safe against clipping
 
     canvas.width = w;
     canvas.height = h;
     ctx.clearRect(0, 0, w, h);
 
-    const curveVal = (ops.curve / 2) * tempCanvas.height;
-    const topVal = ops.offsetY * tempCanvas.height;
-    const bottomVal = ops.bottom * tempCanvas.height;
+    const unit = tempCanvas.height;
+    const curveVal = (ops.curve / 2) * unit;
+    const topVal = ops.offsetY * unit;
+    const bottomVal = ops.bottom * unit;
     const trident = ops.trident;
     const oblique = ops.oblique;
     const angle = (oblique ? 45 : 180) / w;
@@ -125,10 +126,11 @@ const BridgeText = ({
         yVal = bottomVal - curveVal * Math.sin(i * angle * Math.PI / 180);
       }
 
+      // Center the render vertically at h * 0.5
       ctx.drawImage(
         tempCanvas,
-        i, 0, 1, tempCanvas.height,
-        i, h * 0.5 - topVal / tempCanvas.height * yVal, 1, yVal
+        i, 0, 1, unit,
+        i, h * 0.5 - (topVal / unit) * yVal, 1, yVal
       );
     }
   }, [element, fontSize]);
@@ -621,49 +623,23 @@ export const DraggableElement = memo(({
 
         if (element.type === 'text' && element.isCurved && element.curve && element.curve !== 0) {
           const fontSize = (localState.fontSize || 32);
-          const scaledFontSize = fontSize * (zoom / 100);
           const text = element.text || '';
 
           const CURVE_SCALE = 3000;
           const radius = Math.abs(CURVE_SCALE / element.curve);
-          const CHORD_HALF_WIDTH = 1000;
-          const safeChordHalf = Math.min(CHORD_HALF_WIDTH, radius - 1);
-
-          if (safeChordHalf <= 0) {
-            return (
-              <div style={{
-                fontSize: scaledFontSize,
-                fontFamily: element.fontFamily || 'Inter',
-                fontWeight: element.fontWeight || 400,
-                fontStyle: element.italic ? 'italic' : 'normal',
-                textDecoration: element.underline ? 'underline' : 'none',
-                textAlign: element.textAlign || 'center',
-                whiteSpace: 'nowrap',
-                userSelect: 'none',
-                lineHeight: 1,
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <span style={{
-                  ...getGradientStyle(),
-                  ...getStrokeStyle(),
-                  color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
-                }}>
-                  {text}
-                </span>
-              </div>
-            );
-          }
-
           const isSmile = element.curve > 0;
-          const dy = radius - Math.sqrt(radius * radius - safeChordHalf * safeChordHalf);
-          const startX = -safeChordHalf;
-          const endX = safeChordHalf;
-          const d = `M ${startX},${isSmile ? -dy : dy} A ${radius} ${radius} 0 0 ${isSmile ? 1 : 0} ${endX},${isSmile ? -dy : dy}`;
           const pathId = `curve-path-${element.id}`;
+
+          // Create a full circle path so text can wrap around completely
+          // For Smile (text at bottom), start path at top (0, -radius)
+          // For Frown (text at top), start path at bottom (0, radius)
+          const startY = isSmile ? -radius : radius;
+          // Reverse sweep flags (0 vs 1) to ensure text is upright at the target position
+          const sweepFlag = isSmile ? 0 : 1;
+          const d = `M 0,${startY} a ${radius},${radius} 0 1,${sweepFlag} 0,${isSmile ? radius * 2 : -radius * 2} a ${radius},${radius} 0 1,${sweepFlag} 0,${isSmile ? -radius * 2 : radius * 2}`;
+
+          const padding = fontSize;
+          const viewBoxRadius = radius + padding;
 
           return (
             <div style={{
@@ -678,7 +654,7 @@ export const DraggableElement = memo(({
                 overflow="visible"
                 width="100%"
                 height="100%"
-                viewBox="-250 -250 500 500"
+                viewBox={`${-viewBoxRadius} ${-viewBoxRadius} ${viewBoxRadius * 2} ${viewBoxRadius * 2}`}
               >
                 <defs>
                   <path id={pathId} d={d} />
@@ -1265,85 +1241,7 @@ export const DraggableElement = memo(({
         );
 
 
-      case 'phone':
-        return (
-          <div className="flex flex-col gap-1.5" style={{ width: '100%' }}>
-            {(!element.hideLabel && (element.label || element.isRequired)) && (
-              <div className="flex items-center gap-1.5">
-                {element.label && (
-                  <span className="text-[10px] font-bold text-gray-400 uppercase truncate">
-                    {element.label}
-                  </span>
-                )}
-                {element.isRequired && <span className="text-red-500 font-bold -mt-0.5">*</span>}
-              </div>
-            )}
 
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: element.textAlign === 'left' ? 'flex-start' : element.textAlign === 'right' ? 'flex-end' : 'center',
-                fontSize: localState.fontSize * (zoom / 100),
-                fontFamily: element.fontFamily || 'Inter',
-                fontWeight: element.fontWeight || 400,
-                fontStyle: element.italic ? 'italic' : 'normal',
-                color: element.color || '#000000',
-                lineHeight: 1,
-                overflow: 'visible'
-              }}
-            >
-              <div style={{
-                color: element.color || '#000000',
-                whiteSpace: 'nowrap'
-              }}>
-                {element.text || '+62 812-0000-0000'}
-              </div>
-            </div>
-
-            {element.helpText && (
-              <p className="text-[9px] text-gray-400 italic px-1 truncate">{element.helpText}</p>
-            )}
-          </div>
-        );
-
-
-      case 'date':
-        return (
-          <div className="flex flex-col gap-1.5" style={{ width: '100%' }}>
-
-
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: element.textAlign === 'left' ? 'flex-start' : element.textAlign === 'right' ? 'flex-end' : 'center',
-                fontSize: localState.fontSize * (zoom / 100),
-                fontFamily: element.fontFamily || 'Inter',
-                fontWeight: element.fontWeight || 400,
-                fontStyle: element.italic ? 'italic' : 'normal',
-                color: element.color || '#000000',
-                lineHeight: 1,
-                overflow: 'visible'
-              }}
-            >
-              <div style={{
-                color: element.color || '#000000',
-                whiteSpace: 'nowrap'
-              }}>
-                {element.text || '31/12/2025'}
-              </div>
-            </div>
-
-            {element.helpText && (
-              <p className="text-[9px] text-gray-400 italic px-1 truncate">{element.helpText}</p>
-            )}
-          </div>
-        );
 
 
       case 'time':
@@ -1550,7 +1448,7 @@ export const DraggableElement = memo(({
           }}
           className="absolute inset-0 bg-white/90 focus:outline-none z-[2000] p-0 border-none resize-none"
           style={{
-            fontSize: localState.fontSize * (zoom / 100),
+            fontSize: element.fontSize || 32,
             fontFamily: element.fontFamily || 'Inter',
             fontWeight: element.fontWeight || 400,
             fontStyle: element.italic ? 'italic' : 'normal',

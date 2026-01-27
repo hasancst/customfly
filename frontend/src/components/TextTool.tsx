@@ -3,7 +3,6 @@ import { Plus, Type, ChevronDown, Layers, Settings2, Shrink, WrapText, CaseSensi
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import { CanvasElement, MonogramType } from '@/types';
 import {
   Collapsible,
@@ -14,9 +13,16 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const TEXT_SHAPES = [
   {
-    name: 'Curved',
+    name: 'Curved Up',
     img: '/images/text-shapes/text-sample-curved.png',
-    bridge: { bottom: 2, curve: -4.5, oblique: false, offsetY: 0.5, trident: false }
+    isCircular: true,
+    curve: 50
+  },
+  {
+    name: 'Curved Down',
+    img: '/images/text-shapes/text-sample-curved.png',
+    isCircular: true,
+    curve: -50
   },
   {
     name: 'Oblique',
@@ -149,8 +155,28 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
   };
 
   const handleAddText = (bridge?: any, isMonogram?: boolean, shape?: any) => {
+    // If applying circular curve to existing text element
+    if (selectedElement && shape?.isCircular && selectedElement.type === 'text') {
+      onUpdateElement(selectedElement.id, {
+        isCurved: true,
+        curve: typeof shape.curve === 'number' ? shape.curve : 50,
+        bridge: undefined,
+        height: 200 // Default height for curved text
+      });
+      return;
+    }
+
+    // If applying bridge to existing text element
     if (selectedElement && bridge && selectedElement.type === 'text') {
-      onUpdateElement(selectedElement.id, { bridge });
+      // Calculate height based on fontSize to prevent clipping
+      // Use a fixed multiplier based on font size, not existing height
+      const baseFontSize = selectedElement.fontSize || 32;
+      const newHeight = baseFontSize * 8; // Increased to 8x to match DraggableElement rendering
+      onUpdateElement(selectedElement.id, {
+        bridge,
+        height: newHeight,
+        isCurved: false // Disable circular curve if bridge is applied
+      });
       return;
     }
 
@@ -160,12 +186,32 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
     const centerX = (canvasW / 2) - 150;
     const centerY = (canvasH / 2) - 50;
 
+    // If we have a placeholder element (opacity 0), make it visible with user's settings
     if (selectedElement && selectedElement.opacity === 0 && !isMonogram && !bridge) {
       onUpdateElement(selectedElement.id, {
         text: text || (selectedElement.type === 'textarea' ? 'New Note' : 'New Text'),
         opacity: 100,
         x: centerX,
         y: centerY,
+        fontFamily,
+        color,
+        fontSize,
+        fontWeight,
+        textAlign,
+        textMode,
+        maxChars: maxChars > 0 ? maxChars : undefined,
+        textCase: textCase !== 'none' ? textCase : undefined,
+        textType: textType !== 'all' ? textType : undefined
+      });
+      return;
+    }
+
+    // If we have a visible element selected, DON'T add new text
+    // User must click "Add More Tools" to add new text
+    if (selectedElement && selectedElement.opacity !== 0 && !isMonogram && !bridge) {
+      // Just update the existing element's text
+      onUpdateElement(selectedElement.id, {
+        text: text || selectedElement.text,
         fontFamily,
         color,
         fontSize,
@@ -214,22 +260,20 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
     if (!finalText.trim()) finalText = 'Your Text Here';
 
-    let newX = centerX;
-    let newY = centerY;
-
-    if (selectedElement && selectedElement.opacity !== 0) {
-      newX = centerX + (Math.random() * 60 - 30);
-      newY = centerY + (Math.random() * 60 - 30);
-    }
+    // Only add new text if no element is selected (user clicked Add More Tools)
+    // Calculate height based on fontSize for bridge text
+    let baseHeight = 100;
+    if (shape?.isCircular) baseHeight = 200;
+    else if (bridge) baseHeight = fontSize * 8;
 
     const newElement: CanvasElement = {
       id: `text-${Date.now()}`,
       type: 'text',
       text: finalText,
-      x: newX,
-      y: newY,
+      x: centerX,
+      y: centerY,
       width: 300,
-      height: 100,
+      height: baseHeight,
       fontSize: fontSize,
       fontFamily,
       fontWeight,
@@ -237,8 +281,8 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
       color,
       rotation: 0,
       opacity: 100,
-      curve: 0,
-      isCurved: false,
+      curve: shape?.isCircular ? (typeof shape.curve === 'number' ? shape.curve : 50) : 0,
+      isCurved: !!shape?.isCircular,
       textMode,
       maxChars: maxChars > 0 ? maxChars : undefined,
       textCase: textCase !== 'none' ? textCase : undefined,
@@ -315,35 +359,10 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
           <Plus className="w-5 h-5" />
           {selectedElement?.opacity === 0
             ? (selectedElement.type === 'textarea' ? 'Add Note Area' : 'Add New Text')
-            : (selectedElement?.type === 'textarea' ? 'Add Next Note' : 'Add Next Text')}
+            : selectedElement?.opacity !== 0
+              ? 'Update Text'
+              : (selectedElement?.type === 'textarea' ? 'Add Next Note' : 'Add Next Text')}
         </Button>
-
-        {selectedElement && selectedElement.opacity !== 0 && (
-          <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/50 space-y-3 mt-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Font Size / Scale</Label>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  value={Math.round(selectedElement.fontSize || 32)}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (!isNaN(val)) handleUpdate({ fontSize: val });
-                  }}
-                  className="w-14 h-7 text-[10px] font-bold text-center bg-white border-indigo-100"
-                />
-                <span className="text-[9px] font-bold text-indigo-400">PT</span>
-              </div>
-            </div>
-            <Slider
-              value={[selectedElement.fontSize || 32]}
-              onValueChange={([val]) => handleUpdate({ fontSize: val })}
-              min={8}
-              max={500}
-              step={1}
-            />
-          </div>
-        )}
 
         <div className="mt-4 space-y-2">
           <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Text Behavior</Label>
@@ -452,7 +471,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
             {TEXT_SHAPES.map((shape, i) => (
               <button
                 key={i}
-                onClick={() => handleAddText(shape.bridge)}
+                onClick={() => handleAddText(shape.bridge, false, shape)}
                 className="group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-colors shadow-sm"
               >
                 {shape.img ? (

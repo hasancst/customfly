@@ -560,23 +560,39 @@ export default function AssetDetail() {
                 }
                 newListStr = [...currentList, ...newItems].join('\n');
             } else if (asset.type === 'option') {
-                // Determine items to add: either the queue or the single inputถ้า queue kosong
+                // Determine items to add: either the queue or the single input
                 let itemsToSave = [...queuedOptions];
 
-                // If queue is empty but name field is filled, treat as a single add
-                if (itemsToSave.length === 0 && newColorName) {
+                // Check if current input field has content, add it to list if so
+                if (newColorName) {
                     let val = '';
-                    if (optionItemType === 'text') val = 'enabled';
-                    else if (optionItemType === 'color') val = newColorHex;
-                    else if (optionItemType === 'image') {
+                    let shouldAdd = true;
+
+                    if (optionItemType === 'text') {
+                        val = 'enabled';
+                    } else if (optionItemType === 'color') {
+                        val = newColorHex;
+                    } else if (optionItemType === 'image') {
                         if (!optionImageFile) {
-                            alert("Please select an image");
+                            alert("Please select an image for the current item");
                             setIsSubmitting(false);
-                            return;
+                            shouldAdd = false;
+                        } else {
+                            try {
+                                val = await compressImage(optionImageFile);
+                            } catch (e) {
+                                alert("Failed to process image");
+                                setIsSubmitting(false);
+                                shouldAdd = false;
+                            }
                         }
-                        val = await compressImage(optionImageFile);
                     }
-                    itemsToSave.push({ name: newColorName, value: val, type: optionItemType });
+
+                    if (shouldAdd) {
+                        itemsToSave.push({ name: newColorName, value: val, type: optionItemType });
+                    } else {
+                        return; // Stop if image invalid
+                    }
                 }
 
                 if (itemsToSave.length === 0) {
@@ -586,7 +602,10 @@ export default function AssetDetail() {
                 }
 
                 const newItemsStrArr = itemsToSave.map(o => `${o.name}|${o.value}`);
-                newListStr = [...currentList, ...newItemsStrArr].join('\n');
+
+                // Avoid empty strings in current list
+                const cleanCurrent = currentList.filter(Boolean);
+                newListStr = [...cleanCurrent, ...newItemsStrArr].join('\n');
             }
 
             const response = await fetch(`/imcst_api/assets/${asset.id}`, {
@@ -899,7 +918,7 @@ export default function AssetDetail() {
                                             {asset.type === 'option' && (
                                                 <div className="flex-1 px-8 text-right">
                                                     <Text variant="bodySm" tone="subdued" as="span">
-                                                        {item.hex}
+                                                        {item.hex || (item.isPattern ? 'Image' : 'Text Option')}
                                                     </Text>
                                                 </div>
                                             )}

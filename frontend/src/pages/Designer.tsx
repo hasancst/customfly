@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppBridge } from '@shopify/app-bridge-react';
 import { Fullscreen } from '@shopify/app-bridge/actions';
 import { Toolbar } from '../components/Toolbar';
@@ -162,12 +162,13 @@ export default function App() {
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
   const fetchDesigns = useCallback(async () => {
-    if (!productId) return;
+    if (!productId) return [];
     try {
+      let productDesigns: any[] = [];
       const response = await fetch(`/imcst_api/design/product/${productId}`);
       if (response.ok) {
-        const designs = await response.json();
-        setSavedDesigns(designs);
+        productDesigns = await response.json();
+        setSavedDesigns(productDesigns);
       }
 
       const allRes = await fetch('/imcst_api/design');
@@ -175,15 +176,21 @@ export default function App() {
         const allDesignsData = await allRes.json();
         setAllDesigns(allDesignsData);
       }
+      return productDesigns;
     } catch (error) {
       console.error('Failed to fetch designs:', error);
+      return [];
     }
   }, [productId, fetch]);
 
+  // Auto-load product data and most recent design
+  const hasAutoLoadedRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (productId) {
-      async function fetchProductData() {
+    if (productId && hasAutoLoadedRef.current !== productId) {
+      async function initializeProduct() {
         try {
+          // Fetch product data
           const response = await fetch(`/imcst_api/products/${productId}`);
           if (response.ok) {
             const data = await response.json();
@@ -192,12 +199,47 @@ export default function App() {
               setSelectedVariantId(prev => prev || data.variants[0].id);
             }
           }
-        } catch (error) { console.error('Failed to fetch product data:', error); }
+
+          // Fetch designs for this product
+          const productDesignsResponse = await fetch(`/imcst_api/design/product/${productId}`);
+          if (productDesignsResponse.ok) {
+            const designs = await productDesignsResponse.json();
+            setSavedDesigns(designs);
+
+            // Auto-load the most recent design if it exists
+            if (designs && designs.length > 0) {
+              const mostRecent = designs[0]; // Already sorted by updatedAt desc
+              console.log('Auto-loading most recent design:', mostRecent.name);
+
+              const designJson = mostRecent.designJson;
+              if (Array.isArray(designJson) && designJson.length > 0) {
+                const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
+                setPages(normalizedPages);
+                setActivePageId(normalizedPages[0].id);
+                setCurrentDesignId(mostRecent.id);
+                setDesignName(mostRecent.name);
+                setHistory([normalizedPages]);
+                setHistoryIndex(0);
+              }
+            }
+          }
+
+          // Fetch all designs for templates
+          const allRes = await fetch('/imcst_api/design');
+          if (allRes.ok) {
+            const allDesignsData = await allRes.json();
+            setAllDesigns(allDesignsData);
+          }
+
+          // Mark this product as initialized
+          hasAutoLoadedRef.current = productId;
+        } catch (error) {
+          console.error('Failed to initialize product:', error);
+        }
       }
-      fetchProductData();
-      fetchDesigns();
+      initializeProduct();
     }
-  }, [productId, fetch, fetchDesigns]);
+  }, [productId, fetch]);
 
   // Derived filters
   const filteredUserFonts = useMemo(() => userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userFonts, productId]);

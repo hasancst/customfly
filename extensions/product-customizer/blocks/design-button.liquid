@@ -1,8 +1,23 @@
 <div
   id="pc-design-button"
   data-mode="button"
-  data-label="Design it">
+  data-label="{{ block.settings.button_label }}">
 </div>
 
 {{ 'core.js' | asset_url | script_tag }}
 {{ 'design-button.js' | asset_url | script_tag }}
+
+{% schema %}
+{
+  "name": "Design It Button",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button Label",
+      "default": "Design it"
+    }
+  ]
+}
+{% endschema %}

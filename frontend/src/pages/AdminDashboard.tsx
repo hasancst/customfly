@@ -77,18 +77,21 @@ export default function AdminDashboard() {
     }, []);
 
     useEffect(() => {
-        if (hasFetchedRef.current) return;
-        hasFetchedRef.current = true;
-
         async function fetchData() {
             try {
-                console.log('Fetching data...');
+                console.log('[DASHBOARD] Fetching data...');
+                setIsLoading(true);
                 const [prodRes, collRes, configRes] = await Promise.all([
                     fetch('/imcst_api/products'),
                     fetch('/imcst_api/collections'),
                     fetch('/imcst_api/configured-products')
                 ]);
-                console.log('Fetch responses received:', { products: prodRes.status, collections: collRes.status, config: configRes.status });
+
+                console.log('[DASHBOARD] Fetch response statuses:', {
+                    products: prodRes.status,
+                    collections: collRes.status,
+                    config: configRes.status
+                });
 
                 let prodData: Product[] = [];
                 let collData: Collection[] = [];
@@ -96,38 +99,31 @@ export default function AdminDashboard() {
 
                 if (prodRes.ok) {
                     const data = await prodRes.json();
-                    console.log('Product data loaded:', Array.isArray(data) ? data.length : 'not an array');
+                    console.log('[DASHBOARD] Products received:', data.length);
                     if (Array.isArray(data)) prodData = data;
-                    else console.error("Product data is not an array:", data);
-                } else {
-                    console.error("Failed to fetch products:", prodRes.status, prodRes.statusText);
                 }
 
                 if (collRes.ok) {
                     const data = await collRes.json();
-                    console.log('Collection data loaded:', Array.isArray(data) ? data.length : 'not an array');
+                    console.log('[DASHBOARD] Collections received:', data.length);
                     if (Array.isArray(data)) collData = data;
-                    else console.error("Collection data is not an array:", data);
-                } else {
-                    console.error("Failed to fetch collections:", collRes.status, collRes.statusText);
                 }
 
                 if (configRes.ok) {
                     const data = await configRes.json();
-                    console.log('Configured products loaded:', Array.isArray(data) ? data.length : 'not an array');
+                    console.log('[DASHBOARD] Configured IDs received:', data.length);
                     if (Array.isArray(data)) configuredIds = data;
                 }
 
                 setProducts(prodData);
                 setCollections(collData);
 
-                // Restore custom products from config
                 const activeCustomProducts = prodData.filter(p => configuredIds.includes(p.id));
                 setCustomProducts(activeCustomProducts);
-                console.log('State updated, loading finished');
+                console.log('[DASHBOARD] State update complete. Products to show:', prodData.length);
 
             } catch (error) {
-                console.error('Failed to fetch data (catastrophic error):', error);
+                console.error('[DASHBOARD] Fetch error:', error);
             } finally {
                 setIsLoading(false);
             }

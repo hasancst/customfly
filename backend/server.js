@@ -52,7 +52,35 @@ const loggingStorage = {
     },
     loadSession: async (id) => {
         console.log("LOADING SESSION id:", id);
-        return await baseStorage.loadSession(id);
+        try {
+            let session = await baseStorage.loadSession(id);
+            console.log(`[DEBUG] baseStorage.loadSession("${id}") returned: ${session ? "Session Object" : "null"}`);
+
+            if (!session && !id.startsWith('offline_')) {
+                const shop = id.includes('_') ? id.split('_')[0] : id;
+                if (shop.includes('.myshopify.com')) {
+                    const offlineId = `offline_${shop}`;
+                    console.log(`[DEBUG] Online session not found, trying offline fallback: ${offlineId}`);
+                    session = await baseStorage.loadSession(offlineId);
+                    console.log(`[DEBUG] Fallback baseStorage.loadSession("${offlineId}") returned: ${session ? "Session Object" : "null"}`);
+                }
+            }
+            if (session) {
+                console.log(`[DEBUG] SESSION LOADED:`, JSON.stringify({
+                    id: session.id,
+                    shop: session.shop,
+                    isOnline: session.isOnline,
+                    scope: session.scope,
+                    expires: session.expires
+                }));
+            } else {
+                console.log("[DEBUG] SESSION NOT FOUND in baseStorage");
+            }
+            return session;
+        } catch (e) {
+            console.error("LOAD SESSION ERROR:", e);
+            throw e;
+        }
     },
     deleteSession: async (id) => {
         console.log("DELETING SESSION id:", id);
@@ -95,7 +123,8 @@ console.log("SHOPIFY CONFIG:", {
     apiKey: shopify.api.config.apiKey,
     hostName: shopify.api.config.hostName,
     apiSecretKey: shopify.api.config.apiSecretKey ? "***" : "MISSING",
-    scopes: shopify.api.config.scopes,
+    scopes: shopify.api.config.scopes.toString(),
+    expandedScopes: Array.from(shopify.api.config.scopes.toArray())
 });
 
 app.get(shopify.config.auth.path, shopify.auth.begin());
@@ -112,6 +141,31 @@ const STATIC_PATH = process.env.NODE_ENV === "production"
     ? resolve(__dirname, "../frontend/dist")
     : resolve(__dirname, "../frontend");
 
+app.use("/imcst_api", (req, res, next) => {
+    console.log(`[DEBUG] Request: ${req.method} ${req.url}`);
+    const authHeader = req.headers.authorization;
+    console.log(`[DEBUG] Authorization Header: ${authHeader ? "Present" : "Missing"}`);
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        try {
+            const parts = token.split('.');
+            if (parts.length === 3) {
+                const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                console.log("[DEBUG] Token Payload (Claims):", JSON.stringify(payload, null, 2));
+                console.log("[DEBUG] API Key in config:", shopify.api.config.apiKey);
+                if (payload.aud !== shopify.api.config.apiKey) {
+                    console.error(`[DEBUG] AUDIENCE MISMATCH: Token aud (${payload.aud}) !== Config apiKey (${shopify.api.config.apiKey})`);
+                }
+            } else {
+                console.error("[DEBUG] Invalid token format (not 3 parts)");
+            }
+        } catch (e) {
+            console.error("[DEBUG] Error parsing token payload:", e.message);
+        }
+    }
+    next();
+});
 app.use("/imcst_api", shopify.validateAuthenticatedSession());
 
 
@@ -224,6 +278,10 @@ app.get("/imcst_api/products", async (req, res) => {
             };
         });
 
+        console.log(`[DEBUG] Parsed ${products.length} products for shop ${shopDomain}`);
+        if (products.length > 0) {
+            console.log(`[DEBUG] Sample Product: ${products[0].title} (ID: ${products[0].id})`);
+        }
         res.json(products);
     } catch (error) {
         console.error("Error fetching products:", error);
