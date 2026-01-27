@@ -166,6 +166,195 @@ app.use("/imcst_api", (req, res, next) => {
     }
     next();
 });
+
+// --- PUBLIC API Routes (for customer-facing designer) ---
+// These routes don't require Shopify authentication
+
+// Public: Get Product Config (for customer designer)
+app.get("/imcst_api/public/config/:productId", async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const shop = req.query.shop; // Shop passed as query parameter
+
+        if (!shop) {
+            return res.status(400).json({ error: "Shop parameter required" });
+        }
+
+        const config = await prisma.merchantConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+        });
+
+        res.json(config || {});
+    } catch (error) {
+        console.error("Public config fetch error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Public: Save Customer Design
+app.post("/imcst_api/public/design", async (req, res) => {
+    try {
+        const { shop, shopifyProductId, name, designJson, previewUrl } = req.body;
+
+        if (!shop || !shopifyProductId) {
+            return res.status(400).json({ error: "Shop and productId required" });
+        }
+
+        const design = await prisma.savedDesign.create({
+            data: {
+                shop,
+                shopifyProductId,
+                name: name || "Customer Design",
+                designJson,
+                previewUrl,
+                status: "customer_draft",
+                isTemplate: false
+            },
+        });
+
+        res.json(design);
+    } catch (error) {
+        console.error("Public design save error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Public: Get Assets (fonts, colors) for customer designer
+app.get("/imcst_api/public/assets", async (req, res) => {
+    try {
+        const shop = req.query.shop;
+
+        if (!shop) {
+            return res.status(400).json({ error: "Shop parameter required" });
+        }
+
+        const assets = await prisma.asset.findMany({
+            where: { shop },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(assets);
+    } catch (error) {
+        console.error("Public assets fetch error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Public: Get Product Details (for customer designer)
+app.get("/imcst_api/public/products/:productId", async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const shop = req.query.shop;
+
+        if (!shop) {
+            return res.status(400).json({ error: "Shop parameter required" });
+        }
+
+        const offlineId = `offline_${shop}`;
+        const session = await baseStorage.loadSession(offlineId);
+
+        if (!session) {
+            return res.status(404).json({ error: "No offline session found for this shop" });
+        }
+
+        const client = new shopify.api.clients.Graphql({ session });
+
+        const queryString = `
+            query getProduct($id: ID!) {
+                product(id: $id) {
+                    id
+                    title
+                    vendor
+                    tags
+                    status
+                    handle
+                    featuredImage {
+                        url
+                    }
+                    images(first: 50) {
+                        edges {
+                            node {
+                                url
+                            }
+                        }
+                    }
+                    options {
+                        name
+                        position
+                        values
+                    }
+                    variants(first: 100) {
+                        edges {
+                            node {
+                                id
+                                title
+                                sku
+                                price
+                                image {
+                                    url
+                                }
+                                selectedOptions {
+                                    name
+                                    value
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+
+        const productGid = productId.startsWith('gid://') ? productId : `gid://shopify/Product/${productId}`;
+        const response = await client.request(queryString, { variables: { id: productGid } });
+
+        if (!response.data.product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        const node = response.data.product;
+        const numericId = node.id.split('/').pop();
+
+        const product = {
+            id: numericId,
+            gid: node.id,
+            title: node.title,
+            vendor: node.vendor,
+            tags: node.tags.join(', '),
+            status: node.status,
+            handle: node.handle,
+            image: node.featuredImage ? { src: node.featuredImage.url } : null,
+            images: node.images.edges.map(img => img.node.url),
+            options: node.options.map(o => ({
+                name: o.name,
+                position: o.position,
+                values: o.values
+            })),
+            variants: node.variants.edges.map(v => {
+                const variant = {
+                    id: v.node.id.split('/').pop(),
+                    gid: v.node.id,
+                    title: v.node.title,
+                    sku: v.node.sku,
+                    price: v.node.price,
+                    image: v.node.image ? v.node.image.url : null
+                };
+
+                if (v.node.selectedOptions) {
+                    v.node.selectedOptions.forEach((opt, index) => {
+                        variant[`option${index + 1}`] = opt.value;
+                    });
+                }
+
+                return variant;
+            })
+        };
+
+        res.json(product);
+    } catch (error) {
+        console.error("Public product fetch error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.use("/imcst_api", shopify.validateAuthenticatedSession());
 
 

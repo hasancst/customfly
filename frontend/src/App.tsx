@@ -13,13 +13,7 @@ import enTranslations from "@shopify/polaris/locales/en.json";
 import "@shopify/polaris/build/esm/styles.css";
 
 export default function App() {
-    console.log("App component mounting...");
-    const config = {
-        apiKey: (window as any).imcst_shopify_key || import.meta.env.VITE_SHOPIFY_API_KEY,
-        host: new URLSearchParams(window.location.search).get("host") || "",
-        forceRedirect: true
-    };
-    console.log("AppBridge Config:", { apiKey: config.apiKey ? "FOUND" : "MISSING", host: config.host ? "FOUND" : "MISSING" });
+    const urlParams = new URLSearchParams(window.location.search);
 
     const LinkComponent = ({ children, url, ...rest }: any) => {
         return (
@@ -29,14 +23,28 @@ export default function App() {
         );
     };
 
+    const config = {
+        apiKey: (window as any).imcst_shopify_key || import.meta.env.VITE_SHOPIFY_API_KEY,
+        host: urlParams.get("host") || "",
+        forceRedirect: false
+    };
+
+    const isPublic = !config.host;
+
+    console.log("App startup", { isPublic, host: config.host ? "present" : "missing" });
+
     return (
         <PolarisProvider i18n={enTranslations} linkComponent={LinkComponent}>
-            <AppBridgeProvider config={config}>
-                <BrowserRouter>
-                    <RoutePropagator />
+            <BrowserRouter>
+                {isPublic ? (
                     <MainContent />
-                </BrowserRouter>
-            </AppBridgeProvider>
+                ) : (
+                    <AppBridgeProvider config={config}>
+                        <RoutePropagator />
+                        <MainContent />
+                    </AppBridgeProvider>
+                )}
+            </BrowserRouter>
         </PolarisProvider>
     );
 }

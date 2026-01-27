@@ -55,30 +55,25 @@ const parseAssetColors = (value: string) => {
     }
   });
 
-  if (colors.length === 0 && /^#[0-9A-Fa-f]{3,6}$/.test(value.trim())) {
-    colors.push({ name: 'Color', value: value.trim() });
-  }
-
   return colors;
 };
 
-export default function App() {
-  const [searchParams] = useSearchParams();
-  const { productId: routeProductId } = useParams();
-
-  const dataParam = searchParams.get('data');
-  const parsedData = useMemo(() => {
-    if (!dataParam) return null;
-    try {
-      return JSON.parse(dataParam);
-    } catch (e) {
-      console.error("Failed to parse data param", e);
-      return null;
-    }
-  }, [dataParam]);
-
-  const productId = routeProductId || searchParams.get('productId') || parsedData?.product_id;
-
+// Internal Core Component
+function DesignerCore({
+  isPublicMode,
+  shopDomain,
+  productId,
+  fetch,
+  shopifyApp,
+  parsedData
+}: {
+  isPublicMode: boolean,
+  shopDomain: string | null,
+  productId: string | undefined,
+  fetch: any,
+  shopifyApp: any,
+  parsedData: any
+}) {
   const [pages, setPages] = useState<PageData[]>([{ id: 'default', name: 'Side 1', elements: [] }]);
   const [activePageId, setActivePageId] = useState<string>('default');
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
@@ -114,17 +109,14 @@ export default function App() {
   const [productVariant] = useState({ color: 'white', size: 'M', material: 'cotton' });
   const [enableBounce] = useState(false);
 
-  const fetch = useAuthenticatedFetch();
-  const shopifyApp = useAppBridge();
-
-  // Fullscreen
+  // Fullscreen (only for admin mode)
   useEffect(() => {
-    if (shopifyApp) {
+    if (shopifyApp && !isPublicMode) {
       const fullscreen = Fullscreen.create(shopifyApp);
       fullscreen.dispatch(Fullscreen.Action.ENTER);
       return () => { fullscreen.dispatch(Fullscreen.Action.EXIT); };
     }
-  }, [shopifyApp]);
+  }, [shopifyApp, isPublicMode]);
 
   // Lock scroll
   useEffect(() => {
@@ -146,10 +138,11 @@ export default function App() {
 
   const fetchAssets = useCallback(async () => {
     try {
+      const baseUrl = isPublicMode ? `/imcst_api/public/assets?shop=${shopDomain}&type=` : '/imcst_api/assets?type=';
       const [fontsRes, colorsRes, optionsRes] = await Promise.all([
-        fetch('/imcst_api/assets?type=font'),
-        fetch('/imcst_api/assets?type=color'),
-        fetch('/imcst_api/assets?type=option')
+        fetch(`${baseUrl}font`),
+        fetch(`${baseUrl}color`),
+        fetch(`${baseUrl}option`)
       ]);
       if (fontsRes.ok) setUserFonts(await fontsRes.json());
       if (colorsRes.ok) setUserColors(await colorsRes.json());
@@ -157,12 +150,12 @@ export default function App() {
     } catch (err) {
       console.error("Failed to fetch assets:", err);
     }
-  }, [fetch]);
+  }, [fetch, isPublicMode, shopDomain]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
   const fetchDesigns = useCallback(async () => {
-    if (!productId) return [];
+    if (!productId || isPublicMode) return [];
     try {
       let productDesigns: any[] = [];
       const response = await fetch(`/imcst_api/design/product/${productId}`);
@@ -181,7 +174,7 @@ export default function App() {
       console.error('Failed to fetch designs:', error);
       return [];
     }
-  }, [productId, fetch]);
+  }, [productId, fetch, isPublicMode]);
 
   // Auto-load product data and most recent design
   const hasAutoLoadedRef = useRef<string | null>(null);
@@ -191,7 +184,11 @@ export default function App() {
       async function initializeProduct() {
         try {
           // Fetch product data
-          const response = await fetch(`/imcst_api/products/${productId}`);
+          const productUrl = isPublicMode
+            ? `/imcst_api/public/products/${productId}?shop=${shopDomain}`
+            : `/imcst_api/products/${productId}`;
+
+          const response = await fetch(productUrl);
           if (response.ok) {
             const data = await response.json();
             setProductData(data);
@@ -201,30 +198,36 @@ export default function App() {
           }
 
           // Fetch config for base settings
-          const configRes = await fetch(`/imcst_api/config/${productId}`);
+          const configUrl = isPublicMode
+            ? `/imcst_api/public/config/${productId}?shop=${shopDomain}`
+            : `/imcst_api/config/${productId}`;
+
+          const configRes = await fetch(configUrl);
           let config: any = null;
           if (configRes.ok) {
             config = await configRes.json();
           }
 
-          // Fetch designs for this product
-          const designsRes = await fetch(`/imcst_api/design/product/${productId}`);
+          // Fetch designs for this product (Admin only)
           let loadedFromDesign = false;
-          if (designsRes.ok) {
-            const designs = await designsRes.json();
-            setSavedDesigns(designs);
-            if (designs && designs.length > 0) {
-              const mostRecent = designs[0];
-              const designJson = mostRecent.designJson;
-              if (Array.isArray(designJson) && designJson.length > 0) {
-                const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
-                setPages(normalizedPages);
-                setActivePageId(normalizedPages[0].id);
-                setCurrentDesignId(mostRecent.id);
-                setDesignName(mostRecent.name);
-                setHistory([normalizedPages]);
-                setHistoryIndex(0);
-                loadedFromDesign = true;
+          if (!isPublicMode) {
+            const designsRes = await fetch(`/imcst_api/design/product/${productId}`);
+            if (designsRes.ok) {
+              const designs = await designsRes.json();
+              setSavedDesigns(designs);
+              if (designs && designs.length > 0) {
+                const mostRecent = designs[0];
+                const designJson = mostRecent.designJson;
+                if (Array.isArray(designJson) && designJson.length > 0) {
+                  const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
+                  setPages(normalizedPages);
+                  setActivePageId(normalizedPages[0].id);
+                  setCurrentDesignId(mostRecent.id);
+                  setDesignName(mostRecent.name);
+                  setHistory([normalizedPages]);
+                  setHistoryIndex(0);
+                  loadedFromDesign = true;
+                }
               }
             }
           }
@@ -252,11 +255,13 @@ export default function App() {
             }
           }
 
-          // Fetch all designs for templates
-          const allRes = await fetch('/imcst_api/design');
-          if (allRes.ok) {
-            const allDesignsData = await allRes.json();
-            setAllDesigns(allDesignsData);
+          // Fetch all designs for templates (Admin only)
+          if (!isPublicMode) {
+            const allRes = await fetch('/imcst_api/design');
+            if (allRes.ok) {
+              const allDesignsData = await allRes.json();
+              setAllDesigns(allDesignsData);
+            }
           }
 
         } catch (error) {
@@ -266,50 +271,21 @@ export default function App() {
       initializeProduct();
       hasAutoLoadedRef.current = productId;
     }
-  }, [productId, fetch]);
+  }, [productId, fetch, isPublicMode, shopDomain]);
 
-  // Derived filters
-  const filteredUserFonts = useMemo(() => userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userFonts, productId]);
-  const filteredUserColors = useMemo(() => userColors.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userColors, productId]);
-  const filteredUserOptions = useMemo(() => userOptions.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userOptions, productId]);
+  const undo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(prev => prev - 1);
+      setPages(JSON.parse(JSON.stringify(history[historyIndex - 1])));
+    }
+  };
 
-  const activePaletteColors = useMemo(() => {
-    const asset = filteredUserColors.find(a => a.id === selectedColorAssetId);
-    if (!asset) return [];
-    return parseAssetColors(asset.value);
-  }, [filteredUserColors, selectedColorAssetId]);
-
-  const currentElements = useMemo(() => {
-    const p = pages.find(p => p.id === activePageId);
-    return p ? p.elements : (pages[0]?.elements || []);
-  }, [pages, activePageId]);
-
-  const processedElements = useMemo(() => {
-    const opts: Record<string, string> = {};
-    const variant = productData?.variants.find(v => v.id === selectedVariantId);
-    if (variant && productData) productData.options.forEach((o, i) => { const v = (variant as any)[`option${i + 1}`]; if (v) opts[o.name] = v; });
-    const vals: Record<string, string> = {};
-    currentElements.forEach(e => { if (e.type === 'text') vals[e.id] = e.text || ''; });
-    return currentElements.map(el => ({
-      ...el,
-      isHiddenByLogic: !evaluateVisibility(el, { variantId: selectedVariantId, options: opts, elementValues: vals })
-    }));
-  }, [currentElements, selectedVariantId, productData]);
-
-  const setElements = useCallback((newElements: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[])) => {
-    setPages(prev => {
-      const updated = prev.map(p => {
-        if (p.id === activePageId) {
-          return {
-            ...p,
-            elements: typeof newElements === 'function' ? newElements(p.elements) : newElements
-          };
-        }
-        return p;
-      });
-      return updated;
-    });
-  }, [activePageId]);
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(prev => prev + 1);
+      setPages(JSON.parse(JSON.stringify(history[historyIndex + 1])));
+    }
+  };
 
   const updateElement = useCallback((id: string, updates: Partial<CanvasElement>, skipHistory = false) => {
     setPages(prev => {
@@ -395,27 +371,43 @@ export default function App() {
       setActivePageId(normalizedPages[0].id);
       addToHistory(normalizedPages);
     } else if (mode === 'base_only') {
+      const firstPage = normalizedPages[0];
       setPages(prev => prev.map(p => p.id === activePageId ? {
         ...p,
-        baseImage: normalizedPages[0].baseImage,
-        baseImageProperties: normalizedPages[0].baseImageProperties,
-        baseImageColor: normalizedPages[0].baseImageColor,
-        baseImageColorEnabled: normalizedPages[0].baseImageColorEnabled,
-        useVariantImage: normalizedPages[0].useVariantImage
+        baseImage: firstPage.baseImage,
+        baseImageProperties: firstPage.baseImageProperties,
+        baseImageColor: firstPage.baseImageColor,
+        baseImageColorEnabled: firstPage.baseImageColorEnabled
       } : p));
-    } else if (mode === 'options_only') {
-      setPages(prev => prev.map(p => {
-        if (p.id === activePageId) {
-          const newElements = normalizedPages[0].elements.map((el: any) => ({
-            ...el,
-            id: `${el.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          }));
-          return { ...p, elements: [...p.elements, ...newElements] };
-        }
-        return p;
-      }));
     }
-    toast.success(`Applied ${mode.replace('_', ' ')} from ${design.name}`);
+  };
+
+  const addPage = () => {
+    const newId = `page-${Date.now()}`;
+    setPages(prev => {
+      const updated = [...prev, { id: newId, name: `Side ${prev.length + 1}`, elements: [] }];
+      addToHistory(updated);
+      return updated;
+    });
+    setActivePageId(newId);
+  };
+
+  const deletePage = (id: string) => {
+    if (pages.length === 1) return;
+    setPages(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      addToHistory(updated);
+      return updated;
+    });
+    if (activePageId === id) setActivePageId(pages[0].id);
+  };
+
+  const renamePage = (id: string, name: string) => {
+    setPages(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, name } : p);
+      addToHistory(updated);
+      return updated;
+    });
   };
 
   const saveDesign = useCallback(async (isTemplate = false) => {
@@ -423,10 +415,12 @@ export default function App() {
     let finalName = designName || (isTemplate ? `Template-${Date.now()}` : `Design-${savedDesigns.length + 1}`);
 
     try {
-      const response = await fetch('/imcst_api/design', {
+      const saveUrl = isPublicMode ? '/imcst_api/public/design' : '/imcst_api/design';
+      const response = await fetch(saveUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          shop: isPublicMode ? shopDomain : undefined,
           id: isTemplate ? null : currentDesignId,
           shopifyProductId: isTemplate ? null : productId,
           name: finalName,
@@ -437,7 +431,7 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         if (!isTemplate) setCurrentDesignId(data.id);
-        fetchDesigns();
+        if (!isPublicMode) fetchDesigns();
         toast.success(isTemplate ? `Saved to Store Library as Template` : `Saved successfully`);
       }
     } catch (error) {
@@ -445,9 +439,10 @@ export default function App() {
     } finally {
       setIsSaving(false);
     }
-  }, [productId, currentDesignId, designName, pages, fetch, savedDesigns, fetchDesigns]);
+  }, [productId, currentDesignId, designName, pages, fetch, savedDesigns, fetchDesigns, isPublicMode, shopDomain]);
 
   const saveConfig = useCallback(async (updates: any) => {
+    if (isPublicMode) return; // Customer cannot save merchant config
     try {
       await fetch('/imcst_api/config', {
         method: 'POST',
@@ -460,18 +455,19 @@ export default function App() {
     } catch (error) {
       console.error('Failed to save config:', error);
     }
-  }, [productId, fetch]);
+  }, [productId, fetch, isPublicMode]);
 
   const deleteDesign = async (id: string, name: string) => {
     if (!confirm(`Delete ${name}?`)) return;
     try {
       const response = await fetch(`/imcst_api/design/${id}`, { method: 'DELETE' });
       if (response.ok) {
-        toast.success(`Deleted: ${name}`);
-        if (id === currentDesignId) createNewDesign();
         fetchDesigns();
+        toast.success('Design deleted');
       }
-    } catch (error) { toast.error('Delete failed'); }
+    } catch (error) {
+      toast.error('Failed to delete design');
+    }
   };
 
   const handleBaseImageSelect = (url: string, isVariantImage: boolean = false) => {
@@ -497,200 +493,223 @@ export default function App() {
     img.src = url;
   };
 
-  const addPage = () => {
-    if (pages.length >= 20) return;
-    const newId = `page-${Date.now()}`;
-    const newPages = [...pages, { id: newId, name: `Side ${pages.length + 1}`, elements: [] }];
-    setPages(newPages);
-    setActivePageId(newId);
-    addToHistory(newPages);
-  };
+  const currentPages = useMemo(() => pages.find(p => p.id === activePageId || pages[0]), [pages, activePageId]);
+  const currentElements = currentPages?.elements || [];
+  const activeElement = useMemo(() => currentElements.find(e => e.id === selectedElement), [currentElements, selectedElement]);
 
-  const deletePage = (id: string) => {
-    if (pages.length <= 1) return;
-    const newPages = pages.filter(p => p.id !== id);
-    setPages(newPages);
-    if (activePageId === id) setActivePageId(newPages[0].id);
-    addToHistory(newPages);
-  };
-
-  const renamePage = (id: string, name: string) => {
-    const updated = pages.map(p => p.id === id ? { ...p, name } : p);
-    setPages(updated);
-    addToHistory(updated);
-  };
-
-  const createNewDesign = () => {
-    const fresh = [{ id: 'default', name: 'Side 1', elements: [] }];
-    setPages(fresh);
-    setActivePageId('default');
-    setCurrentDesignId(null);
-    setDesignName('');
-    setHistory([fresh]);
-    setHistoryIndex(0);
-  };
-
-  const undo = () => { if (historyIndex > 0) { setPages(history[historyIndex - 1]); setHistoryIndex(historyIndex - 1); } };
-  const redo = () => { if (historyIndex < history.length - 1) { setPages(history[historyIndex + 1]); setHistoryIndex(historyIndex + 1); } };
-
-  const handleCropComplete = (croppedAreaPixels: { x: number, y: number, width: number, height: number }) => {
-    const el = pages.find(p => p.id === activePageId)?.elements.find(e => e.id === selectedElement);
-    if (el && el.type === 'image') {
-      updateElement(el.id, { crop: croppedAreaPixels, width: el.width, height: el.width! / (croppedAreaPixels.width / croppedAreaPixels.height) });
-    }
-  };
-
-  const handleSaveAsset = useCallback(async (asset: any) => {
-    const res = await fetch(asset.id ? `/imcst_api/assets/${asset.id}` : '/imcst_api/assets', {
-      method: asset.id ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(asset)
-    });
-    if (res.ok) { fetchAssets(); return await res.json(); }
-    return null;
-  }, [fetch, fetchAssets]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMod = e.ctrlKey || e.metaKey;
-      if (isMod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
-      if (isMod && e.key.toLowerCase() === 's') { e.preventDefault(); saveDesign(); }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, saveDesign]);
-
-  if (!productId) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="text-center"><Palette className="w-12 h-12 text-gray-300 mx-auto mb-4" /><h2 className="text-xl font-bold">No Product</h2></div></div>;
+  const activeColorPalette = useMemo(() => {
+    const asset = userColors.find(a => a.id === selectedColorAssetId);
+    if (!asset) return [];
+    return parseAssetColors(asset.value);
+  }, [userColors, selectedColorAssetId]);
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-gray-100 flex flex-col overflow-hidden">
-      <Header
-        onUndo={undo} onRedo={redo} canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1}
-        title={productData?.title} onSave={saveDesign} designName={designName} onDesignNameChange={setDesignName}
-        isSaving={isSaving} savedDesigns={savedDesigns} allDesigns={allDesigns} onLoadDesign={loadDesign} onDeleteDesign={deleteDesign}
-        showSummary={showSummary} onToggleSummary={() => setShowSummary(!showSummary)} onClose={() => window.history.back()}
+    <div className="flex h-screen w-full bg-[#f1f1f1] overflow-hidden select-none designer-view">
+      <Toolbar
+        onAddElement={addElement}
+        onUpdatePaper={() => { }}
+        productId={productId}
+        fetch={fetch}
+        savedDesigns={savedDesigns}
+        allDesigns={allDesigns}
+        onLoadDesign={loadDesign}
+        onDeleteDesign={deleteDesign}
+        userFonts={userFonts}
+        userColors={userColors}
+        selectedColorAssetId={selectedColorAssetId}
+        onSelectColorAsset={(id) => { setSelectedColorAssetId(id); saveConfig({ selectedColorAssetId: id }); }}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <Toolbar
-          onAddElement={addElement} selectedElement={currentElements.find(el => el.id === selectedElement)}
-          onUpdateElement={updateElement} onDuplicateElement={duplicateElement} onCrop={() => setIsCropModalOpen(true)}
-          elements={currentElements} productData={productData} userColors={filteredUserColors} userOptions={filteredUserOptions}
-          onRefreshAssets={fetchAssets} onSaveAsset={handleSaveAsset} onSelectElement={setSelectedElement} canvasDimensions={customPaperDimensions}
-        />
-        <div className="flex-1 flex flex-col relative overflow-hidden">
-          <ContextualToolbar
-            selectedElement={currentElements.find(el => el.id === selectedElement)} onUpdateElement={updateElement}
-            onDeleteElement={deleteElement} onDuplicateElement={duplicateElement}
-            userFonts={filteredUserFonts} userColors={filteredUserColors} onCrop={() => setIsCropModalOpen(true)}
-          />
-          <div className="h-10 bg-white border-b flex items-center px-4 gap-3 z-30 shrink-0">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Side: {pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-              {pages.map(page => (
-                <div key={page.id} className="group relative flex items-center">
-                  <button onClick={() => setActivePageId(page.id)} className={`h-7 px-3 rounded-md text-[10px] font-bold border transition-all flex items-center gap-1.5 ${activePageId === page.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>
-                    {page.baseImage && (
-                      <img src={page.baseImage} className="w-4 h-4 rounded-sm object-cover border border-white/20" />
-                    )}
-                    {page.name}
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); const n = prompt('Name:', page.name); if (n) renamePage(page.id, n); }} className="p-1 opacity-0 group-hover:opacity-100"><Pencil className="w-2.5 h-2.5" /></button>
-                  {pages.length > 1 && <button onClick={(e) => { e.stopPropagation(); deletePage(page.id); }} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500"><X className="w-2 h-2" /></button>}
-                </div>
-              ))}
-              <button onClick={addPage} className="h-7 w-7 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-600"><UploadCloud className="w-3.5 h-3.5" /></button>
-            </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-7 text-[10px] font-bold text-gray-500 hover:text-indigo-600 gap-1.5" onClick={() => setIsBaseImageModalOpen(true)}>
-                <ImageIcon className="w-3.5 h-3.5" />
-                {pages.find(p => p.id === activePageId)?.baseImage ? 'Change Base' : 'Set Base Image'}
-              </Button>
-              {pages.find(p => p.id === activePageId)?.baseImage && (
-                <Button variant="ghost" size="sm" className="h-7 w-7 text-gray-400 hover:text-red-500" onClick={() => { setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImage: undefined } : p)); }}>
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="flex-1 relative overflow-hidden bg-gray-200">
+      <div className="flex-1 flex flex-col relative min-w-0">
+        <Header
+          productData={productData}
+          onSave={() => saveDesign(false)}
+          onSaveTemplate={() => saveDesign(true)}
+          isSaving={isSaving}
+          designName={designName}
+          onDesignNameChange={setDesignName}
+          isPublicMode={isPublicMode}
+        />
+
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-[#e5e5e5] pattern-bg">
+          <ContextualToolbar
+            activeElement={activeElement}
+            onUpdateElement={updateElement}
+            onDeleteElement={deleteElement}
+            onDuplicateElement={duplicateElement}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={historyIndex > 0}
+            canRedo={historyIndex < history.length - 1}
+            userFonts={userFonts}
+            onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+          />
+
+          <div className="relative" style={{ transform: `scale(${zoom / 100})`, transition: 'transform 0.1s ease-out' }}>
             <Canvas
-              elements={processedElements.filter(e => !e.isHiddenByLogic)}
-              selectedElement={selectedElement}
-              onSelectElement={setSelectedElement}
+              elements={currentElements}
               onUpdateElement={updateElement}
-              onDeleteElement={deleteElement}
-              onDuplicateElement={duplicateElement}
-              zoom={zoom}
+              onSelectElement={setSelectedElement}
+              selectedElementId={selectedElement}
               showSafeArea={showSafeArea}
-              productVariant={productVariant}
-              showRulers={showRulers}
-              unit={unit}
-              enableBounce={enableBounce}
               safeAreaPadding={safeAreaPadding}
               safeAreaShape={safeAreaShape}
               safeAreaOffset={safeAreaOffset}
-              onUpdateSafeAreaOffset={(offset) => setSafeAreaOffset(offset)}
-              baseImage={pages.find(p => p.id === activePageId)?.baseImage}
-              baseImageProperties={pages.find(p => p.id === activePageId)?.baseImageProperties as any}
-              baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
-              baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled}
+              baseImage={currentPages?.baseImage}
+              baseImageProperties={currentPages?.baseImageProperties}
+              baseImageColor={currentPages?.baseImageColor}
+              baseImageColorEnabled={currentPages?.baseImageColorEnabled}
               paperSize={paperSize}
               customPaperDimensions={customPaperDimensions}
-              onUpdateBaseImage={(props) => {
-                const currentProps = pages.find(p => p.id === activePageId)?.baseImageProperties || {};
-                const newProps = { ...currentProps, ...props };
-                setPages(prev => prev.map(p =>
-                  p.id === activePageId ? { ...p, baseImageProperties: newProps as any } : p
-                ));
-                saveConfig({ baseImageProperties: newProps });
-              }}
+              unit={unit}
+              showRulers={showRulers}
             />
-            {!showSummary && <Button variant="ghost" size="icon" onClick={() => setShowSummary(true)} className="absolute right-0 top-1/2 -translate-y-1/2 bg-white border border-gray-200 shadow-lg rounded-l-xl z-50"><ChevronLeft className="w-4 h-4" /></Button>}
+          </div>
+
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-2xl border border-white/20 z-50">
+            <button onClick={() => setZoom(Math.max(10, zoom - 10))} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"><X className="w-4 h-4" /></button>
+            <span className="text-sm font-medium w-12 text-center text-gray-700">{zoom}%</span>
+            <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>
+          </div>
+
+          <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-50">
+            <div className="flex flex-col gap-1">
+              {pages.map((p, idx) => (
+                <div key={p.id} className="flex items-center gap-2 group">
+                  <input
+                    type="text"
+                    value={p.name}
+                    onChange={(e) => renamePage(p.id, e.target.value)}
+                    className={`text-[10px] bg-white/80 border-none rounded px-2 py-1 w-20 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 outline-none shadow-sm ${activePageId === p.id ? 'opacity-100' : ''}`}
+                  />
+                  <button
+                    onClick={() => setActivePageId(p.id)}
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all bg-white shadow-lg border-2 overflow-hidden relative ${activePageId === p.id ? 'border-indigo-600 scale-110' : 'border-transparent hover:border-gray-300'}`}
+                  >
+                    {p.baseImage ? (
+                      <img src={p.baseImage} className="w-full h-full object-contain" alt={p.name} />
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-500">{idx + 1}</span>
+                    )}
+                    {activePageId === p.id && (
+                      <div className="absolute inset-0 bg-indigo-600/10 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full" />
+                      </div>
+                    )}
+                  </button>
+                  {pages.length > 1 && (
+                    <button onClick={() => deletePage(p.id)} className="w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity -ml-6 -mt-8 z-10 shadow-sm"><X className="w-3 h-3" /></button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={addPage} className="w-10 h-10 bg-white shadow-xl rounded-lg flex items-center justify-center text-indigo-600 hover:bg-gray-50 transition-all border border-gray-100"><ImageIcon className="w-5 h-5 font-bold" /></button>
           </div>
         </div>
-        <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-80 opacity-100' : 'w-0 opacity-0'}`}>
-          <Summary
-            elements={processedElements as any} selectedElement={selectedElement} onSelectElement={setSelectedElement} onDeleteElement={deleteElement}
-            zoom={zoom} onZoomChange={setZoom} showSafeArea={showSafeArea} onToggleSafeArea={() => { setShowSafeArea(!showSafeArea); saveConfig({ showSafeArea: !showSafeArea }); }}
-            safeAreaPadding={safeAreaPadding} onSafeAreaPaddingChange={(val) => { setSafeAreaPadding(val); saveConfig({ safeAreaPadding: val }); }}
-            safeAreaShape={safeAreaShape} onSafeAreaShapeChange={(val) => { setSafeAreaShape(val); saveConfig({ safeAreaShape: val }); }} safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => { setSafeAreaOffset({ x: 0, y: 0 }); saveConfig({ safeAreaOffset: { x: 0, y: 0 } }); }}
-            onToggleRulers={() => { setShowRulers(!showRulers); saveConfig({ showRulers: !showRulers }); }} showRulers={showRulers} unit={unit} onUnitChange={(val) => { setUnit(val); saveConfig({ unit: val }); }} paperSize={paperSize} onPaperSizeChange={(val) => { setPaperSize(val); saveConfig({ paperSize: val }); }}
-            customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={(val) => { setCustomPaperDimensions(val); saveConfig({ customPaperDimensions: val }); }} onReset={() => { setElements([]); addToHistory(pages.map(p => p.id === activePageId ? { ...p, elements: [] } : p)); }}
-            userColors={filteredUserColors} selectedColorAssetId={selectedColorAssetId} onSelectedColorAssetIdChange={(val) => {
-              setSelectedColorAssetId(val);
-              saveConfig({ selectedColorAssetId: val });
-            }} onToggleSummary={() => setShowSummary(false)}
-            baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled || false}
-            onToggleBaseImageColor={(enabled) => {
-              setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p));
-              saveConfig({ baseImageColorEnabled: enabled });
-            }}
-            baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
-            onBaseImageColorChange={(color) => {
-              setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color } : p));
-              saveConfig({ baseImageColor: color });
-            }}
-            activePaletteColors={activePaletteColors}
-            shopifyOptions={productData?.options || []} shopifyVariants={productData?.variants || []} selectedVariantId={selectedVariantId} onVariantChange={setSelectedVariantId}
-          />
-        </div>
       </div>
+
+      <Summary
+        variant={productVariant}
+        elements={currentElements}
+        showSafeArea={showSafeArea}
+        onToggleSafeArea={() => { setShowSafeArea(!showSafeArea); saveConfig({ showSafeArea: !isPublicMode ? !showSafeArea : undefined }); }}
+        safeAreaPadding={safeAreaPadding}
+        onSafeAreaPaddingChange={(val) => { setSafeAreaPadding(val); saveConfig({ safeAreaPadding: val }); }}
+        safeAreaShape={safeAreaShape}
+        onSafeAreaShapeChange={(val) => { setSafeAreaShape(val); saveConfig({ safeAreaShape: val }); }}
+        safeAreaOffset={safeAreaOffset}
+        onResetSafeAreaOffset={() => { setSafeAreaOffset({ x: 0, y: 0 }); saveConfig({ safeAreaOffset: { x: 0, y: 0 } }); }}
+        onToggleRulers={() => { setShowRulers(!showRulers); saveConfig({ showRulers: !showRulers }); }}
+        showRulers={showRulers}
+        unit={unit}
+        onUnitChange={(val) => { setUnit(val); saveConfig({ unit: val }); }}
+        paperSize={paperSize}
+        onPaperSizeChange={(val) => { setPaperSize(val); saveConfig({ paperSize: val }); }}
+        customPaperDimensions={customPaperDimensions}
+        onCustomPaperDimensionsChange={(val) => { setCustomPaperDimensions(val); saveConfig({ customPaperDimensions: val }); }}
+        onOpenCropModal={() => setIsCropModalOpen(true)}
+        onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+        onBaseImageColorEnabledChange={(val) => {
+          setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: val } : p));
+          saveConfig({ baseImageColorEnabled: val });
+        }}
+        onBaseImageColorChange={(val) => {
+          setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: val } : p));
+          saveConfig({ baseImageColor: val });
+        }}
+        baseImageColorEnabled={currentPages?.baseImageColorEnabled || false}
+        baseImageColor={currentPages?.baseImageColor || '#ffffff'}
+        colorPalette={activeColorPalette}
+        showSummary={showSummary}
+        onToggleSummary={() => setShowSummary(!showSummary)}
+      />
+
       <ImageCropModal
         isOpen={isCropModalOpen}
         onClose={() => setIsCropModalOpen(false)}
-        imageUrl={(currentElements.find(e => e.id === selectedElement) as any)?.url || (currentElements.find(e => e.id === selectedElement) as any)?.src || ''}
-        onCropComplete={handleCropComplete}
-        initialCrop={currentElements.find(e => e.id === selectedElement)?.crop}
+        imageUrl={currentPages?.baseImage || ''}
+        onCropComplete={(crop) => {
+          setPages(prev => prev.map(p => p.id === activePageId ? {
+            ...p,
+            baseImageProperties: { ...p.baseImageProperties, crop } as any
+          } : p));
+          saveConfig({ baseImageProperties: { ...currentPages?.baseImageProperties, crop } });
+        }}
       />
+
       <BaseImageModal
         isOpen={isBaseImageModalOpen}
         onClose={() => setIsBaseImageModalOpen(false)}
-        productData={productData}
-        selectedVariantId={selectedVariantId}
-        onSelectImage={(url) => handleBaseImageSelect(url, productData?.variants.find(v => v.id === selectedVariantId)?.image === url)}
-        currentBaseImage={pages.find(p => p.id === activePageId)?.baseImage}
+        onSelect={handleBaseImageSelect}
+        productImages={productData?.images || []}
+        variants={productData?.variants || []}
       />
     </div>
   );
+}
+
+// Separate components to handle hook calls safely
+function DesignerAdmin(props: any) {
+  const authenticatedFetch = useAuthenticatedFetch();
+  const shopifyApp = useAppBridge();
+  return <DesignerCore {...props} fetch={authenticatedFetch} shopifyApp={shopifyApp} />;
+}
+
+function DesignerPublic(props: any) {
+  return <DesignerCore {...props} fetch={window.fetch.bind(window)} shopifyApp={null} />;
+}
+
+// MAIN EXPORT
+export default function Designer() {
+  const [searchParams] = useSearchParams();
+  const { productId: routeProductId } = useParams();
+
+  const dataParam = searchParams.get('data');
+  const parsedData = useMemo(() => {
+    if (!dataParam) return null;
+    try {
+      return JSON.parse(dataParam);
+    } catch (e) {
+      console.error("Failed to parse data param", e);
+      return null;
+    }
+  }, [dataParam]);
+
+  // Detect if this is public/customer access (from storefront) or admin access
+  const isPublicMode = parsedData?.mode === 'button' || !searchParams.get('host');
+  const shopDomain = parsedData?.shop || searchParams.get('shop');
+  const productId = routeProductId || searchParams.get('productId') || parsedData?.product_id;
+
+  const props = {
+    isPublicMode,
+    shopDomain,
+    productId: String(productId),
+    parsedData
+  };
+
+  if (isPublicMode) {
+    return <DesignerPublic {...props} />;
+  }
+
+  return <DesignerAdmin {...props} />;
 }
