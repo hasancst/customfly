@@ -88,6 +88,22 @@ function DesignerCore({
 
   const [productData, setProductData] = useState<ShopifyProduct | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string>(parsedData?.variant_id || '');
+
+  // Listen for variant changes from parent
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'IMCST_VARIANT_CHANGE') {
+        const newVariantId = event.data.variantId;
+        if (newVariantId && newVariantId !== selectedVariantId) {
+          console.log('[IMCST] Variant changed via postMessage:', newVariantId);
+          setSelectedVariantId(newVariantId);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [selectedVariantId]);
   const [showRulers, setShowRulers] = useState(false);
   const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>('cm');
   const [paperSize, setPaperSize] = useState<string>('Custom');
@@ -423,10 +439,13 @@ function DesignerCore({
         try {
           const canvas = await html2canvas(canvasElement, {
             useCORS: true,
-            scale: 1, // High quality but not too huge
-            backgroundColor: null
+            scale: 2, // High quality
+            backgroundColor: null,
+            ignoreElements: (element) => {
+              return element.classList.contains('imcst-preview-hide');
+            }
           });
-          previewUrl = canvas.toDataURL('image/png', 0.7);
+          previewUrl = canvas.toDataURL('image/png', 0.8);
         } catch (err) {
           console.error('Failed to capture canvas:', err);
         }

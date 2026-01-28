@@ -134,6 +134,49 @@ app.get(
     shopify.redirectToShopifyOrAppRoot()
 );
 
+app.post(
+    shopify.config.webhooks.path,
+    express.raw({ type: "application/json" }),
+    async (req, res) => {
+        try {
+            await shopify.api.webhooks.process({
+                rawBody: req.body,
+                payload: JSON.parse(req.body.toString()),
+                shop: req.headers["x-shopify-shop-domain"],
+                callback: async (topic, shop, payload) => {
+                    console.log(`[WEBHOOK] Topic: ${topic} for shop: ${shop}`);
+                    if (topic === 'ORDERS_CREATE' || topic === 'ORDERS_PAID') {
+                        const orderId = payload.id.toString();
+                        const customerId = payload.customer?.id?.toString();
+                        const customerEmail = payload.customer?.email;
+
+                        for (const item of payload.line_items) {
+                            const designId = item.properties?.find(p => p.name === '_custom_design_id')?.value;
+                            if (designId) {
+                                console.log(`[WEBHOOK] Link order ${orderId} to design ${designId}`);
+                                await prisma.savedDesign.updateMany({
+                                    where: { id: designId, shop: shop },
+                                    data: {
+                                        status: 'ordered',
+                                        shopifyOrderId: orderId,
+                                        lineItemId: item.id.toString(),
+                                        customerId: customerId,
+                                        customerEmail: customerEmail
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+            res.status(200).send();
+        } catch (error) {
+            console.error(`[WEBHOOK ERROR]: ${error.message}`);
+            res.status(500).send(error.message);
+        }
+    }
+);
+
 const PORT = process.env.PORT || 3011;
 
 // Static files (frontend)
@@ -1001,6 +1044,45 @@ app.get("/imcst_api/assets", async (req, res) => {
 });
 
 // 6. Create Asset
+// 4. Get Designs (with filter)
+app.get("/imcst_api/designs", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const { status } = req.query;
+
+        const where = { shop };
+        if (status) where.status = status;
+
+        const designs = await prisma.savedDesign.findMany({
+            where,
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(designs);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 4b. Get Design by ID
+app.get("/imcst_api/designs/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+
+        const design = await prisma.savedDesign.findFirst({
+            where: { id, shop }
+        });
+
+        if (!design) {
+            return res.status(404).json({ error: "Design not found" });
+        }
+
+        res.json(design);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post("/imcst_api/assets", async (req, res) => {
     try {
         const { type, name, value, config } = req.body;

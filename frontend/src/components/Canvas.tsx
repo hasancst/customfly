@@ -243,7 +243,7 @@ export function Canvas({
                     y: safeAreaOffset.y + info.offset.y / (zoom / 100)
                   });
                 }}
-                className="absolute inset-0 z-10 pointer-events-none group/safe-area"
+                className="absolute inset-0 z-10 pointer-events-none group/safe-area imcst-preview-hide"
                 style={{
                   x: safeAreaOffset.x * (zoom / 100),
                   y: safeAreaOffset.y * (zoom / 100),
@@ -305,7 +305,6 @@ export function Canvas({
                     })()}
                   </svg>
                 </div>
-
                 {/* Drag Handle Icon and Label */}
                 <div
                   onPointerDown={(e) => dragControls.start(e)}
@@ -369,7 +368,7 @@ export function Canvas({
             </div>
 
             {/* Paper Size Indicator */}
-            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg">
+            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg imcst-preview-hide">
               <p className="text-xs text-gray-500 font-medium">
                 {paperSize} ({selectedPaper.width} × {selectedPaper.height} mm)
               </p>

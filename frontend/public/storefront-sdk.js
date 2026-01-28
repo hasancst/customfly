@@ -35,8 +35,34 @@
 
         root.appendChild(iframe);
 
+        // Detect Shopify Variant Change
+        let currentVariantId = variantId;
+
+        // Listen to Shopify theme events (Dawn and many other themes use this)
+        document.addEventListener('variant:change', function (event) {
+            console.log('[IMCST] Theme variant change event detected:', event.detail);
+            const newVariantId = event.detail?.variant?.id;
+            if (newVariantId && newVariantId != currentVariantId) {
+                currentVariantId = newVariantId;
+                iframe.contentWindow.postMessage({ type: 'IMCST_VARIANT_CHANGE', variantId: String(newVariantId) }, '*');
+            }
+        });
+
+        // Polling as fallback (check URL variant parameter)
+        setInterval(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlVariantId = urlParams.get('variant');
+            if (urlVariantId && urlVariantId != currentVariantId) {
+                console.log('[IMCST] URL variant change detected:', urlVariantId);
+                currentVariantId = urlVariantId;
+                iframe.contentWindow.postMessage({ type: 'IMCST_VARIANT_CHANGE', variantId: urlVariantId }, '*');
+            }
+        }, 1000);
+
         // Listen for messages from iframe
         window.addEventListener('message', (event) => {
+            if (event.origin !== BASE_URL && !event.origin.includes('custom.duniasantri.com')) return;
+
             if (event.data && event.data.type === 'IMCST_RESIZE') {
                 iframe.style.height = `${event.data.height}px`;
             }

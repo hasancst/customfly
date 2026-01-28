@@ -3,6 +3,8 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import Assets from '@/pages/Assets';
 import AssetDetail from '@/pages/AssetDetail';
 import Settings from '@/pages/Settings';
+import Orders from '@/pages/Orders';
+import ProductionExport from '@/pages/ProductionExport';
 import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
 import { RoutePropagator } from '@/components/RoutePropagator';
@@ -63,6 +65,10 @@ function MainContent() {
                             destination: '/dashboard',
                         },
                         {
+                            label: 'Orders',
+                            destination: '/orders',
+                        },
+                        {
                             label: 'Assets',
                             destination: '/assets',
                         },
@@ -81,6 +87,8 @@ function MainContent() {
                 <Route path="/dashboard" element={<AdminDashboard />} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/assets" element={<Assets />} />
+                <Route path="/orders" element={<Orders />} />
+                <Route path="/production/:designId" element={<ProductionExport />} />
                 <Route path="/assets/:id" element={<AssetDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/help" element={<Help />} />
