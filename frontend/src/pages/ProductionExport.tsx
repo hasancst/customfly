@@ -79,12 +79,18 @@ export default function ProductionExport() {
         );
     }
 
-    const designJson = typeof design.designJson === 'string' ? JSON.parse(design.designJson) : design.designJson;
+    let designJson: any = {};
+    try {
+        designJson = typeof design.designJson === 'string' ? JSON.parse(design.designJson) : (design.designJson || {});
+    } catch (e) {
+        console.error('Invalid designJson:', e);
+        designJson = {};
+    }
 
     // Normalize pages accurately
     const pages = Array.isArray(designJson)
         ? designJson
-        : (designJson.pages || [{ id: 'default', elements: designJson.elements || [] }]);
+        : (Array.isArray(designJson.pages) ? designJson.pages : [{ id: 'default', elements: Array.isArray(designJson.elements) ? designJson.elements : [] }]);
 
     const firstPage = pages[0] || { elements: [] };
 

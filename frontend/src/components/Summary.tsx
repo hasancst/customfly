@@ -129,7 +129,7 @@ export function Summary({
   isPublicMode = false,
 }: SummaryProps) {
   const selectedVariant = React.useMemo(() =>
-    shopifyVariants.find(v => v.id === selectedVariantId),
+    (shopifyVariants || []).find(v => v.id === selectedVariantId),
     [shopifyVariants, selectedVariantId]
   );
 
@@ -207,11 +207,13 @@ export function Summary({
                       <SelectTrigger className="h-8 rounded-lg bg-slate-50 border-slate-200 text-xs font-medium"><SelectValue placeholder="Select palette..." /></SelectTrigger>
                       <SelectContent>{userColors.map((asset: any) => <SelectItem key={asset.id} value={asset.id}>{asset.name}</SelectItem>)}</SelectContent>
                     </Select>
-                    {colorPalette.length > 0 && (
+                    {colorPalette && colorPalette.length > 0 && (
                       <div className="grid grid-cols-6 gap-2 pt-2">
-                        {colorPalette.map((c, i) => (
-                          <button key={i} onClick={() => onBaseImageColorChange?.(c.value)} className={`w-8 h-8 rounded-lg border-2 transition-all ${baseImageColor === c.value ? 'border-indigo-500 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: c.value }} title={c.name} />
-                        ))}
+                        {(colorPalette || [])
+                          .filter(c => !!c && !!c.value)
+                          .map((c, i) => (
+                            <button key={i} onClick={() => onBaseImageColorChange?.(c.value)} className={`w-8 h-8 rounded-lg border-2 transition-all ${baseImageColor === c.value ? 'border-indigo-500 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: c.value }} title={c.name} />
+                          ))}
                       </div>
                     )}
                   </div>
@@ -308,9 +310,9 @@ export function Summary({
           <Card className="border-0 shadow-lg rounded-2xl p-4 bg-white">
             <div className="flex items-center gap-2 mb-4"><Layers className="w-4 h-4 text-gray-700" /> <h3 className="font-semibold text-gray-900">Layers</h3> <span className="ml-auto text-xs text-gray-500">{elements?.length || 0}</span></div>
             <div className="space-y-2">
-              {[...elements]
-                .filter(el => !isPublicMode || el.isEditableByCustomer)
-                .sort((a, b) => b.zIndex - a.zIndex)
+              {(elements || [])
+                .filter(el => !!el && (!isPublicMode || el.isEditableByCustomer))
+                .sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0))
                 .map((element, index, filteredArr) => (
                   <div key={element.id} onClick={() => onSelectElement(element.id)} className={`p-3 rounded-lg cursor-pointer transition-all ${selectedElement === element.id ? 'bg-indigo-50 border-2 border-indigo-500' : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'}`}>
                     <div className="flex items-center justify-between">
@@ -322,7 +324,7 @@ export function Summary({
                     </div>
                   </div>
                 ))}
-              {(elements.filter(el => !isPublicMode || el.isEditableByCustomer)).length === 0 && <p className="text-xs text-gray-400 text-center py-4">No editable layers yet</p>}
+              {(elements || []).filter(el => !!el && (!isPublicMode || el.isEditableByCustomer)).length === 0 && <p className="text-xs text-gray-400 text-center py-4">No editable layers yet</p>}
             </div>
           </Card>
         </div>

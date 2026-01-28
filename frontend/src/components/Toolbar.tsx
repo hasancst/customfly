@@ -175,7 +175,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
 
       {!selectedElement && !showPicker && (
         <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500 h-full">
-          {elements.length === 0 ? (
+          {(elements || []).length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center gap-6">
               <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center animate-bounce">
                 <Plus className="w-10 h-10 text-indigo-500" />
@@ -197,11 +197,11 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
               <div className="flex flex-col gap-4 flex-1">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Options</h3>
-                  <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{elements.length}</span>
+                  <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{(elements || []).length}</span>
                 </div>
 
                 <div className="flex flex-col gap-2 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                  {elements.map((element) => (
+                  {(elements || []).map((element) => (
                     <button
                       key={element.id}
                       onClick={() => onSelectElement?.(element.id)} // Trigger selection in designer

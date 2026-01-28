@@ -555,7 +555,11 @@ function DesignerCore({
     }
   };
 
-  const currentPages = useMemo(() => pages.find(p => p.id === activePageId) || pages[0] || { id: 'default', name: 'Side 1', elements: [] }, [pages, activePageId]);
+  const currentPages = useMemo(() => {
+    const found = (pages || []).find(p => p.id === activePageId);
+    if (found) return found;
+    return (pages && pages.length > 0) ? pages[0] : { id: 'default', name: 'Side 1', elements: [] };
+  }, [pages, activePageId]);
   const currentElements = currentPages?.elements || [];
   const activeElement = useMemo(() => currentElements.find(e => e.id === selectedElement), [currentElements, selectedElement]);
 

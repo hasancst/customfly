@@ -172,7 +172,7 @@ export function Canvas({
             style={{
               width: currentWidth,
               height: currentHeight,
-              backgroundColor: productColors[productVariant?.color || 'white'] || '#ffffff',
+              backgroundColor: (productColors || {})[productVariant?.color || 'white'] || '#ffffff',
             }}
             onPointerDown={() => onSelectElement(null)}
             onClick={() => onSelectElement(null)}
@@ -234,7 +234,6 @@ export function Canvas({
               <motion.div
                 drag
                 dragControls={dragControls}
-                dragListener={false}
                 dragMomentum={false}
                 dragElastic={0}
                 onDragEnd={(_, info) => {
@@ -349,8 +348,9 @@ export function Canvas({
                 })()
               }}
             >
-              {[...elements]
-                .sort((a, b) => a.zIndex - b.zIndex)
+              {(elements || [])
+                .filter(el => !!el)
+                .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
                 .map((element) => (
                   <DraggableElement
                     key={element.id}
