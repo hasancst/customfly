@@ -115,7 +115,7 @@ export function InlineDesigner({ productId, shop, config }: InlineDesignerProps)
                                 </>
                             ) : (
                                 <>
-                                    <span>Add to Cart</span>
+                                    <span>{config?.buttonText || 'Design It'}</span>
                                     <span className="text-xl">→</span>
                                 </>
                             )}

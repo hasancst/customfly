@@ -40,6 +40,7 @@ interface HeaderProps {
   onToggleSummary?: () => void;
   onClose?: () => void;
   isPublicMode?: boolean;
+  buttonText?: string;
 }
 
 export function Header({
@@ -60,6 +61,7 @@ export function Header({
   onToggleSummary,
   onClose,
   isPublicMode = false,
+  buttonText = 'Design It',
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -379,7 +381,7 @@ export function Header({
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-8 font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95 h-10 flex items-center gap-2 border-b-2 border-indigo-800 uppercase tracking-wide text-xs"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
-            <span>{isSaving ? 'Processing...' : 'Add to Cart'}</span>
+            <span>{isSaving ? 'Processing...' : buttonText}</span>
           </Button>
         )}
       </div>

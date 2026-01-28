@@ -9,7 +9,7 @@ interface ModalDesignerProps {
 
 export function ModalDesigner({ productId, shop, config }: ModalDesignerProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const buttonText = config?.buttonText || 'Customize Now';
+    const buttonText = config?.buttonText || 'Design It';
 
     return (
         <div className="imcst-modal-container my-4">

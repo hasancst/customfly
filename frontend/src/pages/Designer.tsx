@@ -449,6 +449,19 @@ function DesignerCore({
         const data = await response.json();
         if (!isTemplate) setCurrentDesignId(data.id);
         if (!isPublicMode) fetchDesigns();
+
+        // If in public mode, notify the storefront SDK to add to cart
+        if (isPublicMode) {
+          window.parent.postMessage({
+            type: 'IMCST_ADD_TO_CART',
+            designId: data.id,
+            previewUrl: previewUrl,
+            productId: productId,
+            variantId: selectedVariantId,
+            designName: finalName
+          }, '*');
+        }
+
         toast.success(isTemplate ? `Saved to Store Library as Template` : `Saved successfully`);
         return data; // Return data for potential chaining
       }
@@ -529,6 +542,7 @@ function DesignerCore({
             canUndo={historyIndex > 0}
             canRedo={historyIndex < history.length - 1}
             title={productData?.title || 'Designer'}
+            buttonText={buttonText}
             onSave={(isTemplate) => saveDesign(isTemplate)}
             isSaving={isSaving}
             designName={designName}

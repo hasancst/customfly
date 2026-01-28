@@ -182,38 +182,31 @@ model SavedDesign {
 
 ---
 
-### ⏳ Phase 1: Core Infrastructure (CURRENT)
+### ✅ Phase 1: Core Infrastructure (COMPLETED)
 **Duration:** 2-3 days  
-**Status:** 🟡 In Progress (20%)
+**Status:** ✅ Done
 
 **Tasks:**
-- [ ] Update MerchantConfig schema with layout fields
-- [ ] Create Settings UI in Admin for layout selection
-- [ ] Create base components for each layout:
-  - [x] RedirectDesigner (exists, needs polish)
-  - [ ] InlineDesigner (new)
-  - [ ] ModalDesigner (new)
-  - [ ] WizardDesigner (new)
-- [ ] Create layout detector for storefront
-
-**Files to Update:**
-```
-/backend/prisma/schema.prisma
-/frontend/src/pages/Settings.tsx
-/frontend/src/components/storefront/LayoutDetector.tsx
-```
+- [x] Update MerchantConfig schema with layout fields
+- [x] Create Settings UI in Admin for layout selection (Integrated in Dashboard & Designer)
+- [x] Create base components for each layout:
+  - [x] RedirectDesigner
+  - [x] InlineDesigner
+  - [x] ModalDesigner
+  - [x] WizardDesigner
+- [x] Create layout detector for storefront
 
 ---
 
 ### ⏳ Phase 2: Storefront Integration
 **Duration:** 2-3 days  
-**Status:** 🔴 Not Started
+**Status:** � In Progress (30%)
 
 **Tasks:**
-- [ ] Create Shopify App Embed/Block
-- [ ] Create JavaScript SDK for storefront injection
-- [ ] Implement Add to Cart for all layouts
-- [ ] Generate preview images (html2canvas)
+- [x] Create Shopify App Embed/Block
+- [x] Create JavaScript SDK for storefront injection
+- [x] Implement Add to Cart for all layouts (PostMessage integration)
+- [ ] Generate preview images (html2canvas polish)
 - [ ] Handle variant selection
 
 **Files to Create:**
@@ -446,15 +439,15 @@ GET  /imcst_api/orders/:orderId/design
 
 ## 📊 Progress Tracking
 
-### Overall Progress: 20%
+### Overall Progress: 40%
 ```
 [████░░░░░░░░░░░░░░░░] 20%
 ```
 
 ### Phase Breakdown:
 - Phase 0: Foundation ████████████████████ 100%
-- Phase 1: Core Infrastructure ████░░░░░░░░░░░░ 20%
-- Phase 2: Storefront Integration ░░░░░░░░░░░░░░░░ 0%
+- Phase 1: Core Infrastructure ████████████████████ 100%
+- Phase 2: Storefront Integration ██████░░░░░░░░░░ 30%
 - Phase 3: Checkout Integration ░░░░░░░░░░░░░░░░ 0%
 - Phase 4: Admin Dashboard ░░░░░░░░░░░░░░░░ 0%
 

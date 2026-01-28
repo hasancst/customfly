@@ -769,9 +769,8 @@ app.get("/imcst_api/configured-products", async (req, res) => {
         const shop = res.locals.shopify.session.shop;
         const configs = await prisma.merchantConfig.findMany({
             where: { shop },
-            select: { shopifyProductId: true }
         });
-        res.json(configs.map(c => c.shopifyProductId));
+        res.json(configs);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

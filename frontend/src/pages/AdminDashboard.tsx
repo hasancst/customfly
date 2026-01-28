@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
-import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, Icon, Toast } from '@shopify/polaris';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, Icon, Toast, Select } from '@shopify/polaris';
 import { ViewIcon, PlusIcon, MinusIcon, SandboxIcon, StoreIcon } from '@shopify/polaris-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
@@ -56,6 +56,7 @@ export default function AdminDashboard() {
     const [products, setProducts] = useState<Product[]>([]);
     const [customProducts, setCustomProducts] = useState<Product[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
+    const [configs, setConfigs] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const [queryValue, setQueryValue] = useState('');
@@ -67,7 +68,6 @@ export default function AdminDashboard() {
     const navigate = useNavigate();
     const location = useLocation();
     const fetch = useAuthenticatedFetch();
-    const hasFetchedRef = useRef(false);
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
 
@@ -95,7 +95,6 @@ export default function AdminDashboard() {
 
                 let prodData: Product[] = [];
                 let collData: Collection[] = [];
-                let configuredIds: string[] = [];
 
                 if (prodRes.ok) {
                     const data = await prodRes.json();
@@ -109,15 +108,16 @@ export default function AdminDashboard() {
                     if (Array.isArray(data)) collData = data;
                 }
 
+                let configData: any[] = [];
                 if (configRes.ok) {
-                    const data = await configRes.json();
-                    console.log('[DASHBOARD] Configured IDs received:', data.length);
-                    if (Array.isArray(data)) configuredIds = data;
+                    configData = await configRes.json();
                 }
 
                 setProducts(prodData);
                 setCollections(collData);
+                setConfigs(configData);
 
+                const configuredIds = configData.map(c => c.shopifyProductId);
                 const activeCustomProducts = prodData.filter(p => configuredIds.includes(p.id));
                 setCustomProducts(activeCustomProducts);
                 console.log('[DASHBOARD] State update complete. Products to show:', prodData.length);
@@ -198,6 +198,22 @@ export default function AdminDashboard() {
             }
         } catch (error) {
             console.error("Error removing from custom:", error);
+        }
+    }, [fetch]);
+
+    const handleLayoutChange = useCallback(async (productId: string, layout: string) => {
+        try {
+            const response = await fetch('/imcst_api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId, designerLayout: layout })
+            });
+            if (response.ok) {
+                showToast(`Layout updated to ${layout}`);
+                setConfigs(prev => prev.map(c => c.shopifyProductId === productId ? { ...c, designerLayout: layout } : c));
+            }
+        } catch (error) {
+            console.error('Failed to update layout:', error);
         }
     }, [fetch]);
 
@@ -331,6 +347,22 @@ export default function AdminDashboard() {
                                         )}
                                     </div>
                                 </Tooltip>
+                            )}
+                            {customProducts.some(p => p.id === product.id) && (
+                                <div style={{ minWidth: '120px' }}>
+                                    <Select
+                                        label="Layout"
+                                        labelHidden
+                                        options={[
+                                            { label: 'Redirect', value: 'redirect' },
+                                            { label: 'Inline', value: 'inline' },
+                                            { label: 'Modal', value: 'modal' },
+                                            { label: 'Wizard', value: 'wizard' },
+                                        ]}
+                                        value={configs.find(c => c.shopifyProductId === product.id)?.designerLayout || 'redirect'}
+                                        onChange={(value) => handleLayoutChange(product.id, value)}
+                                    />
+                                </div>
                             )}
                             <Badge tone="info">{`${variantCount} Var`}</Badge>
                             {collsCount > 0 && <Badge tone="warning">{`${collsCount} Coll`}</Badge>}
