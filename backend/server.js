@@ -234,6 +234,21 @@ app.get("/imcst_api/public/config/:productId", async (req, res) => {
     }
 });
 
+app.get("/imcst_api/public/shop_config", async (req, res) => {
+    try {
+        const { shop } = req.query;
+        if (!shop) return res.status(400).json({ error: "Shop domain required" });
+
+        const config = await prisma.merchantConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: "GLOBAL" } },
+        });
+
+        res.json(config || { shop, designerLayout: "redirect", buttonText: "Design It", unit: "cm", showRulers: false, showSafeArea: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Public: Save Customer Design
 app.post("/imcst_api/public/design", async (req, res) => {
     try {
@@ -705,6 +720,53 @@ app.get("/imcst_api/collections", async (req, res) => {
         res.json(allCollections);
     } catch (error) {
         console.error("Failed to fetch collections:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 0. Get Shop Global Config
+app.get("/imcst_api/shop_config", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const config = await prisma.merchantConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: "GLOBAL" } },
+        });
+        res.json(config || { shop, designerLayout: "redirect", buttonText: "Design It" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 0b. Save Shop Global Config
+app.post("/imcst_api/shop_config", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const updates = req.body;
+
+        const config = await prisma.merchantConfig.upsert({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: "GLOBAL" } },
+            update: {
+                designerLayout: updates.designerLayout,
+                buttonText: updates.buttonText,
+                showRulers: updates.showRulers,
+                showSafeArea: updates.showSafeArea,
+                unit: updates.unit,
+                paperSize: updates.paperSize,
+            },
+            create: {
+                shop,
+                shopifyProductId: "GLOBAL",
+                printArea: {},
+                designerLayout: updates.designerLayout || "redirect",
+                buttonText: updates.buttonText || "Design It",
+                showRulers: updates.showRulers || false,
+                showSafeArea: updates.showSafeArea || false,
+                unit: updates.unit || "cm",
+                paperSize: updates.paperSize || "Custom",
+            }
+        });
+        res.json(config);
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });

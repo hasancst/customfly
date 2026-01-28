@@ -52,9 +52,20 @@ export default function Orders() {
     }, [fetchOrdersWithDesigns]);
 
     const handleBulkExport = () => {
-        const count = selectedItems === 'All' ? designs.length : selectedItems?.length || 0;
-        console.log('Bulk exporting:', selectedItems);
-        alert(`Bulk export for ${count} designs will be implemented soon.`);
+        const itemsToExport = selectedItems === 'All' ? designs.map(d => d.id) : selectedItems;
+        if (!itemsToExport || itemsToExport.length === 0) return;
+
+        alert(`Starting bulk export for ${itemsToExport.length} designs. Please allow popups if blocked.`);
+
+        // Trigger downloads with a slight delay to prevent browser blocks
+        itemsToExport.forEach((id, index) => {
+            setTimeout(() => {
+                // We open the production page in a hidden manner or just new tab
+                // For a high-res capture, we must actually render it.
+                // Opening in new tabs is the most reliable way without complex background workers
+                window.open(`/production/${id}${location.search}`, '_blank');
+            }, index * 1500); // 1.5s delay between tabs
+        });
     };
 
     const resourceListFilters = (

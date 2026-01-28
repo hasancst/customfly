@@ -228,6 +228,18 @@ function DesignerCore({
             config = await configRes.json();
           }
 
+          // Fallback to global shop config if product config is missing/invalid
+          if (!config || config.error) {
+            const globalConfigUrl = isPublicMode
+              ? `/imcst_api/public/shop_config?shop=${shopDomain}`
+              : `/imcst_api/shop_config`;
+            const globalRes = await fetch(globalConfigUrl);
+            if (globalRes.ok) {
+              const globalData = await globalRes.json();
+              config = { ...globalData, isGlobal: true };
+            }
+          }
+
           // Fetch designs for this product (Admin only)
           if (!isPublicMode) {
             let initialDesign: any = null;
