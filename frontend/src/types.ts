@@ -131,6 +131,7 @@ export interface CanvasElement {
   numberPrefix?: string;
   numberSuffix?: string;
   hideLabel?: boolean;
+  isEditableByCustomer?: boolean;
   logic?: ElementLogic;
 }
 

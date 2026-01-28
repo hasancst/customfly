@@ -23,6 +23,7 @@ interface DraggableElementProps {
   onDuplicate: () => void;
   zoom: number;
   enableBounce?: boolean;
+  isPublicMode?: boolean;
 }
 
 import { ProcessedImage } from '@/components/ProcessedImage';
@@ -154,6 +155,7 @@ export const DraggableElement = memo(({
   onDelete,
   onDuplicate,
   zoom,
+  isPublicMode = false,
 }: DraggableElementProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -162,6 +164,7 @@ export const DraggableElement = memo(({
   const contentRef = useRef<HTMLDivElement>(null);
   const [textScale, setTextScale] = useState({ x: 1, y: 1 });
   const [isEditing, setIsEditing] = useState(false);
+  const canInteract = !isPublicMode || element.isEditableByCustomer;
   const [editValue, setEditValue] = useState(element.text || '');
 
   // Local state for smooth interactions
@@ -1330,6 +1333,7 @@ export const DraggableElement = memo(({
   ]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (!canInteract) return;
     // Prevent dragging if already resizing or rotating
     if (isResizing || isRotating || (interactionRef.current as any).isResizingFlag) {
       e.stopPropagation();
@@ -1410,12 +1414,12 @@ export const DraggableElement = memo(({
       ref={elementRef}
       onPointerDown={handlePointerDown}
       onDoubleClick={() => {
-        if (element.type === 'text' || element.type === 'textarea' || element.type === 'monogram') {
+        if (canInteract && (element.type === 'text' || element.type === 'textarea' || element.type === 'monogram')) {
           setIsEditing(true);
         }
       }}
       onClick={(e) => e.stopPropagation()}
-      className={`absolute ${isResizing || isRotating ? 'cursor-not-allowed' : 'cursor-move'}`}
+      className={`absolute ${(isResizing || isRotating || !canInteract) ? 'cursor-default' : 'cursor-move'}`}
       style={{
         left: localState.x * (zoom / 100),
         top: localState.y * (zoom / 100),
@@ -1461,7 +1465,7 @@ export const DraggableElement = memo(({
       )}
 
       {/* Selection Bounding Box & Handles */}
-      {isSelected && (
+      {isSelected && canInteract && (
         <>
           {/* Solid Outline Bounding Box - No transitions for maximum performance */}
           <div

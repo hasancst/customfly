@@ -39,6 +39,7 @@ interface HeaderProps {
   showSummary?: boolean;
   onToggleSummary?: () => void;
   onClose?: () => void;
+  isPublicMode?: boolean;
 }
 
 export function Header({
@@ -58,6 +59,7 @@ export function Header({
   showSummary,
   onToggleSummary,
   onClose,
+  isPublicMode = false,
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -227,7 +229,9 @@ export function Header({
                 <p>Redo (Ctrl+Y)</p>
               </TooltipContent>
             </Tooltip>
+          </div>
 
+          {!isPublicMode && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -277,96 +281,107 @@ export function Header({
                 </Tabs>
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onToggleSummary}
-                  className={`rounded-lg h-9 w-9 ${!showSummary ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}
-                >
-                  <PanelRight className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{showSummary ? 'Hide' : 'Show'} Controls</p>
-              </TooltipContent>
-            </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggleSummary}
+                className={`rounded-lg h-9 w-9 ${!showSummary ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}
+              >
+                <PanelRight className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{showSummary ? 'Hide' : 'Show'} Controls</p>
+            </TooltipContent>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleFullscreen}
-                  className="rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-9 w-9"
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="w-4 h-4" />
-                  ) : (
-                    <Maximize2 className="w-4 h-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleFullscreen}
+                className="rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-9 w-9"
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</p>
+            </TooltipContent>
+          </Tooltip>
         </TooltipProvider>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              disabled={isSaving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-6 font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95 h-10 flex items-center gap-2 border-b-2 border-indigo-800 uppercase tracking-wide text-xs group"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <CloudUpload className="w-4 h-4" />
-                  <span>Save Design</span>
-                  <ChevronDown className="w-3 h-3 ml-1 opacity-50 group-hover:opacity-100 transition-opacity" />
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000002]">
-            <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-gray-100" />
+        {!isPublicMode ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                disabled={isSaving}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-6 font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95 h-10 flex items-center gap-2 border-b-2 border-indigo-800 uppercase tracking-wide text-xs group"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload className="w-4 h-4" />
+                    <span>Save Design</span>
+                    <ChevronDown className="w-3 h-3 ml-1 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  </>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000002]">
+              <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-100" />
 
-            <DropdownMenuItem
-              onClick={() => onSave?.(false)}
-              className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group"
-            >
-              <div className="flex items-center gap-3">
-                <Box className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">This Product Only</span>
-                  <span className="text-[10px] text-gray-400">Regular design for current product</span>
+              <DropdownMenuItem
+                onClick={() => onSave?.(false)}
+                className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group"
+              >
+                <div className="flex items-center gap-3">
+                  <Box className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">This Product Only</span>
+                    <span className="text-[10px] text-gray-400">Regular design for current product</span>
+                  </div>
                 </div>
-              </div>
-            </DropdownMenuItem>
+              </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => onSave?.(true)}
-              className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group"
-            >
-              <div className="flex items-center gap-3">
-                <Library className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Store Template</span>
-                  <span className="text-[10px] text-gray-400">Add to global templates library</span>
+              <DropdownMenuItem
+                onClick={() => onSave?.(true)}
+                className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group"
+              >
+                <div className="flex items-center gap-3">
+                  <Library className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Store Template</span>
+                    <span className="text-[10px] text-gray-400">Add to global templates library</span>
+                  </div>
                 </div>
-              </div>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            onClick={() => onSave?.(false)}
+            disabled={isSaving}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-8 font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95 h-10 flex items-center gap-2 border-b-2 border-indigo-800 uppercase tracking-wide text-xs"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
+            <span>{isSaving ? 'Processing...' : 'Add to Cart'}</span>
+          </Button>
+        )}
       </div>
     </header>
   );

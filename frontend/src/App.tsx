@@ -86,6 +86,7 @@ function MainContent() {
                 <Route path="/help" element={<Help />} />
                 <Route path="/designer/:productId" element={<Designer />} />
                 <Route path="/designer" element={<Designer />} />
+                <Route path="/storefront/:productId" element={<StorefrontEntry />} />
                 <Route path="/exitiframe" element={<ExitIframe />} />
             </Routes>
         </>
@@ -96,4 +97,15 @@ function MainContent() {
     }
 
     return <Frame>{content}</Frame>;
+}
+
+import { LayoutDetector } from '@/components/storefront/LayoutDetector';
+function StorefrontEntry() {
+    const location = useLocation();
+    const productId = location.pathname.split('/').pop() || '';
+    const shop = new URLSearchParams(location.search).get('shop') || '';
+
+    if (!productId || !shop) return <div>Missing productId or shop</div>;
+
+    return <LayoutDetector productId={productId} shop={shop} />;
 }

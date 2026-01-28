@@ -18,9 +18,10 @@ import {
     CaseLower,
     Hash,
     Type as TypeIcon,
-
     Underline,
-    Crop
+    Crop,
+    Lock,
+    Unlock
 } from 'lucide-react';
 import {
     Select,
@@ -55,6 +56,7 @@ interface ContextualToolbarProps {
     userFonts: any[];
     userColors: any[];
     onCrop?: () => void;
+    isPublicMode?: boolean;
 }
 
 export function ContextualToolbar({
@@ -64,7 +66,8 @@ export function ContextualToolbar({
     onDuplicateElement,
     userFonts,
     userColors,
-    onCrop
+    onCrop,
+    isPublicMode = false
 }: ContextualToolbarProps) {
     const [localColor, setLocalColor] = useState(selectedElement?.color || '#000000');
     const [localStrokeColor, setLocalStrokeColor] = useState(selectedElement?.strokeColor || '#000000');
@@ -619,6 +622,25 @@ export function ContextualToolbar({
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 pl-4 border-l border-gray-100">
+                        {!isPublicMode && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={`h-9 w-9 rounded-lg transition-colors ${selectedElement.isEditableByCustomer ? 'text-green-600 bg-green-50' : 'text-gray-400'}`}
+                                            onClick={() => handleUpdate({ isEditableByCustomer: !selectedElement.isEditableByCustomer })}
+                                        >
+                                            {selectedElement.isEditableByCustomer ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {selectedElement.isEditableByCustomer ? 'Customer can edit' : 'Customer cannot edit'}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>

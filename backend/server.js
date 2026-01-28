@@ -706,6 +706,14 @@ app.post("/imcst_api/config", async (req, res) => {
             unit: updates.unit !== undefined ? updates.unit : undefined,
             showRulers: updates.showRulers !== undefined ? !!updates.showRulers : undefined,
             showSafeArea: updates.showSafeArea !== undefined ? !!updates.showSafeArea : undefined,
+            // New fields
+            designerLayout: updates.designerLayout !== undefined ? updates.designerLayout : undefined,
+            inlineSettings: updates.inlineSettings !== undefined ? updates.inlineSettings : undefined,
+            modalSettings: updates.modalSettings !== undefined ? updates.modalSettings : undefined,
+            wizardSettings: updates.wizardSettings !== undefined ? updates.wizardSettings : undefined,
+            enabledTools: updates.enabledTools !== undefined ? updates.enabledTools : undefined,
+            buttonText: updates.buttonText !== undefined ? updates.buttonText : undefined,
+            buttonStyle: updates.buttonStyle !== undefined ? updates.buttonStyle : undefined,
         },
         create: {
             shop,
@@ -724,6 +732,14 @@ app.post("/imcst_api/config", async (req, res) => {
             unit: updates.unit,
             showRulers: !!updates.showRulers,
             showSafeArea: !!updates.showSafeArea,
+            // New fields
+            designerLayout: updates.designerLayout || "redirect",
+            inlineSettings: updates.inlineSettings || {},
+            modalSettings: updates.modalSettings || {},
+            wizardSettings: updates.wizardSettings || {},
+            enabledTools: updates.enabledTools || {},
+            buttonText: updates.buttonText || "Design It",
+            buttonStyle: updates.buttonStyle || {},
         },
     });
 

@@ -28,43 +28,56 @@ model Session {
 }
 
 model MerchantConfig {
-  id               String   @id @default(uuid())
-  shop             String
-  shopifyProductId String
-  printArea        Json
-  baseImage              String?
-  baseImageColor         String?
-  baseImageProperties    Json?
+  id                    String   @id @default(uuid())
+  shop                  String
+  shopifyProductId      String
+  printArea             Json
+  baseImage             String?
+  baseImageColor        String?
+  baseImageProperties   Json?
   baseImageColorEnabled Boolean? @default(false)
-  selectedColorAssetId   String?
-  safeAreaPadding        Float?
-  safeAreaShape          String?
-  safeAreaOffset         Json?
-  paperSize              String?
+  selectedColorAssetId  String?
+  safeAreaPadding       Float?
+  safeAreaShape         String?
+  safeAreaOffset        Json?
+  paperSize             String?
   customPaperDimensions Json?
-  unit                   String?
-  showRulers             Boolean? @default(false)
-  showSafeArea           Boolean? @default(false)
-  masks                  Json?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  unit                  String?
+  showRulers            Boolean? @default(false)
+  showSafeArea          Boolean? @default(false)
+  masks                 Json?
+  
+  // NEW: Layout Configuration
+  designerLayout        String   @default("redirect") // "redirect" | "inline" | "modal" | "wizard"
+  inlineSettings        Json?    // { position: "below-description", showPreview: true }
+  modalSettings         Json?    // { width: "800px", height: "600px" }
+  wizardSettings        Json?    // { steps: ["template", "text", "color"] }
+  enabledTools          Json?    // { text: true, image: true, etc }
+  buttonText            String   @default("Design It")
+  buttonStyle           Json?    // { color: "#000", bgColor: "#fff" }
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@unique([shop, shopifyProductId])
 }
 
 model SavedDesign {
-  id               String   @id @default(uuid())
-  shop             String
-  designJson       Json
-  previewUrl       String?
-  status           String   @default("draft")
-  shopifyOrderId   String?
-  lineItemId       String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  shopifyProductId String?
-  name             String   @default("Untitled Design")
-  isTemplate       Boolean  @default(false)
+  id                String   @id @default(uuid())
+  shop              String
+  designJson        Json
+  previewUrl        String?
+  status            String   @default("draft")
+  shopifyOrderId    String?
+  lineItemId        String?
+  customerId        String?
+  customerEmail     String?
+  productionFileUrl String?
+  shopifyProductId  String?
+  name              String   @default("Untitled Design")
+  isTemplate        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([shop, shopifyProductId])
 }

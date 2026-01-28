@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { useAppBridge } from '@shopify/app-bridge-react';
 import { Fullscreen } from '@shopify/app-bridge/actions';
 import { Toolbar } from '../components/Toolbar';
@@ -8,14 +9,11 @@ import { Header } from '../components/Header';
 import { ContextualToolbar } from '../components/ContextualToolbar';
 import { ImageCropModal } from '../components/ImageCropModal';
 import { BaseImageModal } from '../components/BaseImageModal';
-import { CanvasElement, ShopifyVariant, ShopifyOption, ShopifyProduct } from '../types';
-import { evaluateVisibility } from '../utils/logicEvaluator';
+import { CanvasElement, ShopifyProduct } from '../types';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
-import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 import { toast } from 'sonner';
-import { ChevronLeft, Pencil, X, Image as ImageIcon, UploadCloud, Crop, Palette } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import { Pencil, X, Image as ImageIcon } from 'lucide-react';
 
 interface PageData {
   id: string;
@@ -65,14 +63,16 @@ function DesignerCore({
   productId,
   fetch,
   shopifyApp,
-  parsedData
+  parsedData,
+  layout = 'full'
 }: {
   isPublicMode: boolean,
   shopDomain: string | null,
   productId: string | undefined,
   fetch: any,
   shopifyApp: any,
-  parsedData: any
+  parsedData: any,
+  layout?: 'full' | 'modal' | 'wizard'
 }) {
   const [pages, setPages] = useState<PageData[]>([{ id: 'default', name: 'Side 1', elements: [] }]);
   const [activePageId, setActivePageId] = useState<string>('default');
@@ -107,7 +107,8 @@ function DesignerCore({
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [isBaseImageModalOpen, setIsBaseImageModalOpen] = useState(false);
   const [productVariant] = useState({ color: 'white', size: 'M', material: 'cotton' });
-  const [enableBounce] = useState(false);
+  const [designerLayout, setDesignerLayout] = useState('redirect');
+  const [buttonText, setButtonText] = useState('Design It');
 
   // Fullscreen (only for admin mode)
   useEffect(() => {
@@ -209,7 +210,6 @@ function DesignerCore({
           }
 
           // Fetch designs for this product (Admin only)
-          let loadedFromDesign = false;
           if (!isPublicMode) {
             const designsRes = await fetch(`/imcst_api/design/product/${productId}`);
             if (designsRes.ok) {
@@ -226,7 +226,6 @@ function DesignerCore({
                   setDesignName(mostRecent.name);
                   setHistory([normalizedPages]);
                   setHistoryIndex(0);
-                  loadedFromDesign = true;
                 }
               }
             }
@@ -242,6 +241,8 @@ function DesignerCore({
             if (config.unit) setUnit(config.unit as any);
             if (config.showRulers !== undefined) setShowRulers(config.showRulers);
             if (config.showSafeArea !== undefined) setShowSafeArea(config.showSafeArea);
+            if (config.designerLayout) setDesignerLayout(config.designerLayout);
+            if (config.buttonText) setButtonText(config.buttonText);
 
             // Always apply base image from config if it exists (even if design was loaded)
             if (config.baseImage) {
@@ -416,6 +417,21 @@ function DesignerCore({
 
     try {
       const saveUrl = isPublicMode ? '/imcst_api/public/design' : '/imcst_api/design';
+      let previewUrl = '';
+      const canvasElement = document.getElementById('canvas-paper');
+      if (canvasElement) {
+        try {
+          const canvas = await html2canvas(canvasElement, {
+            useCORS: true,
+            scale: 1, // High quality but not too huge
+            backgroundColor: null
+          });
+          previewUrl = canvas.toDataURL('image/png', 0.7);
+        } catch (err) {
+          console.error('Failed to capture canvas:', err);
+        }
+      }
+
       const response = await fetch(saveUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -425,7 +441,8 @@ function DesignerCore({
           shopifyProductId: isTemplate ? null : productId,
           name: finalName,
           designJson: pages,
-          isTemplate: !!isTemplate
+          isTemplate: !!isTemplate,
+          previewUrl: previewUrl || undefined
         }),
       });
       if (response.ok) {
@@ -433,6 +450,7 @@ function DesignerCore({
         if (!isTemplate) setCurrentDesignId(data.id);
         if (!isPublicMode) fetchDesigns();
         toast.success(isTemplate ? `Saved to Store Library as Template` : `Saved successfully`);
+        return data; // Return data for potential chaining
       }
     } catch (error) {
       toast.error('Save failed');
@@ -470,27 +488,13 @@ function DesignerCore({
     }
   };
 
-  const handleBaseImageSelect = (url: string, isVariantImage: boolean = false) => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(900 / img.naturalWidth, 900 / img.naturalHeight, 1);
-      const props = { x: 0, y: 0, scale, width: img.naturalWidth, height: img.naturalHeight };
-      setPages(prev => {
-        const updated = prev.map(p => p.id === activePageId ? {
-          ...p,
-          baseImage: url,
-          useVariantImage: isVariantImage,
-          baseImageProperties: props,
-          baseImageColor: p.baseImageColor, // Preserve existing color
-          baseImageColorEnabled: p.baseImageColorEnabled // Preserve existing color enabled state
-        } : p);
-        addToHistory(updated);
-        return updated;
-      });
-      // Also save to merchant config for persistence
-      saveConfig({ baseImage: url, baseImageProperties: props });
-    };
-    img.src = url;
+  const resetDesign = () => {
+    if (confirm('Are you sure you want to reset the design? This will remove all elements.')) {
+      const resetPages = pages.map(p => ({ ...p, elements: [] }));
+      setPages(resetPages);
+      setSelectedElement(null);
+      addToHistory(resetPages);
+    }
   };
 
   const currentPages = useMemo(() => pages.find(p => p.id === activePageId || pages[0]), [pages, activePageId]);
@@ -507,62 +511,78 @@ function DesignerCore({
     <div className="flex h-screen w-full bg-[#f1f1f1] overflow-hidden select-none designer-view">
       <Toolbar
         onAddElement={addElement}
-        onUpdatePaper={() => { }}
-        productId={productId}
-        fetch={fetch}
-        savedDesigns={savedDesigns}
-        allDesigns={allDesigns}
-        onLoadDesign={loadDesign}
-        onDeleteDesign={deleteDesign}
-        userFonts={userFonts}
+        onUpdateElement={updateElement}
+        onDuplicateElement={duplicateElement}
+        elements={currentElements}
+        productData={productData}
         userColors={userColors}
-        selectedColorAssetId={selectedColorAssetId}
-        onSelectColorAsset={(id) => { setSelectedColorAssetId(id); saveConfig({ selectedColorAssetId: id }); }}
+        userOptions={userOptions}
+        onRefreshAssets={fetchAssets}
+        selectedElement={activeElement}
       />
 
       <div className="flex-1 flex flex-col relative min-w-0">
-        <Header
-          productData={productData}
-          onSave={() => saveDesign(false)}
-          onSaveTemplate={() => saveDesign(true)}
-          isSaving={isSaving}
-          designName={designName}
-          onDesignNameChange={setDesignName}
-          isPublicMode={isPublicMode}
-        />
-
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-[#e5e5e5] pattern-bg">
-          <ContextualToolbar
-            activeElement={activeElement}
-            onUpdateElement={updateElement}
-            onDeleteElement={deleteElement}
-            onDuplicateElement={duplicateElement}
+        {layout === 'full' && (
+          <Header
             onUndo={undo}
             onRedo={redo}
             canUndo={historyIndex > 0}
             canRedo={historyIndex < history.length - 1}
+            title={productData?.title || 'Designer'}
+            onSave={(isTemplate) => saveDesign(isTemplate)}
+            isSaving={isSaving}
+            designName={designName}
+            onDesignNameChange={setDesignName}
+            savedDesigns={savedDesigns}
+            allDesigns={allDesigns}
+            onLoadDesign={loadDesign}
+            onDeleteDesign={deleteDesign}
+            showSummary={showSummary}
+            onToggleSummary={() => setShowSummary(!showSummary)}
+            isPublicMode={isPublicMode}
+          />
+        )}
+
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-[#e5e5e5] pattern-bg">
+          <ContextualToolbar
+            selectedElement={activeElement}
+            onUpdateElement={updateElement}
+            onDeleteElement={deleteElement}
+            onDuplicateElement={duplicateElement}
             userFonts={userFonts}
-            onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+            userColors={userColors}
+            onCrop={() => setIsCropModalOpen(true)}
+            isPublicMode={isPublicMode}
           />
 
           <div className="relative" style={{ transform: `scale(${zoom / 100})`, transition: 'transform 0.1s ease-out' }}>
             <Canvas
               elements={currentElements}
-              onUpdateElement={updateElement}
+              selectedElement={selectedElement}
               onSelectElement={setSelectedElement}
-              selectedElementId={selectedElement}
+              onUpdateElement={updateElement}
+              onDeleteElement={deleteElement}
+              onDuplicateElement={duplicateElement}
+              zoom={zoom}
               showSafeArea={showSafeArea}
+              productVariant={productVariant as any}
+              showRulers={showRulers}
+              unit={unit}
+              enableBounce={false}
+              paperSize={paperSize}
+              customPaperDimensions={customPaperDimensions}
               safeAreaPadding={safeAreaPadding}
               safeAreaShape={safeAreaShape}
               safeAreaOffset={safeAreaOffset}
+              onUpdateSafeAreaOffset={(offset) => { setSafeAreaOffset(offset); saveConfig({ safeAreaOffset: offset }); }}
               baseImage={currentPages?.baseImage}
-              baseImageProperties={currentPages?.baseImageProperties}
               baseImageColor={currentPages?.baseImageColor}
               baseImageColorEnabled={currentPages?.baseImageColorEnabled}
-              paperSize={paperSize}
-              customPaperDimensions={customPaperDimensions}
-              unit={unit}
-              showRulers={showRulers}
+              baseImageProperties={currentPages?.baseImageProperties || { x: 0, y: 0, scale: 1 }}
+              onUpdateBaseImage={(props) => {
+                setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageProperties: { ...p.baseImageProperties, ...props } as any } : p));
+                saveConfig({ baseImageProperties: { ...currentPages?.baseImageProperties, ...props } });
+              }}
             />
           </div>
 
@@ -608,41 +628,53 @@ function DesignerCore({
         </div>
       </div>
 
-      <Summary
-        variant={productVariant}
-        elements={currentElements}
-        showSafeArea={showSafeArea}
-        onToggleSafeArea={() => { setShowSafeArea(!showSafeArea); saveConfig({ showSafeArea: !isPublicMode ? !showSafeArea : undefined }); }}
-        safeAreaPadding={safeAreaPadding}
-        onSafeAreaPaddingChange={(val) => { setSafeAreaPadding(val); saveConfig({ safeAreaPadding: val }); }}
-        safeAreaShape={safeAreaShape}
-        onSafeAreaShapeChange={(val) => { setSafeAreaShape(val); saveConfig({ safeAreaShape: val }); }}
-        safeAreaOffset={safeAreaOffset}
-        onResetSafeAreaOffset={() => { setSafeAreaOffset({ x: 0, y: 0 }); saveConfig({ safeAreaOffset: { x: 0, y: 0 } }); }}
-        onToggleRulers={() => { setShowRulers(!showRulers); saveConfig({ showRulers: !showRulers }); }}
-        showRulers={showRulers}
-        unit={unit}
-        onUnitChange={(val) => { setUnit(val); saveConfig({ unit: val }); }}
-        paperSize={paperSize}
-        onPaperSizeChange={(val) => { setPaperSize(val); saveConfig({ paperSize: val }); }}
-        customPaperDimensions={customPaperDimensions}
-        onCustomPaperDimensionsChange={(val) => { setCustomPaperDimensions(val); saveConfig({ customPaperDimensions: val }); }}
-        onOpenCropModal={() => setIsCropModalOpen(true)}
-        onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
-        onBaseImageColorEnabledChange={(val) => {
-          setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: val } : p));
-          saveConfig({ baseImageColorEnabled: val });
-        }}
-        onBaseImageColorChange={(val) => {
-          setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: val } : p));
-          saveConfig({ baseImageColor: val });
-        }}
-        baseImageColorEnabled={currentPages?.baseImageColorEnabled || false}
-        baseImageColor={currentPages?.baseImageColor || '#ffffff'}
-        colorPalette={activeColorPalette}
-        showSummary={showSummary}
-        onToggleSummary={() => setShowSummary(!showSummary)}
-      />
+      {showSummary && (
+        <Summary
+          selectedElement={selectedElement}
+          onSelectElement={setSelectedElement}
+          onDeleteElement={deleteElement}
+          zoom={zoom}
+          onZoomChange={setZoom}
+          onReset={resetDesign}
+          variant={productVariant}
+          elements={currentElements}
+          showSafeArea={showSafeArea}
+          onToggleSafeArea={() => { setShowSafeArea(!showSafeArea); saveConfig({ showSafeArea: !isPublicMode ? !showSafeArea : undefined }); }}
+          safeAreaPadding={safeAreaPadding}
+          onSafeAreaPaddingChange={(val) => { setSafeAreaPadding(val); saveConfig({ safeAreaPadding: val }); }}
+          safeAreaShape={safeAreaShape}
+          onSafeAreaShapeChange={(val) => { setSafeAreaShape(val); saveConfig({ safeAreaShape: val }); }}
+          safeAreaOffset={safeAreaOffset}
+          onResetSafeAreaOffset={() => { setSafeAreaOffset({ x: 0, y: 0 }); saveConfig({ safeAreaOffset: { x: 0, y: 0 } }); }}
+          onToggleRulers={() => { setShowRulers(!showRulers); saveConfig({ showRulers: !showRulers }); }}
+          showRulers={showRulers}
+          unit={unit}
+          onUnitChange={(val) => { setUnit(val); saveConfig({ unit: val }); }}
+          paperSize={paperSize}
+          onPaperSizeChange={(val) => { setPaperSize(val); saveConfig({ paperSize: val }); }}
+          customPaperDimensions={customPaperDimensions}
+          onCustomPaperDimensionsChange={(val) => { setCustomPaperDimensions(val); saveConfig({ customPaperDimensions: val }); }}
+          onOpenCropModal={() => setIsCropModalOpen(true)}
+          onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+          onBaseImageColorEnabledChange={(val) => {
+            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: val } : p));
+            saveConfig({ baseImageColorEnabled: val });
+          }}
+          onBaseImageColorChange={(val) => {
+            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: val } : p));
+            saveConfig({ baseImageColor: val });
+          }}
+          baseImageColorEnabled={currentPages?.baseImageColorEnabled || false}
+          baseImageColor={currentPages?.baseImageColor || '#ffffff'}
+          colorPalette={activeColorPalette}
+          onToggleSummary={() => setShowSummary(!showSummary)}
+          designerLayout={designerLayout}
+          onDesignerLayoutChange={(val) => { setDesignerLayout(val); saveConfig({ designerLayout: val }); }}
+          buttonText={buttonText}
+          onButtonTextChange={(val) => { setButtonText(val); saveConfig({ buttonText: val }); }}
+          isPublicMode={isPublicMode}
+        />
+      )}
 
       <ImageCropModal
         isOpen={isCropModalOpen}
@@ -660,22 +692,44 @@ function DesignerCore({
       <BaseImageModal
         isOpen={isBaseImageModalOpen}
         onClose={() => setIsBaseImageModalOpen(false)}
-        onSelect={handleBaseImageSelect}
-        productImages={productData?.images || []}
-        variants={productData?.variants || []}
+        productData={productData}
+        selectedVariantId={selectedVariantId}
+        onSelectImage={(url: string, isVariantImage: boolean = false) => {
+          const img = new Image();
+          img.onload = () => {
+            const scale = Math.min(900 / img.naturalWidth, 900 / img.naturalHeight, 1);
+            const props = { x: 0, y: 0, scale, width: img.naturalWidth, height: img.naturalHeight };
+            setPages(prev => {
+              const updated = prev.map(p => p.id === activePageId ? {
+                ...p,
+                baseImage: url,
+                useVariantImage: isVariantImage,
+                baseImageProperties: props,
+                baseImageColor: p.baseImageColor, // Preserve existing color
+                baseImageColorEnabled: p.baseImageColorEnabled // Preserve existing color enabled state
+              } : p);
+              addToHistory(updated);
+              return updated;
+            });
+            // Also save to merchant config for persistence
+            saveConfig({ baseImage: url, baseImageProperties: props });
+          };
+          img.src = url;
+        }}
+        currentBaseImage={currentPages?.baseImage}
       />
     </div>
   );
 }
 
 // Separate components to handle hook calls safely
-function DesignerAdmin(props: any) {
+export function DesignerAdmin(props: any) {
   const authenticatedFetch = useAuthenticatedFetch();
   const shopifyApp = useAppBridge();
   return <DesignerCore {...props} fetch={authenticatedFetch} shopifyApp={shopifyApp} />;
 }
 
-function DesignerPublic(props: any) {
+export function DesignerPublic(props: any) {
   return <DesignerCore {...props} fetch={window.fetch.bind(window)} shopifyApp={null} />;
 }
 

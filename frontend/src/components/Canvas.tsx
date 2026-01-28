@@ -27,6 +27,7 @@ interface CanvasProps {
   baseImageColorEnabled?: boolean;
   baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
+  isPublicMode?: boolean;
 }
 
 export function Canvas({
@@ -53,6 +54,7 @@ export function Canvas({
   baseImageColorEnabled = false,
   baseImageProperties,
   onUpdateBaseImage,
+  isPublicMode = false,
 }: CanvasProps) {
   const dragControls = useDragControls();
   const productColors: Record<string, string> = {
@@ -165,6 +167,7 @@ export function Canvas({
 
           {/* Paper Canvas */}
           <div
+            id="canvas-paper"
             className={`relative bg-white shadow-2xl overflow-hidden ${showRulers ? 'rounded-br-3xl' : 'rounded-3xl'}`}
             style={{
               width: currentWidth,
@@ -360,6 +363,7 @@ export function Canvas({
                     onDuplicate={() => onDuplicateElement(element.id)}
                     zoom={zoom}
                     enableBounce={enableBounce}
+                    isPublicMode={isPublicMode}
                   />
                 ))}
             </div>
