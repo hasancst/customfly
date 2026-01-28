@@ -74,6 +74,9 @@ function DesignerCore({
   parsedData: any,
   layout?: 'full' | 'modal' | 'wizard'
 }) {
+  const [searchParams] = useSearchParams();
+  const targetDesignId = searchParams.get('designId');
+
   const [pages, setPages] = useState<PageData[]>([{ id: 'default', name: 'Side 1', elements: [] }]);
   const [activePageId, setActivePageId] = useState<string>('default');
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
@@ -227,19 +230,27 @@ function DesignerCore({
 
           // Fetch designs for this product (Admin only)
           if (!isPublicMode) {
+            let initialDesign: any = null;
+            if (targetDesignId) {
+              const specRes = await fetch(`/imcst_api/designs/${targetDesignId}`);
+              if (specRes.ok) initialDesign = await specRes.json();
+            }
+
             const designsRes = await fetch(`/imcst_api/design/product/${productId}`);
             if (designsRes.ok) {
               const designs = await designsRes.json();
               setSavedDesigns(designs);
-              if (designs && designs.length > 0) {
-                const mostRecent = designs[0];
-                const designJson = mostRecent.designJson;
+
+              const designToLoad = initialDesign || (designs && designs.length > 0 ? designs[0] : null);
+
+              if (designToLoad) {
+                const designJson = designToLoad.designJson;
                 if (Array.isArray(designJson) && designJson.length > 0) {
                   const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
                   setPages(normalizedPages);
                   setActivePageId(normalizedPages[0].id);
-                  setCurrentDesignId(mostRecent.id);
-                  setDesignName(mostRecent.name);
+                  setCurrentDesignId(designToLoad.id);
+                  setDesignName(designToLoad.name);
                   setHistory([normalizedPages]);
                   setHistoryIndex(0);
                 }
