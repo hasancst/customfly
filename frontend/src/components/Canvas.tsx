@@ -172,7 +172,7 @@ export function Canvas({
             style={{
               width: currentWidth,
               height: currentHeight,
-              backgroundColor: productColors[productVariant.color] || '#ffffff',
+              backgroundColor: productColors[productVariant?.color || 'white'] || '#ffffff',
             }}
             onPointerDown={() => onSelectElement(null)}
             onClick={() => onSelectElement(null)}

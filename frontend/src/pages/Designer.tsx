@@ -401,17 +401,20 @@ function DesignerCore({
       setDesignName(design.name);
     }
 
-    const designJson = design.designJson;
-    if (!Array.isArray(designJson) || designJson.length === 0) return;
+    const designJson = typeof design.designJson === 'string' ? JSON.parse(design.designJson) : design.designJson;
 
-    const normalizedPages = designJson[0]?.elements ? designJson : [{ id: 'default', name: 'Side 1', elements: designJson }];
+    // Normalize pages accurately
+    const pages = Array.isArray(designJson)
+      ? designJson
+      : (designJson.pages || [{ id: 'default', name: 'Side 1', elements: designJson.elements || [] }]);
+
+    const firstPage = pages[0] || { elements: [] };
 
     if (mode === 'full') {
-      setPages(normalizedPages);
-      setActivePageId(normalizedPages[0].id);
-      addToHistory(normalizedPages);
+      setPages(pages);
+      setActivePageId(pages[0].id);
+      addToHistory(pages);
     } else if (mode === 'base_only') {
-      const firstPage = normalizedPages[0];
       setPages(prev => prev.map(p => p.id === activePageId ? {
         ...p,
         baseImage: firstPage.baseImage,
@@ -552,7 +555,7 @@ function DesignerCore({
     }
   };
 
-  const currentPages = useMemo(() => pages.find(p => p.id === activePageId || pages[0]), [pages, activePageId]);
+  const currentPages = useMemo(() => pages.find(p => p.id === activePageId) || pages[0] || { id: 'default', name: 'Side 1', elements: [] }, [pages, activePageId]);
   const currentElements = currentPages?.elements || [];
   const activeElement = useMemo(() => currentElements.find(e => e.id === selectedElement), [currentElements, selectedElement]);
 

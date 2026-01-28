@@ -1,19 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { Canvas } from '../components/Canvas';
 import html2canvas from 'html2canvas';
 import { Spinner, Text, Box, Button, InlineStack, Card, Page, Layout } from '@shopify/polaris';
-import { DownloadIcon } from '@shopify/polaris-icons';
+import { ExportIcon } from '@shopify/polaris-icons';
 
 export default function ProductionExport() {
     const { designId } = useParams();
-    const [searchParams] = useSearchParams();
     const [design, setDesign] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
     const fetch = useAuthenticatedFetch();
-    const canvasRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchDesign = async () => {
@@ -81,9 +79,13 @@ export default function ProductionExport() {
         );
     }
 
-    const designData = typeof design.designJson === 'string' ? JSON.parse(design.designJson) : design.designJson;
-    // Production view defaults: 100% zoom, no saferange, etc.
-    const pages = designData.pages || [];
+    const designJson = typeof design.designJson === 'string' ? JSON.parse(design.designJson) : design.designJson;
+
+    // Normalize pages accurately
+    const pages = Array.isArray(designJson)
+        ? designJson
+        : (designJson.pages || [{ id: 'default', elements: designJson.elements || [] }]);
+
     const firstPage = pages[0] || { elements: [] };
 
     return (
@@ -94,7 +96,7 @@ export default function ProductionExport() {
                 content: 'Download PNG (High-Res)',
                 onAction: () => handleExport(4),
                 loading: isExporting,
-                icon: DownloadIcon
+                icon: ExportIcon
             }}
         >
             <Layout>
@@ -122,8 +124,8 @@ export default function ProductionExport() {
                                     showRulers={false}
                                     unit="mm"
                                     enableBounce={false}
-                                    paperSize={designData.paperSize || 'A4'}
-                                    customPaperDimensions={designData.customPaperDimensions || { width: 210, height: 297 }}
+                                    paperSize={designJson.paperSize || 'A4'}
+                                    customPaperDimensions={designJson.customPaperDimensions || { width: 210, height: 297 }}
                                     safeAreaPadding={0}
                                     safeAreaShape="rectangle"
                                     safeAreaOffset={{ x: 0, y: 0 }}

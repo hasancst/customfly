@@ -146,7 +146,7 @@ export function Summary({
   };
 
   const hasVariants = React.useMemo(() => {
-    if (shopifyVariants.length === 0) return false;
+    if (!shopifyVariants || shopifyVariants.length === 0) return false;
     if (shopifyVariants.length > 1) return true;
     return shopifyVariants[0].title.toLowerCase() !== 'default title';
   }, [shopifyVariants]);
@@ -168,7 +168,7 @@ export function Summary({
                     <Label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">{option.name}</Label>
                     <Select value={(idx === 0 ? selectedVariant?.option1 : idx === 1 ? selectedVariant?.option2 : selectedVariant?.option3) || ""} onValueChange={(val) => handleOptionChange(idx, val)}>
                       <SelectTrigger className="h-9 rounded-lg text-sm bg-gray-50 border-gray-100"><SelectValue /></SelectTrigger>
-                      <SelectContent>{option.values.map(val => <SelectItem key={val} value={val}>{val}</SelectItem>)}</SelectContent>
+                      <SelectContent>{option.values?.map(val => <SelectItem key={val} value={val}>{val}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 ))}
@@ -306,7 +306,7 @@ export function Summary({
           </Card>
 
           <Card className="border-0 shadow-lg rounded-2xl p-4 bg-white">
-            <div className="flex items-center gap-2 mb-4"><Layers className="w-4 h-4 text-gray-700" /> <h3 className="font-semibold text-gray-900">Layers</h3> <span className="ml-auto text-xs text-gray-500">{elements.length}</span></div>
+            <div className="flex items-center gap-2 mb-4"><Layers className="w-4 h-4 text-gray-700" /> <h3 className="font-semibold text-gray-900">Layers</h3> <span className="ml-auto text-xs text-gray-500">{elements?.length || 0}</span></div>
             <div className="space-y-2">
               {[...elements]
                 .filter(el => !isPublicMode || el.isEditableByCustomer)
