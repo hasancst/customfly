@@ -5,6 +5,8 @@ import AssetDetail from '@/pages/AssetDetail';
 import Settings from '@/pages/Settings';
 import Orders from '@/pages/Orders';
 import ProductionExport from '@/pages/ProductionExport';
+import GlobalSettingsDesigner from '@/pages/GlobalSettingsDesigner';
+import Pricing from '@/pages/Pricing';
 import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
 import { RoutePropagator } from '@/components/RoutePropagator';
@@ -18,8 +20,12 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
 
     const LinkComponent = ({ children, url, ...rest }: any) => {
+        const location = useLocation();
+        const search = location.search;
+        const newUrl = url + (url.includes('?') ? '&' : '?') + (search.startsWith('?') ? search.substring(1) : search);
+
         return (
-            <RouterLink to={url} {...rest}>
+            <RouterLink to={newUrl} {...rest}>
                 {children}
             </RouterLink>
         );
@@ -65,6 +71,10 @@ function MainContent() {
                             destination: '/dashboard',
                         },
                         {
+                            label: 'Pricing',
+                            destination: '/pricing',
+                        },
+                        {
                             label: 'Orders',
                             destination: '/orders',
                         },
@@ -91,6 +101,8 @@ function MainContent() {
                 <Route path="/production/:designId" element={<ProductionExport />} />
                 <Route path="/assets/:id" element={<AssetDetail />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/settings/designer" element={<GlobalSettingsDesigner />} />
+                <Route path="/pricing" element={<Pricing />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/designer/:productId" element={<Designer />} />
                 <Route path="/designer" element={<Designer />} />

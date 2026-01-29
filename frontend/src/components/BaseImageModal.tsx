@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { ImageIcon, CloudUpload, ShoppingBag, CheckCircle2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface ShopifyVariant {
     id: string;
@@ -23,7 +25,7 @@ interface BaseImageModalProps {
     onClose: () => void;
     productData: ShopifyProduct | null;
     selectedVariantId: string;
-    onSelectImage: (url: string) => void;
+    onSelectImage: (url: string, isVariantImage?: boolean, applyToVariant?: boolean) => void;
     currentBaseImage?: string;
 }
 
@@ -36,6 +38,7 @@ export function BaseImageModal({
     currentBaseImage
 }: BaseImageModalProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [applyToVariant, setApplyToVariant] = React.useState(false);
 
     const selectedVariant = productData?.variants.find(v => v.id === selectedVariantId);
     const variantImage = selectedVariant?.image;
@@ -47,7 +50,7 @@ export function BaseImageModal({
         const reader = new FileReader();
         reader.onload = (event) => {
             const url = event.target?.result as string;
-            onSelectImage(url);
+            onSelectImage(url, false, applyToVariant);
             onClose();
         };
         reader.readAsDataURL(file);
@@ -65,8 +68,8 @@ export function BaseImageModal({
                 </DialogHeader>
 
                 <Tabs defaultValue="shopify" className="flex-1 flex flex-col min-h-0">
-                    <div className="px-6 py-2 bg-gray-50/50 border-b border-gray-100">
-                        <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-xl">
+                    <div className="px-6 py-2 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                        <TabsList className="bg-gray-100 p-1 rounded-xl">
                             <TabsTrigger value="shopify" className="rounded-lg text-xs font-bold gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                                 <ShoppingBag className="w-3.5 h-3.5" />
                                 Store Images
@@ -76,6 +79,17 @@ export function BaseImageModal({
                                 Custom Upload
                             </TabsTrigger>
                         </TabsList>
+
+                        <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100">
+                            <Label className="text-[10px] font-bold text-indigo-700 uppercase cursor-pointer" htmlFor="apply-variant">
+                                Assign to {selectedVariant?.title || 'Current Variant'} only
+                            </Label>
+                            <Switch
+                                id="apply-variant"
+                                checked={applyToVariant}
+                                onCheckedChange={setApplyToVariant}
+                            />
+                        </div>
                     </div>
 
                     <ScrollArea className="flex-1 p-6">
@@ -85,7 +99,7 @@ export function BaseImageModal({
                                 <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Current Variant Image</h4>
                                 {variantImage ? (
                                     <div
-                                        onClick={() => { onSelectImage(variantImage); onClose(); }}
+                                        onClick={() => { onSelectImage(variantImage!, true, applyToVariant); onClose(); }}
                                         className={`group relative aspect-square w-32 rounded-xl border-2 transition-all cursor-pointer overflow-hidden ${currentBaseImage === variantImage ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-gray-100 hover:border-indigo-300'}`}
                                     >
                                         <img src={variantImage} className="w-full h-full object-cover" alt="Variant" />
@@ -112,7 +126,7 @@ export function BaseImageModal({
                                     {productData?.images.map((img, idx) => (
                                         <div
                                             key={idx}
-                                            onClick={() => { onSelectImage(img); onClose(); }}
+                                            onClick={() => { onSelectImage(img, false, applyToVariant); onClose(); }}
                                             className={`group relative aspect-square rounded-xl border-2 transition-all cursor-pointer overflow-hidden ${currentBaseImage === img ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-gray-100 hover:border-indigo-300'}`}
                                         >
                                             <img src={img} className="w-full h-full object-cover" alt={`Product ${idx}`} />

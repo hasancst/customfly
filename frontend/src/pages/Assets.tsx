@@ -7,7 +7,7 @@ import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 
 interface Asset {
     id: string;
-    type: 'font' | 'color' | 'gallery' | 'option';
+    type: 'font' | 'color' | 'gallery' | 'option' | 'shape';
     name: string;
     value: string;
     config?: any;
@@ -49,9 +49,10 @@ export default function Assets() {
         { id: 'colors', content: 'Colors' },
         { id: 'gallery', content: 'Gallery' },
         { id: 'options', content: 'Options' },
+        { id: 'shapes', content: 'Shapes' },
     ];
 
-    const currentType = ['font', 'color', 'gallery', 'option'][selectedTab] as 'font' | 'color' | 'gallery' | 'option';
+    const currentType = ['font', 'color', 'gallery', 'option', 'shape'][selectedTab] as 'font' | 'color' | 'gallery' | 'option' | 'shape';
 
     const fetchAssets = useCallback(async () => {
         setIsLoading(true);
@@ -273,6 +274,11 @@ export default function Assets() {
             media = <div className="w-14 h-14 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
                 <Icon source={SettingsIcon} tone="success" />
             </div>;
+        } else if (asset.type === 'shape') {
+            const firstLetter = name ? name.charAt(0).toUpperCase() : 'S';
+            media = <div className="w-14 h-14 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-bold border border-blue-100 shadow-sm text-lg">
+                {firstLetter}
+            </div>;
         } else {
             const firstLetter = name ? name.charAt(0).toUpperCase() : 'F';
             media = <div className="w-14 h-14 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100 text-lg">
@@ -284,7 +290,7 @@ export default function Assets() {
             <ResourceItem
                 id={id}
                 media={media}
-                onClick={() => (asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option') ? navigate(`/assets/${id}`) : {}}
+                onClick={() => (asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option' || asset.type === 'shape') ? navigate(`/assets/${id}`) : {}}
                 persistActions
             >
                 <div className="flex items-center justify-between">
@@ -292,7 +298,7 @@ export default function Assets() {
                         <Text variant="bodyMd" fontWeight="bold" as="h3">
                             {name}
                         </Text>
-                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option') ? (
+                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option' || asset.type === 'shape') ? (
                             <div className="flex flex-col gap-0.5">
                                 {/* Details removed or managed in detail page */}
                             </div>
@@ -303,13 +309,13 @@ export default function Assets() {
                         )}
                     </div>
                     <div className="flex gap-2">
-                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option') && (
+                        {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option' || asset.type === 'shape') && (
                             <Button
                                 icon={ViewIcon}
                                 variant="tertiary"
                                 onClick={() => navigate(`/assets/${id}`)}
                             >
-                                View {asset.type === 'font' ? 'Fonts' : asset.type === 'color' ? 'Colors' : asset.type === 'gallery' ? 'Gallery' : 'Options'}
+                                View {asset.type === 'font' ? 'Fonts' : asset.type === 'color' ? 'Colors' : asset.type === 'gallery' ? 'Gallery' : asset.type === 'shape' ? 'Shapes' : 'Options'}
                             </Button>
                         )}
                         <div className="flex gap-1.5">
@@ -423,7 +429,8 @@ export default function Assets() {
                                 currentType === 'font' ? 'e.g. My Typography Set' :
                                     currentType === 'color' ? 'e.g. Brand Primary' :
                                         currentType === 'gallery' ? 'e.g. Logo Gallery' :
-                                            'e.g. General Settings'
+                                            currentType === 'shape' ? 'e.g. SVG Decorations' :
+                                                'e.g. General Settings'
                             }
                         />
                         {/* Option subtype selection removed per user request (moved to item level) */}

@@ -16,6 +16,31 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        admin: path.resolve(__dirname, 'index.html'),
+        public: path.resolve(__dirname, 'public.html'),
+      },
+      output: {
+        entryFileNames: (chunkInfo) => {
+          return chunkInfo.name === 'public'
+            ? 'assets/public-[hash].js'
+            : 'assets/admin-[hash].js';
+        },
+        chunkFileNames: (chunkInfo) => {
+          // Separate chunks for admin and public
+          const isPublic = chunkInfo.facadeModuleId?.includes('main-public') ||
+            chunkInfo.facadeModuleId?.includes('PublicApp');
+          return isPublic
+            ? 'assets/public-chunks/[name]-[hash].js'
+            : 'assets/admin-chunks/[name]-[hash].js';
+        },
+      },
+    },
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+  },
   server: {
     allowedHosts: ['custom.duniasantri.com'],
     proxy: {
@@ -24,6 +49,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/imcst_api': {
+        target: 'http://localhost:3011',
+        changeOrigin: true,
+      },
+      '/imcst_public_api': {
         target: 'http://localhost:3011',
         changeOrigin: true,
       }

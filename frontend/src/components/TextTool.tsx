@@ -180,19 +180,25 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
       return;
     }
 
-    const mmToPx = 3.7795275591;
-    const canvasW = canvasDimensions ? (canvasDimensions.width * mmToPx) : 1000;
-    const canvasH = canvasDimensions ? (canvasDimensions.height * mmToPx) : 1000;
+    const canvasW = canvasDimensions?.width || 1000;
+    const canvasH = canvasDimensions?.height || 1000;
     const centerX = (canvasW / 2) - 150;
     const centerY = (canvasH / 2) - 50;
 
-    // If we have a placeholder element (opacity 0), make it visible with user's settings
-    if (selectedElement && selectedElement.opacity === 0 && !isMonogram && !bridge) {
+    // If we have an element currently off-canvas or at default position, center it
+    const isOffCanvas = selectedElement && (selectedElement.x < -500 || (selectedElement.x === 100 && selectedElement.y === 100));
+
+    if (selectedElement && (selectedElement.opacity === 0 || isOffCanvas) && !isMonogram && !bridge) {
+      const elementWidth = selectedElement.width || 300;
+      const elementHeight = selectedElement.height || 100;
+      const finalCenterX = (canvasW / 2) - (elementWidth / 2);
+      const finalCenterY = (canvasH / 2) - (elementHeight / 2);
+
       onUpdateElement(selectedElement.id, {
         text: text || (selectedElement.type === 'textarea' ? 'New Note' : 'New Text'),
         opacity: 100,
-        x: centerX,
-        y: centerY,
+        x: finalCenterX,
+        y: finalCenterY,
         fontFamily,
         color,
         fontSize,
@@ -307,8 +313,20 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
   return (
     <div className="space-y-6 pb-4">
-      <div className="px-1 space-y-2">
-        <div className="flex items-center justify-between">
+      <div className="px-1 space-y-4">
+        {!isLockedTo3 && (
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-bold text-gray-400 uppercase">Option Label (Title)</Label>
+            <Input
+              value={selectedElement?.label || ''}
+              onChange={(e) => handleUpdate({ label: e.target.value })}
+              placeholder="e.g. Personalize Your Message"
+              className="h-9 rounded-xl border-gray-200 bg-white"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-2">
           <Label className="text-sm font-bold text-gray-700">
             {isLockedTo3 ? 'Monogram Initials' : (selectedElement?.type === 'textarea' ? 'Note Details' : 'Text Content')}
           </Label>
@@ -357,11 +375,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
           className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
         >
           <Plus className="w-5 h-5" />
-          {selectedElement?.opacity === 0
-            ? (selectedElement.type === 'textarea' ? 'Add Note Area' : 'Add New Text')
-            : selectedElement?.opacity !== 0
-              ? 'Update Text'
-              : (selectedElement?.type === 'textarea' ? 'Add Next Note' : 'Add Next Text')}
+          {selectedElement?.opacity !== 0 ? 'Update' : 'Add'}
         </Button>
 
         <div className="mt-4 space-y-2">
@@ -372,7 +386,11 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
             onValueChange={(val: any) => {
               if (val) {
                 setTextMode(val);
-                if (selectedElement) handleUpdate({ textMode: val });
+                if (selectedElement) {
+                  const updates: Partial<CanvasElement> = { textMode: val };
+                  if (val === 'shrink') updates.height = (selectedElement.fontSize || 32) * 1.5;
+                  handleUpdate(updates);
+                }
               }
             }}
             className="w-full bg-gray-50 p-1 rounded-xl border border-gray-100"

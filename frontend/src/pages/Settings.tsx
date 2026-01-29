@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Page, Layout, Card, Text, FormLayout, TextField, Select, InlineStack, Banner, Box, Checkbox, Badge } from '@shopify/polaris';
+import { Page, Layout, Card, Text, FormLayout, TextField, Select, InlineStack, Banner, Box, Checkbox, Badge, Button } from '@shopify/polaris';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
 export default function Settings() {
@@ -101,29 +101,44 @@ export default function Settings() {
                 <Layout.Section>
                     <Card>
                         <Box padding="400">
-                            <FormLayout>
-                                <Text variant="headingMd" as="h2">General Display</Text>
-                                <TextField
-                                    label="Default Call-to-Action Text"
-                                    value={buttonText}
-                                    onChange={setButtonText}
-                                    autoComplete="off"
-                                    helpText="This is the text shown on the 'Design It' buttons on your storefront."
-                                />
-                                <Select
-                                    label="Default Designer Layout"
-                                    options={[
-                                        { label: 'Redirect (New Page)', value: 'redirect' },
-                                        { label: 'Inline (Below Add to Cart)', value: 'inline' },
-                                        { label: 'Popup Modal', value: 'modal' },
-                                        { label: 'Wizard (Step by Step)', value: 'wizard' }
-                                    ]}
-                                    value={designerLayout}
-                                    onChange={setDesignerLayout}
-                                />
-                            </FormLayout>
+                            <Text as="p" variant="bodyMd">
+                                Configure your application settings and preferences here.
+                            </Text>
+                            <Box paddingBlockStart="400">
+                                <Button url="/settings/designer" variant="primary">
+                                    Open Global Product Designer
+                                </Button>
+                            </Box>
                         </Box>
                     </Card>
+
+                    <Box paddingBlockStart="400">
+                        <Card>
+                            <Box padding="400">
+                                <FormLayout>
+                                    <Text variant="headingMd" as="h2">General Display</Text>
+                                    <TextField
+                                        label="Default Call-to-Action Text"
+                                        value={buttonText}
+                                        onChange={setButtonText}
+                                        autoComplete="off"
+                                        helpText="This is the text shown on the 'Design It' buttons on your storefront."
+                                    />
+                                    <Select
+                                        label="Default Designer Layout"
+                                        options={[
+                                            { label: 'Redirect (New Page)', value: 'redirect' },
+                                            { label: 'Inline (Below Add to Cart)', value: 'inline' },
+                                            { label: 'Popup Modal', value: 'modal' },
+                                            { label: 'Wizard (Step by Step)', value: 'wizard' }
+                                        ]}
+                                        value={designerLayout}
+                                        onChange={setDesignerLayout}
+                                    />
+                                </FormLayout>
+                            </Box>
+                        </Card>
+                    </Box>
 
                     <Box paddingBlockStart="400">
                         <Card>

@@ -192,44 +192,48 @@ export const DraggableElement = memo(({
   }, [element, isDragging, isResizing, isRotating]);
 
   useEffect(() => {
-    if (element.type !== 'text' || element.textMode !== 'shrink' || !contentRef.current || !elementRef.current) {
+    if ((element.type !== 'text' && element.type !== 'textarea') || !contentRef.current || !elementRef.current) {
       if (!isResizing && !isDragging) setTextScale({ x: 1, y: 1 });
       return;
     }
 
     const measure = () => {
-      const container = elementRef.current;
-      const content = contentRef.current;
-      if (!container || !content) return;
+      requestAnimationFrame(() => {
+        const container = elementRef.current;
+        const content = contentRef.current;
+        if (!container || !content) return;
 
-      const mode = element.textMode || 'shrink';
+        const mode = element.textMode || 'shrink';
 
-      if (mode === 'wrap') {
-        // --- LOGIKA WRAP: Kotak mengikuti tinggi teks ---
-        const contentHeight = content.scrollHeight / (zoom / 100);
-        if (Math.abs(localState.height - contentHeight) > 1) {
-          setLocalState(prev => ({ ...prev, height: contentHeight }));
-          onUpdate({ height: contentHeight }, true);
-          setTextScale({ x: 1, y: 1 });
+        if (mode === 'wrap') {
+          // --- LOGIKA WRAP: Kotak mengikuti tinggi teks ---
+          const contentHeight = content.scrollHeight / (zoom / 100);
+          if (Math.abs(localState.height - contentHeight) > 1) {
+            setLocalState(prev => ({ ...prev, height: contentHeight }));
+            onUpdate({ height: contentHeight }, true);
+            setTextScale({ x: 1, y: 1 });
+          }
+        } else {
+          // --- LOGIKA SHRINK: Teks mengecil/membesar masuk ke kotak ---
+          const originalTransform = content.style.transform;
+          content.style.transform = 'none';
+
+          // Force layout recalculation for fit-content
+          const containerWidth = localState.width * (zoom / 100);
+          const containerHeight = localState.height * (zoom / 100);
+
+          const contentWidth = content.offsetWidth || content.scrollWidth;
+          const contentHeight = content.offsetHeight || content.scrollHeight;
+
+          content.style.transform = originalTransform;
+
+          if (containerWidth > 0 && containerHeight > 0 && contentWidth > 0 && contentHeight > 0) {
+            // Kita ingin teks memenuhi kotak, jadi kita gunakan rasio terkecil agar tidak terpotong
+            const uniformScale = Math.min(containerWidth / contentWidth, containerHeight / contentHeight);
+            setTextScale({ x: uniformScale, y: uniformScale });
+          }
         }
-      } else {
-        // --- LOGIKA SHRINK: Teks mengecil masuk ke kotak ---
-        const originalTransform = content.style.transform;
-        content.style.transform = 'none';
-
-        const containerWidth = localState.width * (zoom / 100);
-        const containerHeight = localState.height * (zoom / 100);
-
-        const contentWidth = content.offsetWidth || content.scrollWidth;
-        const contentHeight = content.offsetHeight || content.scrollHeight;
-
-        content.style.transform = originalTransform;
-
-        if (containerWidth > 0 && containerHeight > 0 && contentWidth > 0 && contentHeight > 0) {
-          const uniformScale = Math.min(containerWidth / contentWidth, containerHeight / contentHeight);
-          setTextScale({ x: uniformScale, y: uniformScale });
-        }
-      }
+      });
     };
 
     measure();
@@ -381,7 +385,6 @@ export const DraggableElement = memo(({
         let localOffsetY = 0;
 
         const isFieldType = ['field', 'phone', 'date'].includes(element.type);
-        const isWrapMode = element.type === 'text' && element.textMode === 'wrap';
         const maintainAspect = element.type === 'image'
           ? (element.lockAspectRatio !== false)
           : (element.type === 'monogram' || (element.type === 'text' && element.textMode === 'shrink'));
@@ -765,6 +768,23 @@ export const DraggableElement = memo(({
               engraveInvert={element.engraveInvert}
             />
           </div>
+        );
+
+      case 'shape':
+        return (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              color: element.color || '#000000',
+            }}
+            className="[&_svg]:w-full [&_svg]:h-full [&_svg]:fill-current"
+            dangerouslySetInnerHTML={{ __html: element.svgCode || '' }}
+          />
         );
 
       case 'field':
@@ -1419,7 +1439,7 @@ export const DraggableElement = memo(({
         }
       }}
       onClick={(e) => e.stopPropagation()}
-      className={`absolute ${(isResizing || isRotating || !canInteract) ? 'cursor-default' : 'cursor-move'}`}
+      className={`draggable-element ${element.type === 'text' ? 'draggable-text' : element.type === 'image' ? 'draggable-image' : element.type === 'shape' ? 'draggable-shape' : ''} absolute ${(isResizing || isRotating || !canInteract) ? 'cursor-default' : 'cursor-move'}`}
       style={{
         left: localState.x * (zoom / 100),
         top: localState.y * (zoom / 100),

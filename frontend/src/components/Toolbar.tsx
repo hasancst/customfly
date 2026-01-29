@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Type, Image, Settings2, Plus, AlignLeft, UploadCloud, Palette, ChevronDownSquare, MousePointer2, CheckSquare, Hash, Phone, Calendar, Clock, Images, ChevronLeft, Cpu } from 'lucide-react';
+import { Type, Image, Settings2, Plus, AlignLeft, UploadCloud, Palette, ChevronDownSquare, MousePointer2, CheckSquare, Hash, Phone, Calendar, Clock, Images, ChevronLeft, Cpu, Shapes, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TextTool } from '@/components/TextTool';
@@ -14,6 +14,7 @@ import { NumberTool } from '@/components/NumberTool';
 import { PhoneTool } from '@/components/PhoneTool';
 import { DateTool } from '@/components/DateTool';
 import { TimeTool } from '@/components/TimeTool';
+import { ShapeTool } from '@/components/ShapeTool';
 import { LogicTool } from './LogicTool';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CanvasElement } from '@/types';
@@ -22,7 +23,6 @@ interface ToolbarProps {
   onAddElement: (element: CanvasElement) => void;
   selectedElement?: CanvasElement;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
-  onDuplicateElement: (id: string) => void;
   onCrop?: () => void;
   elements: CanvasElement[];
   productData?: any;
@@ -31,10 +31,11 @@ interface ToolbarProps {
   onRefreshAssets?: () => void;
   onSaveAsset?: (asset: any) => Promise<any>;
   onSelectElement?: (id: string) => void;
+  onDeleteElement?: (id: string) => void;
   canvasDimensions?: { width: number; height: number };
 }
 
-export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDuplicateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, canvasDimensions }: ToolbarProps) {
+export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, canvasDimensions }: ToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
 
   const optionTypes = [
@@ -51,9 +52,13 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
     { id: 'phone', label: 'Phone Number', icon: Phone, color: 'bg-sky-500', desc: 'Contact info' },
     { id: 'date', label: 'Date Picker', icon: Calendar, color: 'bg-violet-500', desc: 'Delivery date' },
     { id: 'time', label: 'Time Picker', icon: Clock, color: 'bg-fuchsia-500', desc: 'Booking time' },
+    { id: 'shape', label: 'Shape', icon: Shapes, color: 'bg-blue-500', desc: 'Custom shapes' },
   ];
 
   const handleAddOption = (type: any) => {
+    const canvasW = canvasDimensions?.width || 1000;
+    const canvasH = canvasDimensions?.height || 1000;
+
     const commonProps = {
       x: 100, y: 100, rotation: 0, opacity: 1, zIndex: 10
     };
@@ -67,12 +72,43 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
         fontSize: 24,
         color: '#000000',
         fontFamily: 'Inter',
+        width: 300,
+        height: 100,
         x: -1000,
         y: -1000,
         opacity: 0 // Invisible
       });
     } else if (type === 'image') {
-      onAddElement({ ...commonProps, id: `img-${Date.now()}`, type: 'image', src: 'https://placehold.co/200x200?text=Upload+Image' });
+      const svgString = `
+        <svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#f1f5f9;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          <rect width="400" height="400" rx="32" fill="url(#grad)" />
+          <rect x="15" y="15" width="370" height="370" rx="24" fill="none" stroke="#6366f1" stroke-width="3" stroke-dasharray="12 12" opacity="0.2" />
+          <g transform="translate(140, 100)">
+            <circle cx="60" cy="60" r="50" fill="white" />
+            <path d="M60 40V80M40 60H80" stroke="#6366f1" stroke-width="6" stroke-linecap="round" />
+          </g>
+          <text x="200" y="260" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="24" fill="#1e293b">UPLOAD YOUR IMAGE</text>
+          <text x="200" y="300" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="14" fill="#64748b">TRANSPARENT PNG - JPG - SVG</text>
+        </svg>
+      `;
+      const placeholderSvg = `data:image/svg+xml;utf8,${encodeURIComponent(svgString.trim())}`;
+      onAddElement({
+        ...commonProps,
+        id: `img-${Date.now()}`,
+        type: 'image',
+        src: placeholderSvg,
+        x: (canvasW / 2) - 150,
+        y: (canvasH / 2) - 150,
+        width: 300,
+        height: 300,
+        opacity: 100
+      });
     } else if (type === 'textarea') {
       onAddElement({
         ...commonProps,
@@ -163,6 +199,18 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
         textAlign: 'center',
         opacity: 0
       });
+    } else if (type === 'shape') {
+      onAddElement({
+        ...commonProps,
+        id: `shape-${Date.now()}`,
+        type: 'shape',
+        svgCode: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="currentColor"/></svg>',
+        width: 100,
+        height: 100,
+        color: '#3b82f6',
+        x: canvasW / 2 - 50,
+        y: canvasH / 2 - 50,
+      });
     } else {
       // Placeholder for new types
       onAddElement({ ...commonProps, id: `${type}-${Date.now()}`, type: type as any, label: `New ${type}` });
@@ -212,19 +260,31 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm ${element.type === 'text' ? 'bg-blue-500' :
                         element.type === 'image' ? 'bg-purple-500' :
                           element.type === 'product_color' ? 'bg-orange-500' :
-                            'bg-gray-400'
+                            element.type === 'shape' ? 'bg-blue-600' :
+                              'bg-gray-400'
                         }`}>
                         {element.type === 'text' ? <Type className="w-4 h-4" /> :
                           element.type === 'image' ? <Image className="w-4 h-4" /> :
                             element.type === 'product_color' ? <Palette className="w-4 h-4" /> :
-                              <Settings2 className="w-4 h-4" />}
+                              element.type === 'shape' ? <Shapes className="w-4 h-4" /> :
+                                <Settings2 className="w-4 h-4" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-gray-900 truncate">
-                          {element.label || (element.type === 'product_color' ? 'Swatch' : element.type.charAt(0).toUpperCase() + element.type.slice(1))}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-bold text-gray-900 truncate">
+                            {element.label || (element.type === 'product_color' ? 'Swatch' : element.type.charAt(0).toUpperCase() + element.type.slice(1))}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); onDeleteElement?.(element.id); }}
+                            className="h-6 w-6 rounded-md hover:bg-red-50 group/del shrink-0"
+                          >
+                            <Trash2 className="w-3 h-3 text-gray-400 group-hover/del:text-red-500 transition-colors" />
+                          </Button>
                         </div>
                         <div className="text-[10px] text-gray-400 truncate">
-                          {element.type === 'text' ? element.text : 'Custom element'}
+                          {element.type === 'text' || element.type === 'field' || element.type === 'textarea' ? (element.text || 'No content') : 'Custom element'}
                         </div>
                       </div>
                     </button>
@@ -326,11 +386,18 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onDupl
                     selectedElement={selectedElement}
                     onUpdateElement={onUpdateElement}
                     onCrop={onCrop}
+                    canvasDimensions={canvasDimensions}
                   />
                 )}
                 {selectedElement.type === 'gallery' && (
                   <GalleryTool
                     onAddElement={onAddElement}
+                    selectedElement={selectedElement}
+                    onUpdateElement={onUpdateElement}
+                  />
+                )}
+                {selectedElement.type === 'shape' && (
+                  <ShapeTool
                     selectedElement={selectedElement}
                     onUpdateElement={onUpdateElement}
                   />

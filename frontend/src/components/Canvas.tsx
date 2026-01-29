@@ -19,12 +19,17 @@ interface CanvasProps {
   paperSize: string;
   customPaperDimensions: { width: number; height: number };
   safeAreaPadding: number;
-  safeAreaShape: 'rectangle' | 'circle' | 'oval';
+  safeAreaRadius: number;
+  safeAreaWidth?: number;
+  safeAreaHeight?: number;
   safeAreaOffset: { x: number; y: number };
   onUpdateSafeAreaOffset: (offset: { x: number; y: number }) => void;
+  onUpdateSafeAreaWidth: (width: number) => void;
+  onUpdateSafeAreaHeight: (height: number) => void;
   baseImage?: string;
   baseImageColor?: string;
   baseImageColorEnabled?: boolean;
+  baseImageAsMask?: boolean;
   baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
   isPublicMode?: boolean;
@@ -46,12 +51,17 @@ export function Canvas({
   paperSize,
   customPaperDimensions,
   safeAreaPadding,
-  safeAreaShape,
+  safeAreaRadius = 0,
+  safeAreaWidth,
+  safeAreaHeight,
   safeAreaOffset,
   onUpdateSafeAreaOffset,
+  onUpdateSafeAreaWidth,
+  onUpdateSafeAreaHeight,
   baseImage,
   baseImageColor,
   baseImageColorEnabled = false,
+  baseImageAsMask = false,
   baseImageProperties,
   onUpdateBaseImage,
   isPublicMode = false,
@@ -73,29 +83,33 @@ export function Canvas({
     }
   };
 
+  // Convert mm to pixels
+  const mmToPx = 3.7795275591;
+
   // Paper sizes in mm (width x height)
   const paperSizes: Record<string, { width: number; height: number }> = {
+    'Default': { width: 1000 / mmToPx, height: 1000 / mmToPx },
     'A4': { width: 210, height: 297 },
     'A3': { width: 297, height: 420 },
     'A5': { width: 148, height: 210 },
     'Letter': { width: 216, height: 279 },
     'Legal': { width: 216, height: 356 },
     'Tabloid': { width: 279, height: 432 },
-    'Custom': customPaperDimensions,
+    'Custom': customPaperDimensions || { width: 210, height: 297 },
   };
 
   const selectedPaper = paperSizes[paperSize] || paperSizes['A4'];
   const pxPerUnit = getPixelsPerUnit();
-  const scaledPxPerUnit = pxPerUnit * (zoom / 100);
+  const validZoom = isNaN(zoom) || zoom <= 0 ? 100 : zoom;
+  const scaledPxPerUnit = pxPerUnit * (validZoom / 100);
 
-  // Convert mm to pixels (1mm = 3.7795275591 pixels at 96 DPI)
-  const mmToPx = 3.7795275591;
   const baseWidth = selectedPaper.width * mmToPx;
   const baseHeight = selectedPaper.height * mmToPx;
-  const currentWidth = baseWidth * (zoom / 100);
-  const currentHeight = baseHeight * (zoom / 100);
+  const currentWidth = baseWidth * (validZoom / 100);
+  const currentHeight = baseHeight * (validZoom / 100);
 
   const renderRulerTicks = (orientation: 'horizontal' | 'vertical') => {
+    if (isNaN(currentWidth) || isNaN(currentHeight)) return null;
     const ticks = [];
     const length = orientation === 'horizontal' ? currentWidth : currentHeight;
     const count = Math.floor(length / scaledPxPerUnit);
@@ -115,14 +129,14 @@ export function Canvas({
             stroke="#94a3b8"
             strokeWidth="1"
           />
-          {(isTen || (unit === 'inch' && isMajor)) && (
+          {isTen && (
             <text
               x={orientation === 'horizontal' ? pos + 2 : (orientation === 'vertical' ? 2 : 0)}
               y={orientation === 'horizontal' ? 10 : (orientation === 'vertical' ? pos - 2 : 0)}
               fontSize="8"
               fill="#64748b"
               className="select-none"
-              style={{ transform: orientation === 'vertical' ? 'rotate(-90deg)' : 'none', transformOrigin: `${orientation === 'horizontal' ? pos + 2 : 2}px ${orientation === 'horizontal' ? 10 : pos - 2}px` }}
+              style={{ transform: orientation === 'vertical' ? 'rotate(-90deg)' : 'none' }}
             >
               {i}{unit}
             </text>
@@ -141,28 +155,16 @@ export function Canvas({
     >
       <div className="flex items-center justify-center min-h-full">
         <div className="relative">
-          {/* Horizontal Ruler */}
-          {showRulers && (
-            <div
-              className="absolute -top-8 left-0 overflow-hidden bg-white/50 border-t border-x border-slate-200 rounded-t-lg"
-              style={{ width: currentWidth, height: 25 }}
-            >
-              <svg width={currentWidth} height={25}>
-                {renderRulerTicks('horizontal')}
-              </svg>
-            </div>
-          )}
-
-          {/* Vertical Ruler */}
-          {showRulers && (
-            <div
-              className="absolute top-0 -left-8 overflow-hidden bg-white/50 border-l border-y border-slate-200 rounded-l-lg"
-              style={{ width: 25, height: currentHeight }}
-            >
-              <svg width={25} height={currentHeight}>
-                {renderRulerTicks('vertical')}
-              </svg>
-            </div>
+          {/* Rulers */}
+          {showRulers && !isNaN(currentWidth) && (
+            <>
+              <div className="absolute -top-8 left-0 overflow-hidden bg-white/50 border-t border-x border-slate-200" style={{ width: currentWidth, height: 25 }}>
+                <svg width={currentWidth} height={25}>{renderRulerTicks('horizontal')}</svg>
+              </div>
+              <div className="absolute top-0 -left-8 overflow-hidden bg-white/50 border-l border-y border-slate-200" style={{ width: 25, height: currentHeight }}>
+                <svg width={25} height={currentHeight}>{renderRulerTicks('vertical')}</svg>
+              </div>
+            </>
           )}
 
           {/* Paper Canvas */}
@@ -170,182 +172,239 @@ export function Canvas({
             id="canvas-paper"
             className={`relative bg-white shadow-2xl overflow-hidden ${showRulers ? 'rounded-br-3xl' : 'rounded-3xl'}`}
             style={{
-              width: currentWidth,
-              height: currentHeight,
+              width: currentWidth || 1000,
+              height: currentHeight || 1000,
               backgroundColor: (productColors || {})[productVariant?.color || 'white'] || '#ffffff',
             }}
             onPointerDown={() => onSelectElement(null)}
             onClick={() => onSelectElement(null)}
           >
-            {/* Base Image Background */}
+            {/* Base Image */}
             {baseImage && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]">
                 <motion.div
                   drag
                   dragMomentum={false}
                   onDragEnd={(_, info) => {
                     onUpdateBaseImage({
-                      x: baseImageProperties.x + info.offset.x / (zoom / 100),
-                      y: baseImageProperties.y + info.offset.y / (zoom / 100),
+                      x: (baseImageProperties?.x || 0) + info.offset.x / (validZoom / 100),
+                      y: (baseImageProperties?.y || 0) + info.offset.y / (validZoom / 100),
                     });
                   }}
                   className="cursor-move select-none pointer-events-auto relative"
                   style={{
-                    x: (baseImageProperties?.x || 0) * (zoom / 100),
-                    y: (baseImageProperties?.y || 0) * (zoom / 100),
-                    scale: (baseImageProperties?.scale || 1) * (zoom / 100),
+                    x: (baseImageProperties?.x || 0) * (validZoom / 100),
+                    y: (baseImageProperties?.y || 0) * (validZoom / 100),
+                    scale: (baseImageProperties?.scale || 1) * (validZoom / 100),
                     maxWidth: 'none',
                   }}
                 >
                   <div
-                    className="relative overflow-hidden"
+                    className="relative"
                     style={{
-                      width: baseImageProperties?.crop
-                        ? `${baseImageProperties.crop.width}px`
-                        : (baseImageProperties?.width ? `${baseImageProperties.width}px` : '500px'),
-                      height: baseImageProperties?.crop
-                        ? `${baseImageProperties.crop.height}px`
-                        : (baseImageProperties?.height ? `${baseImageProperties.height}px` : '500px'),
+                      width: baseImageProperties?.width ? `${baseImageProperties.width}px` : 'auto',
+                      height: baseImageProperties?.height ? `${baseImageProperties.height}px` : 'auto',
                       backgroundColor: (baseImageColorEnabled && baseImageColor) ? baseImageColor : 'transparent',
                     }}
                   >
-                    <img
-                      src={baseImage}
-                      alt="Base"
-                      className="block max-w-none drag-none pointer-events-none relative z-10"
-                      draggable={false}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                      style={{
-                        transform: baseImageProperties?.crop
-                          ? `translate(${-baseImageProperties.crop.x}px, ${-baseImageProperties.crop.y}px)`
-                          : 'none',
-                      }}
-                    />
+                    <img src={baseImage} alt="Base" className="block max-w-none drag-none pointer-events-none" draggable={false} />
                   </div>
                 </motion.div>
               </div>
             )}
 
             {/* Safe Print Area Overlay */}
-            {/* Safe Print Area Overlay (SVG) - Now Draggable */}
-            {showSafeArea && (
+            {showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (
               <motion.div
                 drag
                 dragControls={dragControls}
+                dragListener={false}
                 dragMomentum={false}
                 dragElastic={0}
                 onDragEnd={(_, info) => {
                   onUpdateSafeAreaOffset({
-                    x: safeAreaOffset.x + info.offset.x / (zoom / 100),
-                    y: safeAreaOffset.y + info.offset.y / (zoom / 100)
+                    x: (safeAreaOffset?.x || 0) + info.offset.x / (validZoom / 100),
+                    y: (safeAreaOffset?.y || 0) + info.offset.y / (validZoom / 100)
                   });
                 }}
                 className="absolute inset-0 z-10 pointer-events-none group/safe-area imcst-preview-hide"
                 style={{
-                  x: safeAreaOffset.x * (zoom / 100),
-                  y: safeAreaOffset.y * (zoom / 100),
+                  x: (safeAreaOffset?.x || 0) * (validZoom / 100),
+                  y: (safeAreaOffset?.y || 0) * (validZoom / 100),
                 }}
               >
-                <div className="absolute inset-0 pointer-events-none">
-                  <svg width={currentWidth} height={currentHeight}>
-                    {(() => {
-                      const p = safeAreaPadding / 100;
-                      const safeW = currentWidth * (1 - 2 * p);
-                      const safeH = currentHeight * (1 - 2 * p);
-                      const insetX = currentWidth * p;
-                      const insetY = currentHeight * p;
+                {(() => {
+                  const p = (safeAreaPadding || 0) / 100;
+                  const wPercent = safeAreaWidth !== undefined ? safeAreaWidth / 100 : (1 - 2 * p);
+                  const hPercent = safeAreaHeight !== undefined ? safeAreaHeight / 100 : (1 - 2 * p);
+                  const safeW = currentWidth * wPercent;
+                  const safeH = currentHeight * hPercent;
+                  const insetX = (currentWidth - safeW) / 2;
+                  const insetY = (currentHeight - safeH) / 2;
+                  const zoomMult = validZoom / 100;
 
-                      if (safeAreaShape === 'circle') {
-                        const r = Math.min(safeW, safeH) / 2;
-                        return (
-                          <circle
-                            cx={currentWidth / 2}
-                            cy={currentHeight / 2}
-                            r={r}
-                            fill="none"
-                            stroke="#818cf8"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                            className="opacity-50"
-                          />
-                        );
-                      } else if (safeAreaShape === 'oval') {
-                        return (
-                          <ellipse
-                            cx={currentWidth / 2}
-                            cy={currentHeight / 2}
-                            rx={safeW / 2}
-                            ry={safeH / 2}
-                            fill="none"
-                            stroke="#818cf8"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                            className="opacity-50"
-                          />
-                        );
-                      } else {
-                        return (
+                  const handleResize = (e: React.PointerEvent, direction: 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se') => {
+                    e.stopPropagation();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startW = safeW;
+                    const startH = safeH;
+                    const startInsetX = insetX;
+                    const startInsetY = insetY;
+
+                    const onPointerMove = (moveEvent: PointerEvent) => {
+                      const deltaX = (moveEvent.clientX - startX) / zoomMult;
+                      const deltaY = (moveEvent.clientY - startY) / zoomMult;
+
+                      let newW = startW;
+                      let newH = startH;
+                      let newInsetX = startInsetX;
+                      let newInsetY = startInsetY;
+
+                      if (direction.includes('e')) {
+                        newW = startW + deltaX;
+                      }
+                      if (direction.includes('w')) {
+                        newW = startW - deltaX;
+                        newInsetX = startInsetX + deltaX;
+                      }
+                      if (direction.includes('s')) {
+                        newH = startH + deltaY;
+                      }
+                      if (direction.includes('n')) {
+                        newH = startH - deltaY;
+                        newInsetY = startInsetY + deltaY;
+                      }
+
+                      // Clamp values
+                      newW = Math.max(10, Math.min(currentWidth, newW));
+                      newH = Math.max(10, Math.min(currentHeight, newH));
+
+                      let finalWPercent = newW / currentWidth;
+                      let finalHPercent = newH / currentHeight;
+
+                      if (finalWPercent > 1) finalWPercent = 1;
+                      if (finalHPercent > 1) finalHPercent = 1;
+
+                      onUpdateSafeAreaWidth(finalWPercent * 100);
+                      onUpdateSafeAreaHeight(finalHPercent * 100);
+
+                      if (direction.includes('w')) {
+                        const currentCenter = startInsetX + startW / 2;
+                        const newCenter = newInsetX + newW / 2;
+                        const offsetChange = (newCenter - currentCenter) / zoomMult;
+                        onUpdateSafeAreaOffset({ x: (safeAreaOffset?.x || 0) + offsetChange, y: safeAreaOffset?.y || 0 });
+                      }
+                      if (direction.includes('n')) {
+                        const currentMiddle = startInsetY + startH / 2;
+                        const newMiddle = newInsetY + newH / 2;
+                        const offsetChange = (newMiddle - currentMiddle) / zoomMult;
+                        onUpdateSafeAreaOffset({ x: safeAreaOffset?.x || 0, y: (safeAreaOffset?.y || 0) + offsetChange });
+                      }
+                    };
+
+                    const onPointerUp = () => {
+                      window.removeEventListener('pointermove', onPointerMove);
+                      window.removeEventListener('pointerup', onPointerUp);
+                    };
+
+                    window.addEventListener('pointermove', onPointerMove);
+                    window.addEventListener('pointerup', onPointerUp);
+                  };
+
+                  return (
+                    <>
+                      <div className="absolute inset-0 pointer-events-none">
+                        <svg width={currentWidth || 0} height={currentHeight || 0}>
                           <rect
                             x={insetX}
                             y={insetY}
                             width={safeW}
                             height={safeH}
-                            rx="8"
+                            rx={safeAreaRadius * zoomMult}
+                            ry={safeAreaRadius * zoomMult}
                             fill="none"
-                            stroke="#818cf8"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                            className="opacity-50"
+                            stroke="#4f46e5"
+                            strokeWidth="3"
                           />
-                        );
-                      }
-                    })()}
-                  </svg>
-                </div>
-                {/* Drag Handle Icon and Label */}
-                <div
-                  onPointerDown={(e) => dragControls.start(e)}
-                  className="absolute pointer-events-auto cursor-move flex items-center gap-1.5 px-2 py-1 bg-white/90 backdrop-blur-sm border border-indigo-200 rounded-full shadow-lg group-hover/safe-area:scale-110 transition-transform duration-200"
-                  style={{
-                    top: `calc(${safeAreaPadding}% - 12px)`,
-                    left: '50%',
-                    transform: 'translateX(-50%)'
-                  }}
-                >
-                  <Move className="w-3 h-3 text-indigo-600" />
-                  <span className="text-[10px] font-bold text-indigo-700 whitespace-nowrap">Safe Area</span>
-                </div>
+                        </svg>
+                      </div>
+
+                      {/* Drag Handle Icon and Label */}
+                      <div
+                        onPointerDown={(e) => dragControls.start(e)}
+                        className="absolute pointer-events-auto cursor-move flex items-center gap-1.5 px-2 py-1 bg-white/90 backdrop-blur-sm border border-indigo-200 rounded-full shadow-lg group-hover/safe-area:scale-110 transition-transform duration-200"
+                        style={{
+                          top: `${insetY - 12}px`,
+                          left: '50%',
+                          transform: 'translateX(-50%)'
+                        }}
+                      >
+                        <Move className="w-3 h-3 text-indigo-600" />
+                        <span className="text-[10px] font-bold text-indigo-700 whitespace-nowrap">Safe Area</span>
+                      </div>
+
+                      {/* Resize Handles */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        <div onPointerDown={(e) => handleResize(e, 'n')} className="absolute pointer-events-auto cursor-ns-resize" style={{ top: insetY - 4, left: insetX + 10, width: safeW - 20, height: 8 }} />
+                        <div onPointerDown={(e) => handleResize(e, 's')} className="absolute pointer-events-auto cursor-ns-resize" style={{ top: insetY + safeH - 4, left: insetX + 10, width: safeW - 20, height: 8 }} />
+                        <div onPointerDown={(e) => handleResize(e, 'e')} className="absolute pointer-events-auto cursor-ew-resize" style={{ top: insetY + 10, left: insetX + safeW - 4, width: 8, height: safeH - 20 }} />
+                        <div onPointerDown={(e) => handleResize(e, 'w')} className="absolute pointer-events-auto cursor-ew-resize" style={{ top: insetY + 10, left: insetX - 4, width: 8, height: safeH - 20 }} />
+
+                        {[
+                          { dir: 'nw', top: insetY - 4, left: insetX - 4 },
+                          { dir: 'ne', top: insetY - 4, left: insetX + safeW - 4 },
+                          { dir: 'sw', top: insetY + safeH - 4, left: insetX - 4 },
+                          { dir: 'se', top: insetY + safeH - 4, left: insetX + safeW - 4 },
+                        ].map((c) => (
+                          <div
+                            key={c.dir}
+                            onPointerDown={(e) => handleResize(e, c.dir as any)}
+                            className={`absolute pointer-events-auto w-3 h-3 bg-white border-2 border-indigo-600 rounded-full shadow-sm cursor-${c.dir}-resize`}
+                            style={{ top: c.top - 2, left: c.left - 2 }}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </motion.div>
             )}
 
-            {/* Canvas Elements */}
+            {/* Elements */}
             <div
-              className="absolute inset-0"
-              onPointerDown={() => onSelectElement(null)}
-              onClick={() => onSelectElement(null)}
+              className="absolute inset-0 z-[2]"
               style={{
-                clipPath: (() => {
-                  if (!showSafeArea) return 'none';
-                  const p = safeAreaPadding / 100;
-                  const safeW = currentWidth * (1 - 2 * p);
-                  const safeH = currentHeight * (1 - 2 * p);
-                  const insetX = (currentWidth * p) + (safeAreaOffset.x * (zoom / 100));
-                  const insetY = (currentHeight * p) + (safeAreaOffset.y * (zoom / 100));
+                ...(baseImageAsMask && baseImage ? {
+                  WebkitMaskImage: `linear-gradient(black, black), url(${baseImage})`,
+                  maskImage: `linear-gradient(black, black), url(${baseImage})`,
+                  WebkitMaskComposite: 'source-out',
+                  maskComposite: 'exclude',
+                  WebkitMaskSize: `100% 100%, ${(baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px ${(baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px`,
+                  maskSize: `100% 100%, ${(baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px ${(baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px`,
+                  WebkitMaskPosition: `0 0, calc(50% + ${(baseImageProperties?.x || 0) * (validZoom / 100)}px) calc(50% + ${(baseImageProperties?.y || 0) * (validZoom / 100)}px)`,
+                  maskPosition: `0 0, calc(50% + ${(baseImageProperties?.x || 0) * (validZoom / 100)}px) calc(50% + ${(baseImageProperties?.y || 0) * (validZoom / 100)}px)`,
+                  WebkitMaskRepeat: 'no-repeat, no-repeat',
+                  maskRepeat: 'no-repeat, no-repeat',
+                } : {}),
+                ...(showSafeArea ? (() => {
+                  const p = (safeAreaPadding || 0) / 100;
+                  const wPercent = safeAreaWidth !== undefined ? safeAreaWidth / 100 : (1 - 2 * p);
+                  const hPercent = safeAreaHeight !== undefined ? safeAreaHeight / 100 : (1 - 2 * p);
+                  const zoomMult = (validZoom / 100);
 
-                  if (safeAreaShape === 'rectangle') {
-                    return `inset(${insetY}px ${currentWidth - (insetX + safeW)}px ${currentHeight - (insetY + safeH)}px ${insetX}px round 0.5rem)`;
-                  }
-                  if (safeAreaShape === 'oval') {
-                    return `inset(${insetY}px ${currentWidth - (insetX + safeW)}px ${currentHeight - (insetY + safeH)}px ${insetX}px round 50%)`;
-                  }
-                  if (safeAreaShape === 'circle') {
-                    const r = Math.min(safeW, safeH) / 2;
-                    return `circle(${r}px at calc(50% + ${safeAreaOffset.x * (zoom / 100)}px) calc(50% + ${safeAreaOffset.y * (zoom / 100)}px))`;
-                  }
-                  return 'none';
-                })()
+                  const safeW = currentWidth * wPercent;
+                  const safeH = currentHeight * hPercent;
+
+                  const clipLeft = (currentWidth - safeW) / 2 + (safeAreaOffset.x * zoomMult);
+                  const clipRight = (currentWidth - safeW) / 2 - (safeAreaOffset.x * zoomMult);
+                  const clipTop = (currentHeight - safeH) / 2 + (safeAreaOffset.y * zoomMult);
+                  const clipBottom = (currentHeight - safeH) / 2 - (safeAreaOffset.y * zoomMult);
+
+                  return {
+                    clipPath: `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px round ${safeAreaRadius * zoomMult}px)`
+                  };
+                })() : {})
               }}
             >
               {(elements || [])
@@ -360,7 +419,7 @@ export function Canvas({
                     onUpdate={(updates: Partial<CanvasElement>, skipHistory?: boolean) => onUpdateElement(element.id, updates, skipHistory)}
                     onDelete={() => onDeleteElement(element.id)}
                     onDuplicate={() => onDuplicateElement(element.id)}
-                    zoom={zoom}
+                    zoom={validZoom}
                     enableBounce={enableBounce}
                     isPublicMode={isPublicMode}
                   />
@@ -368,16 +427,18 @@ export function Canvas({
             </div>
 
             {/* Paper Size Indicator */}
-            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg imcst-preview-hide">
-              <p className="text-xs text-gray-500 font-medium">
-                {paperSize} ({selectedPaper.width} × {selectedPaper.height} mm)
-              </p>
-            </div>
+            {!isPublicMode && (
+              <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg imcst-preview-hide">
+                <p className="text-xs text-gray-500 font-medium">
+                  {paperSize} ({selectedPaper.width} × {selectedPaper.height} mm)
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Zoom Indicator */}
+          {/* Zoom */}
           <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg border border-gray-200">
-            <span className="text-sm font-medium text-gray-700">{zoom}%</span>
+            <span className="text-sm font-medium text-gray-700">{validZoom}%</span>
           </div>
         </div>
       </div>

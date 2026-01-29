@@ -805,13 +805,13 @@ app.post("/imcst_api/config", async (req, res) => {
             selectedColorAssetId: updates.selectedColorAssetId !== undefined ? updates.selectedColorAssetId : undefined,
             safeAreaPadding: updates.safeAreaPadding !== undefined ? updates.safeAreaPadding : undefined,
             safeAreaShape: updates.safeAreaShape !== undefined ? updates.safeAreaShape : undefined,
-            safeAreaOffset: updates.safeAreaOffset !== undefined ? (updates.safeAreaOffset || {}) : undefined,
+            safeAreaOffset: updates.safeAreaOffset !== undefined ? (updates.safeAreaOffset || { x: 0, y: 0 }) : undefined,
             paperSize: updates.paperSize !== undefined ? updates.paperSize : undefined,
             customPaperDimensions: updates.customPaperDimensions !== undefined ? (updates.customPaperDimensions || {}) : undefined,
             unit: updates.unit !== undefined ? updates.unit : undefined,
             showRulers: updates.showRulers !== undefined ? !!updates.showRulers : undefined,
             showSafeArea: updates.showSafeArea !== undefined ? !!updates.showSafeArea : undefined,
-            // New fields
+            // New layout fields
             designerLayout: updates.designerLayout !== undefined ? updates.designerLayout : undefined,
             inlineSettings: updates.inlineSettings !== undefined ? updates.inlineSettings : undefined,
             modalSettings: updates.modalSettings !== undefined ? updates.modalSettings : undefined,
@@ -819,6 +819,12 @@ app.post("/imcst_api/config", async (req, res) => {
             enabledTools: updates.enabledTools !== undefined ? updates.enabledTools : undefined,
             buttonText: updates.buttonText !== undefined ? updates.buttonText : undefined,
             buttonStyle: updates.buttonStyle !== undefined ? updates.buttonStyle : undefined,
+            // New mask & safe area fields
+            baseImageAsMask: updates.baseImageAsMask !== undefined ? !!updates.baseImageAsMask : undefined,
+            safeAreaRadius: updates.safeAreaRadius !== undefined ? updates.safeAreaRadius : undefined,
+            safeAreaWidth: updates.safeAreaWidth !== undefined ? updates.safeAreaWidth : undefined,
+            safeAreaHeight: updates.safeAreaHeight !== undefined ? updates.safeAreaHeight : undefined,
+            variantBaseImages: updates.variantBaseImages !== undefined ? (updates.variantBaseImages || {}) : undefined,
         },
         create: {
             shop,
@@ -831,13 +837,13 @@ app.post("/imcst_api/config", async (req, res) => {
             selectedColorAssetId: updates.selectedColorAssetId,
             safeAreaPadding: updates.safeAreaPadding,
             safeAreaShape: updates.safeAreaShape,
-            safeAreaOffset: updates.safeAreaOffset || {},
+            safeAreaOffset: updates.safeAreaOffset || { x: 0, y: 0 },
             paperSize: updates.paperSize,
             customPaperDimensions: updates.customPaperDimensions || {},
             unit: updates.unit,
             showRulers: !!updates.showRulers,
             showSafeArea: !!updates.showSafeArea,
-            // New fields
+            // New layout fields
             designerLayout: updates.designerLayout || "redirect",
             inlineSettings: updates.inlineSettings || {},
             modalSettings: updates.modalSettings || {},
@@ -845,6 +851,12 @@ app.post("/imcst_api/config", async (req, res) => {
             enabledTools: updates.enabledTools || {},
             buttonText: updates.buttonText || "Design It",
             buttonStyle: updates.buttonStyle || {},
+            // New mask & safe area fields
+            baseImageAsMask: !!updates.baseImageAsMask,
+            safeAreaRadius: updates.safeAreaRadius || 0,
+            safeAreaWidth: updates.safeAreaWidth,
+            safeAreaHeight: updates.safeAreaHeight,
+            variantBaseImages: updates.variantBaseImages || {},
         },
     });
 
@@ -874,6 +886,140 @@ app.get("/imcst_api/configured-products", async (req, res) => {
         const shop = res.locals.shopify.session.shop;
         const configs = await prisma.merchantConfig.findMany({
             where: { shop },
+        });
+        res.json(configs);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- Shop Information API ---
+
+// GET Shop Currency (Admin)
+app.get("/imcst_api/shop/currency", async (req, res) => {
+    try {
+        const session = res.locals.shopify.session;
+        const client = new shopify.api.clients.Graphql({ session });
+        const queryString = `
+            query {
+                shop {
+                    currencyCode
+                }
+            }
+        `;
+        const response = await client.request(queryString);
+        res.json({ currency: response.data.shop.currencyCode });
+    } catch (error) {
+        console.error("Fetch shop currency error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET Shop Currency (Public)
+app.get("/imcst_public_api/shop/currency/:shop", async (req, res) => {
+    try {
+        const { shop } = req.params;
+        const offlineId = `offline_${shop}`;
+        const session = await shopify.config.sessionStorage.loadSession(offlineId);
+
+        if (!session) {
+            return res.status(404).json({ error: "Shop not found or offline session missing" });
+        }
+
+        const client = new shopify.api.clients.Graphql({ session });
+        const queryString = `
+            query {
+                shop {
+                    currencyCode
+                }
+            }
+        `;
+        const response = await client.request(queryString);
+        res.json({ currency: response.data.shop.currencyCode });
+    } catch (error) {
+        console.error("Fetch public shop currency error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- Pricing Configuration API ---
+
+// GET Pricing Config
+app.get("/imcst_api/pricing/config/:productId", async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const shop = res.locals.shopify.session.shop;
+
+        const config = await prisma.productPricingConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+        });
+
+        res.json(config || { error: "Not found" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST/PUT Pricing Config (Upsert)
+app.post("/imcst_api/pricing/config/:productId", async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const shop = res.locals.shopify.session.shop;
+        const updates = req.body;
+
+        const config = await prisma.productPricingConfig.upsert({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+            update: {
+                globalPricing: updates.globalPricing,
+                textPricing: updates.textPricing,
+                imagePricing: updates.imagePricing,
+                elementPricing: updates.elementPricing,
+                bulkPricing: updates.bulkPricing,
+                printingMethods: updates.printingMethods,
+                currency: updates.currency || "USD",
+            },
+            create: {
+                shop,
+                shopifyProductId: productId,
+                globalPricing: updates.globalPricing,
+                textPricing: updates.textPricing,
+                imagePricing: updates.imagePricing,
+                elementPricing: updates.elementPricing,
+                bulkPricing: updates.bulkPricing,
+                printingMethods: updates.printingMethods,
+                currency: updates.currency || "USD",
+            },
+        });
+
+        res.json(config);
+    } catch (error) {
+        console.error("Save pricing config error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE Pricing Config
+app.delete("/imcst_api/pricing/config/:productId", async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const shop = res.locals.shopify.session.shop;
+        await prisma.productPricingConfig.delete({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+        });
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Delete pricing config error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET All Pricing Configs for a Shop
+app.get("/imcst_api/pricing/configs", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const configs = await prisma.productPricingConfig.findMany({
+            where: { shop },
+            orderBy: { updatedAt: 'desc' }
         });
         res.json(configs);
     } catch (error) {
@@ -1105,6 +1251,119 @@ app.get("/imcst_api/assets", async (req, res) => {
     }
 });
 
+// 6. Global Design Endpoints
+app.get("/imcst_api/global_design", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const design = await prisma.savedDesign.findFirst({
+            where: { shop, id: 'global_settings_design' }
+        });
+
+        let config = null;
+        const configRec = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId: 'global_settings_config' } });
+        if (configRec) config = configRec;
+
+        res.json({
+            designJson: design ? design.designJson : null,
+            config: config
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post("/imcst_api/global_design", async (req, res) => {
+    try {
+        const { designJson, config } = req.body;
+        const shop = res.locals.shopify.session.shop;
+
+        // Save Design
+        if (designJson) {
+            await prisma.savedDesign.upsert({
+                where: { id: 'global_settings_design' },
+                update: { designJson, name: 'Global Settings', updatedAt: new Date() },
+                create: { id: 'global_settings_design', shop, name: 'Global Settings', designJson, isTemplate: true, shopifyProductId: 'global_settings' }
+            });
+        }
+
+        // Save Config
+        if (config) {
+            const { id, ...cleanConfig } = config;
+            // Ensure we don't save ephemeral 'id' or other non-schema fields
+            const data = {
+                ...cleanConfig,
+                shopifyProductId: 'global_settings_config',
+                shop
+            };
+
+            // Remove any fields that don't belong in the update/create payload if necessary, 
+            // but assuming 'config' matches schema shape roughly. 
+            // Specifically remove 'productId' if it exists in input object
+            if (data.productId) delete data.productId;
+
+            await prisma.merchantConfig.upsert({
+                where: { shop_shopifyProductId: { shop, shopifyProductId: 'global_settings_config' } },
+                update: data,
+                create: {
+                    ...data,
+                    id: 'global_config_' + Date.now(),
+                    printArea: {} // Required field
+                }
+            });
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Global setting save error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post("/imcst_api/global_design/apply_all", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+
+        // 1. Get Global Design
+        const globalDesign = await prisma.savedDesign.findFirst({ where: { shop, id: 'global_settings_design' } });
+        const globalConfig = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId: 'global_settings_config' } });
+
+        if (!globalDesign && !globalConfig) {
+            return res.status(400).json({ error: "No global settings found to apply." });
+        }
+
+        // 2. Update ALL existing designs (excluding templates and global itself)
+        // Note: This is a destructive operation on existing designs if we overwrite them completely.
+        // User said "update semua product".
+        if (globalDesign && globalDesign.designJson) {
+            // We update all designs that differ from global? Or just all? 
+            // We'll update all LOCAL designs (associated with a product).
+            // But wait, we don't want to overwrite CUSTOM user designs maybe?
+            // "kecuali di product tersebut mempunyai setingan sendiri" -> Unless product has own settings.
+            // "jika kita apply maka akan update semua product" -> If we apply, it updates all.
+            // This usually implies forcing the default onto everyone.
+
+            // To be safe, let's ONLY update Configs for now, OR update designs if they are marked as "default" (which we don't track).
+            // Let's implement updating CONFIGS primarily (Safe Area, etc). 
+            // And for designs? If we overwrite designs, we lose work. 
+            // I'll skip overwritting designs for now unless explicitly requested. I'll just apply CONFIGS.
+        }
+
+        if (globalConfig) {
+            const { id, shopifyProductId, shop: s, createdAt, updatedAt, ...configData } = globalConfig;
+
+            // Update all configs except global
+            await prisma.merchantConfig.updateMany({
+                where: { shop, NOT: { shopifyProductId: 'global_settings_config' } },
+                data: configData
+            });
+        }
+
+        res.json({ success: true, message: "Global configuration applied to all existing product protocols." });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 6. Create Asset
 // 4. Get Designs (with filter)
 app.get("/imcst_api/designs", async (req, res) => {
@@ -1228,6 +1487,436 @@ app.delete("/imcst_api/assets/:id", async (req, res) => {
     }
 });
 
+// --- Promo Code Endpoints ---
+
+// Get all codes
+app.get("/imcst_api/promo_codes", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const codes = await prisma.promoCode.findMany({
+            where: { shop },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(codes);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create/Update code
+app.post("/imcst_api/promo_codes", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const { id, code, discountType, discountValue, active, minOrderAmount, usageLimit } = req.body;
+
+        if (!code) return res.status(400).json({ error: "Code is required" });
+
+        if (id) {
+            // Update
+            const updated = await prisma.promoCode.update({
+                where: { id },
+                data: {
+                    code: code.toUpperCase(),
+                    discountType,
+                    discountValue: parseFloat(discountValue) || 0,
+                    active: active !== undefined ? active : true,
+                    minOrderAmount: parseFloat(minOrderAmount) || null,
+                    usageLimit: parseInt(usageLimit) || null
+                }
+            });
+            return res.json(updated);
+        } else {
+            // Create
+            const created = await prisma.promoCode.create({
+                data: {
+                    shop,
+                    code: code.toUpperCase(),
+                    discountType,
+                    discountValue: parseFloat(discountValue) || 0,
+                    active: active !== undefined ? active : true,
+                    minOrderAmount: parseFloat(minOrderAmount) || null,
+                    usageLimit: parseInt(usageLimit) || null
+                }
+            });
+            return res.json(created);
+        }
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Delete code
+app.delete("/imcst_api/promo_codes/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+
+        await prisma.promoCode.deleteMany({
+            where: { id, shop }
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// ==========================================
+// PUBLIC API ENDPOINTS (No Auth / CORS enabled)
+// ==========================================
+
+// Enable CORS for public endpoints
+app.use("/imcst_public_api", (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+
+// 1. Get Public Config & Design
+app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) => {
+    try {
+        const { shop, shopifyProductId } = req.params;
+
+        // Fetch Product Config
+        let config = await prisma.merchantConfig.findFirst({
+            where: { shop, shopifyProductId }
+        });
+
+        // Fallback to Global Config if no product specific config
+        if (!config) {
+            config = await prisma.merchantConfig.findFirst({
+                where: { shop, shopifyProductId: 'global_settings_config' }
+            });
+        }
+
+        // Fetch Template Design (if any) - For now we just check if there's a saved design for this product that is a template?
+        // Or if the product ITSELF has a default design.
+        // Let's assume we want to load the "Global Settings" design as a starting point if no specific design exists.
+        let initialDesign = await prisma.savedDesign.findFirst({
+            where: { shop, shopifyProductId: 'global_settings_config', isTemplate: true } // Assuming we link global design to global config id or similar
+        });
+
+        // Actually, we saved global design with id 'global_settings_design'.
+        if (!initialDesign) {
+            initialDesign = await prisma.savedDesign.findFirst({
+                where: { shop, id: 'global_settings_design' }
+            });
+        }
+
+        res.json({
+            config: config || {},
+            design: initialDesign ? initialDesign.designJson : null
+        });
+
+    } catch (error) {
+        console.error("[Public API] Error fetching product:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 2. Upload Public Design (for Add to Cart)
+// In a real app, this should probably use S3/R2/GCS. For this local setup, we'll save to disk and serve via static.
+app.post("/imcst_public_api/upload", express.json({ limit: '50mb' }), async (req, res) => {
+    try {
+        const { imageBase64, shop } = req.body;
+        if (!imageBase64) return res.status(400).json({ error: "Missing imageBase64" });
+
+        // Decode base64
+        const matches = imageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            return res.status(400).json({ error: "Invalid base64 string" });
+        }
+
+        const extension = matches[1].split('/')[1]; // e.g. png
+        const buffer = Buffer.from(matches[2], 'base64');
+
+        const filename = `design_${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+        // Ensure uploads directory exists
+        const uploadDir = resolve(STATIC_PATH, "uploads");
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+        fs.writeFileSync(resolve(uploadDir, filename), buffer);
+
+        // Return public URL (assuming env var or relative)
+        const publicUrl = `${process.env.SHOPIFY_APP_URL}/assets/uploads/${filename}`;
+
+        res.json({ url: publicUrl, filename });
+
+    } catch (error) {
+        console.error("[Public API] Upload error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 3. Calculate Public Pricing
+app.post("/imcst_public_api/pricing/calculate", async (req, res) => {
+    try {
+        const { shop, productId, elements, quantity = 1 } = req.body;
+        if (!shop || !productId) return res.status(400).json({ error: "Missing required fields" });
+
+        // Fetch Pricing Config
+        const config = await prisma.productPricingConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+        });
+
+        if (!config) {
+            return res.json({ total: 0, breakdown: {}, perUnitPrice: 0 });
+        }
+
+        let globalFee = 0;
+        let elementCharges = {};
+        let totalElementCharges = 0;
+
+        // 1. Global Fee
+        if (config.globalPricing?.enabled) {
+            globalFee = config.globalPricing.basePrice || 0;
+        }
+
+        // 2. Element Charges (Text only for Phase 1)
+        if (elements && Array.isArray(elements)) {
+            elements.forEach(el => {
+                if (el.type === 'text' || el.type === 'field' || el.type === 'textarea') {
+                    const textConfig = config.textPricing;
+                    if (textConfig && textConfig.mode !== 'free') {
+                        let charge = 0;
+                        if (textConfig.mode === 'per_field') {
+                            charge = textConfig.pricePerField || 0;
+                        } else if (textConfig.mode === 'per_character') {
+                            const charCount = (el.text || "").length;
+                            const freeChars = textConfig.freeCharacters || 0;
+                            const taxableChars = Math.max(0, charCount - freeChars);
+                            charge = taxableChars * (textConfig.pricePerCharacter || 0);
+                        }
+
+                        // Apply min/max
+                        if (textConfig.minCharge && charge < textConfig.minCharge && charge > 0) charge = textConfig.minCharge;
+                        if (textConfig.maxCharge && charge > textConfig.maxCharge) charge = textConfig.maxCharge;
+
+                        if (charge > 0) {
+                            elementCharges[el.id] = charge;
+                            totalElementCharges += charge;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 3. Image Charges
+        if (config.imagePricing?.uploadFee > 0) {
+            const imageCount = elements.filter(el => el.type === 'image' || el.type === 'upload').length;
+            if (imageCount > 0) {
+                const imgFee = imageCount * config.imagePricing.uploadFee;
+                elementCharges['imageUploads'] = imgFee;
+                totalElementCharges += imgFee;
+            }
+        }
+
+        const subtotalPerUnit = globalFee + totalElementCharges;
+        let total = subtotalPerUnit * quantity;
+        let bulkDiscount = 0;
+        let appliedTier = null;
+
+        // 4. Bulk Discounts
+        if (config.bulkPricing?.enabled && config.bulkPricing.tiers?.length > 0) {
+            const qty = parseInt(quantity) || 1;
+            const tiers = config.bulkPricing.tiers;
+
+            // Find the best matching tier
+            const sortedTiers = [...tiers].sort((a, b) => b.minQuantity - a.minQuantity);
+            const matchingTier = sortedTiers.find(t =>
+                qty >= t.minQuantity && (!t.maxQuantity || qty <= t.maxQuantity)
+            );
+
+            if (matchingTier) {
+                appliedTier = matchingTier;
+                if (matchingTier.discountType === 'percentage') {
+                    bulkDiscount = total * (matchingTier.discountValue / 100);
+                } else if (matchingTier.discountType === 'fixed') {
+                    bulkDiscount = matchingTier.discountValue * qty;
+                }
+            }
+        }
+
+        total -= bulkDiscount;
+
+        // 5. Printing Methods (Selected Method or Priority: Screen Print > Gang Sheet > DTG)
+        let printingCost = 0;
+        let printingMethodDetails = null;
+        const requestedMethod = req.body.selectedMethod;
+
+        const tryScreenPrint = () => {
+            const sp = config.printingMethods.screenPrint;
+            const setupFeePerColor = sp.setupFeePerColor || 0;
+            const printFeePerItem = sp.printFeePerItem || 0;
+            const numColors = parseInt(req.body.numColors) || 1;
+            const qty = parseInt(quantity) || 1;
+
+            const totalSetupFee = setupFeePerColor * numColors;
+            const totalPrintFee = printFeePerItem * qty;
+            const totalPrintingFee = totalSetupFee + totalPrintFee;
+
+            printingCost = totalPrintingFee / qty;
+            printingMethodDetails = {
+                method: 'Screen Print',
+                numColors,
+                setupFeePerColor,
+                printFeePerItem,
+                totalSetupFee,
+                totalPrintFee,
+                totalPrintingFee
+            };
+        };
+
+        const tryGangSheet = () => {
+            const gs = config.printingMethods.gangSheet;
+            const setupFee = gs.setupFee || 0;
+            const pricePerSheet = gs.pricePerSheet || 0;
+            const designsPerSheet = Math.max(1, gs.designsPerSheet || 1);
+
+            const qty = parseInt(quantity) || 1;
+            const requiredSheets = Math.ceil(qty / designsPerSheet);
+            const totalPrintingFee = setupFee + (pricePerSheet * requiredSheets);
+
+            printingCost = totalPrintingFee / qty; // Price per item
+            printingMethodDetails = {
+                method: 'Gang Sheet',
+                setupFee,
+                pricePerSheet,
+                designsPerSheet,
+                requiredSheets,
+                totalPrintingFee
+            };
+        };
+
+        const tryDTG = () => {
+            const dtg = config.printingMethods.dtg;
+            const basePrintFee = dtg.basePrice || 0;
+
+            // For now, default to 'medium' multiplier unless specified
+            const size = req.body.printSize || 'medium';
+            const multiplier = dtg.sizeMultipliers?.[size] || 1;
+
+            printingCost = basePrintFee * multiplier;
+            printingMethodDetails = {
+                method: 'DTG',
+                basePrintFee,
+                multiplier,
+                size
+            };
+        };
+
+        // Execution Logic
+        if (requestedMethod === 'screenPrint' && config.printingMethods?.screenPrint?.enabled) {
+            tryScreenPrint();
+        } else if (requestedMethod === 'gangSheet' && config.printingMethods?.gangSheet?.enabled) {
+            tryGangSheet();
+        } else if (requestedMethod === 'dtg' && config.printingMethods?.dtg?.enabled) {
+            tryDTG();
+        } else {
+            // Default Priority
+            if (config.printingMethods?.screenPrint?.enabled) tryScreenPrint();
+            else if (config.printingMethods?.gangSheet?.enabled) tryGangSheet();
+            else if (config.printingMethods?.dtg?.enabled) tryDTG();
+        }
+
+        total += (printingCost * quantity);
+
+        // 6. Dynamic Pricing Rules (Phase 3)
+        const appliedRules = [];
+        if (config.pricingRules && Array.isArray(config.pricingRules)) {
+            const elementsArr = elements || [];
+            const textCount = elementsArr.filter(e => e.type === 'text').length;
+            const imageCount = elementsArr.filter(e => e.type === 'image').length;
+            const totalCount = elementsArr.length;
+
+            for (const rule of config.pricingRules) {
+                let triggerValue = 0;
+                switch (rule.trigger) {
+                    case 'total_elements': triggerValue = totalCount; break;
+                    case 'text_elements': triggerValue = textCount; break;
+                    case 'image_elements': triggerValue = imageCount; break;
+                    default: continue;
+                }
+
+                let isMatch = false;
+                const threshold = parseFloat(rule.threshold) || 0;
+                switch (rule.operator) {
+                    case 'greater_than': isMatch = triggerValue > threshold; break;
+                    case 'less_than': isMatch = triggerValue < threshold; break;
+                    case 'equals': isMatch = triggerValue === threshold; break;
+                }
+
+                if (isMatch) {
+                    const value = parseFloat(rule.value) || 0;
+                    let ruleImpact = 0;
+                    if (rule.action === 'add_fee') {
+                        ruleImpact = value * quantity;
+                        total += ruleImpact;
+                    } else if (rule.action === 'multiply_subtotal') {
+                        const previousTotal = total;
+                        total *= value;
+                        ruleImpact = total - previousTotal;
+                    }
+
+                    appliedRules.push({
+                        ...rule,
+                        impact: ruleImpact
+                    });
+                }
+            }
+        }
+
+        // 7. Promo Code (Phase 3)
+        let promoDiscount = 0;
+        let appliedPromo = null;
+        const requestedPromo = req.body.promoCode;
+
+        if (requestedPromo) {
+            const promo = await prisma.promoCode.findFirst({
+                where: {
+                    shop,
+                    code: requestedPromo.toUpperCase(),
+                    active: true
+                }
+            });
+
+            if (promo) {
+                // Validate limits
+                const withinUsageLimit = !promo.usageLimit || (promo.usageCount < promo.usageLimit);
+                const withinMinAmount = !promo.minOrderAmount || (total >= promo.minOrderAmount);
+
+                if (withinUsageLimit && withinMinAmount) {
+                    if (promo.discountType === 'percentage') {
+                        promoDiscount = total * (promo.discountValue / 100);
+                    } else if (promo.discountType === 'fixed_amount') {
+                        promoDiscount = Math.min(total, promo.discountValue);
+                    }
+                    total -= promoDiscount;
+                    appliedPromo = promo;
+                }
+            }
+        }
+
+        res.json({
+            breakdown: {
+                globalFee,
+                totalElementCharges,
+                elementBreakdown,
+                bulkDiscount,
+                appliedTier,
+                printingCost,
+                printingMethodDetails,
+                appliedRules,
+                promoDiscount,
+                appliedPromo,
+                total
+            },
+            perUnitPrice: total / quantity,
+            total
+        });
+
+    } catch (error) {
+        console.error("[Public API] Pricing calculation error:", error);
+    }
+});
 
 // Serve Frontend
 app.use(shopify.cspHeaders());

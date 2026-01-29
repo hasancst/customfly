@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
 import { DeleteIcon, PlusIcon, SearchIcon, EditIcon, DragHandleIcon } from '@shopify/polaris-icons';
-import { Reorder } from 'motion/react';
+import { Reorder } from 'framer-motion';
 import { useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
@@ -23,7 +23,7 @@ const isValidHex = (hex: string) => /^#[0-9A-Fa-f]{6}$/.test(hex);
 
 interface Asset {
     id: string;
-    type: 'font' | 'color' | 'gallery' | 'option';
+    type: 'font' | 'color' | 'gallery' | 'option' | 'shape';
     name: string;
     value: string;
     config?: any;
@@ -68,6 +68,7 @@ export default function AssetDetail() {
     const [queuedOptions, setQueuedOptions] = useState<{ name: string, value: string, type: string }[]>([]);
     const [localItems, setLocalItems] = useState<ListItem[]>([]);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
+    const [svgCode, setSvgCode] = useState('');
 
     // Autocomplete states
     const [googleFontOptions, setGoogleFontOptions] = useState(POPULAR_GOOGLE_FONTS);
@@ -151,7 +152,6 @@ export default function AssetDetail() {
                 return { name: pair, url: '', id: pair };
             }).filter(i => i.name);
         }
-
         if (asset.type === 'option') {
             return safeSplit(asset.value).map(pair => {
                 const [name, val] = pair.split('|');
@@ -163,6 +163,19 @@ export default function AssetDetail() {
                     hex: isColor ? v : undefined,
                     isPattern: isImage,
                     patternUrl: isImage ? v : undefined,
+                    id: pair
+                };
+            }).filter(i => i.name);
+        }
+
+        if (asset.type === 'shape') {
+            return safeSplit(asset.value).map(pair => {
+                const parts = pair.split('|');
+                const name = parts[0];
+                const code = parts.slice(1).join('|');
+                return {
+                    name: name?.trim() || '',
+                    url: code?.trim() || '', // Store SVG code in URL for preview
                     id: pair
                 };
             }).filter(i => i.name);
@@ -259,7 +272,7 @@ export default function AssetDetail() {
         const currentList = safeSplit(asset.value);
         if (asset.type === 'font') {
             newListStr = currentList.filter(n => n !== itemName).join('\n');
-        } else if (asset.type === 'color' || asset.type === 'option') {
+        } else if (asset.type === 'color' || asset.type === 'option' || asset.type === 'shape') {
             newListStr = currentList.filter(pair => pair.split('|')[0] !== itemName).join('\n');
         } else if (asset.type === 'gallery') {
             newListStr = currentList.filter(pair => {
@@ -606,6 +619,15 @@ export default function AssetDetail() {
                 // Avoid empty strings in current list
                 const cleanCurrent = currentList.filter(Boolean);
                 newListStr = [...cleanCurrent, ...newItemsStrArr].join('\n');
+            } else if (asset.type === 'shape') {
+                if (!newColorName || !svgCode) return;
+                const valToStore = `${newColorName}|${svgCode}`;
+                if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
+                    alert("Name already exists in this group");
+                    setIsSubmitting(false);
+                    return;
+                }
+                newListStr = [...currentList, valToStore].join('\n');
             }
 
             const response = await fetch(`/imcst_api/assets/${asset.id}`, {
@@ -625,6 +647,7 @@ export default function AssetDetail() {
                 setNewName('');
                 setNewColorName('');
                 setNewColorHex('#000000');
+                setSvgCode('');
                 setPatternFile(null);
                 setSelectedGoogleFonts([]);
                 setGalleryFiles([]);
@@ -650,7 +673,8 @@ export default function AssetDetail() {
             primaryAction={{
                 content: asset.type === 'font' ? 'Add Font' :
                     asset.type === 'gallery' ? 'Add Image' :
-                        asset.type === 'option' ? 'Add Option' : 'Add Color',
+                        asset.type === 'option' ? 'Add Option' :
+                            asset.type === 'shape' ? 'Add Shape' : 'Add Color',
                 onAction: () => setIsAddModalOpen(true),
                 icon: PlusIcon
             }}
@@ -793,6 +817,12 @@ export default function AssetDetail() {
                                                             }}
                                                         />
                                                     )}
+                                                    {asset.type === 'shape' && item.url && (
+                                                        <div
+                                                            className="w-12 h-12 rounded border border-gray-100 bg-gray-50 p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                                                            dangerouslySetInnerHTML={{ __html: item.url }}
+                                                        />
+                                                    )}
                                                     <div className="flex flex-col gap-1">
                                                         <Text variant="bodyMd" fontWeight="bold" as="span">
                                                             {item.name}
@@ -882,6 +912,12 @@ export default function AssetDetail() {
                                                             backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
                                                             backgroundSize: 'cover'
                                                         }}
+                                                    />
+                                                )}
+                                                {asset.type === 'shape' && item.url && (
+                                                    <div
+                                                        className="w-12 h-12 rounded border border-gray-100 bg-gray-50 p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                                                        dangerouslySetInnerHTML={{ __html: item.url }}
                                                     />
                                                 )}
                                                 <div className="flex flex-col gap-1">
@@ -1308,40 +1344,36 @@ export default function AssetDetail() {
                                     </BlockStack>
                                 )}
 
-                                {optionItemType === 'text' && (
-                                    <p className="text-xs text-gray-400 italic">
-                                        Fill in the name and click the plus button to add it to your list.
-                                    </p>
-                                )}
+                            </BlockStack>
+                        )}
 
-                                {queuedOptions.length > 0 && (
-                                    <div className="mt-4 border-t pt-4">
-                                        <Text variant="headingSm" as="h3">Items in List ({queuedOptions.length})</Text>
-                                        <div className="mt-3 grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
-                                            {queuedOptions.map((opt, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-100 group">
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="w-8 h-8 rounded border border-gray-200"
-                                                            style={{
-                                                                backgroundColor: opt.type === 'color' ? opt.value : 'transparent',
-                                                                backgroundImage: opt.type === 'image' ? `url(${opt.value})` : 'none',
-                                                                backgroundSize: 'cover'
-                                                            }}
-                                                        />
-                                                        <Text variant="bodyMd" fontWeight="bold" as="span">{opt.name}</Text>
-                                                    </div>
-                                                    <Button
-                                                        icon={DeleteIcon}
-                                                        tone="critical"
-                                                        variant="plain"
-                                                        onClick={() => setQueuedOptions(queuedOptions.filter((_, i) => i !== idx))}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
+                        {asset.type === 'shape' && (
+                            <BlockStack gap="400">
+                                <TextField
+                                    label="Shape Name"
+                                    value={newColorName}
+                                    onChange={setNewColorName}
+                                    autoComplete="off"
+                                    placeholder="e.g. Triangle, Sparkle"
+                                />
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-sm font-medium text-gray-700">SVG Code</label>
+                                        {svgCode && (
+                                            <div className="w-8 h-8 rounded border border-gray-100 bg-gray-50 p-1 overflow-hidden flex items-center justify-center" dangerouslySetInnerHTML={{ __html: svgCode }} />
+                                        )}
                                     </div>
-                                )}
+                                    <TextField
+                                        label="SVG Input"
+                                        labelHidden
+                                        value={svgCode}
+                                        onChange={setSvgCode}
+                                        multiline={6}
+                                        autoComplete="off"
+                                        placeholder='<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0,0,100,100"><polygon points="50 0, 0 100, 100 100"></polygon></svg>'
+                                        helpText="Only accept SVG under plain text"
+                                    />
+                                </div>
                             </BlockStack>
                         )}
                     </BlockStack>

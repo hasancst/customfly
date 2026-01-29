@@ -19,7 +19,17 @@ export function useAuthenticatedFetch() {
             Authorization: `Bearer ${token}`,
         };
 
-        const response = await fetch(uri, {
+        // Append current window query params (host, shop, etc) to the URI
+        const currentSearch = window.location.search;
+        let finalUri = uri;
+        if (currentSearch) {
+            const separator = uri.includes('?') ? '&' : '?';
+            const params = new URLSearchParams(currentSearch);
+            // removing potentially conflicting params if necessary, but usually passing all is safer for context
+            finalUri = `${uri}${separator}${params.toString()}`;
+        }
+
+        const response = await fetch(finalUri, {
             ...options,
             headers,
         });

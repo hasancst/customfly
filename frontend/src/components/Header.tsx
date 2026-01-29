@@ -1,4 +1,4 @@
-import { Undo2, Redo2, Sparkles, Maximize2, Minimize2, Loader2, CloudUpload, List, Trash2, PanelRight, X, Library, Box, Layers, Image as ImageIcon, ChevronDown } from 'lucide-react';
+import { Undo2, Redo2, Sparkles, Maximize2, Minimize2, Loader2, CloudUpload, List, Trash2, PanelRight, X, Library, Box, Layers, Image as ImageIcon, ChevronDown, DollarSign, AlertCircle } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,14 @@ import {
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import { PricingTab } from './PricingTab';
 
 interface HeaderProps {
   onUndo: () => void;
@@ -28,19 +36,21 @@ interface HeaderProps {
   canUndo: boolean;
   canRedo: boolean;
   title?: string;
-  onSave?: (isTemplate?: boolean) => void;
+  onSave?: (isTemplate?: boolean, isSilent?: boolean) => void;
   designName?: string;
   onDesignNameChange?: (name: string) => void;
   isSaving?: boolean;
   savedDesigns?: any[];
-  onLoadDesign?: (design: any, mode: 'full' | 'base_only' | 'options_only') => void;
   allDesigns?: any[];
+  onLoadDesign?: (design: any, mode: 'full' | 'base_only' | 'options_only') => void;
   onDeleteDesign?: (id: string, name: string) => void;
   showSummary?: boolean;
   onToggleSummary?: () => void;
   onClose?: () => void;
   isPublicMode?: boolean;
   buttonText?: string;
+  lastSavedTime?: Date | null;
+  productId?: string;
 }
 
 export function Header({
@@ -62,6 +72,8 @@ export function Header({
   onClose,
   isPublicMode = false,
   buttonText = 'Design It',
+  lastSavedTime,
+  productId,
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -191,6 +203,11 @@ export function Header({
                 <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
               </div>
             )}
+            {!isSaving && lastSavedTime && (
+              <div className="absolute -bottom-5 left-0 w-full text-[9px] text-gray-400 font-medium whitespace-nowrap overflow-hidden text-center">
+                Last saved: {lastSavedTime.toLocaleTimeString()}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -283,6 +300,50 @@ export function Header({
                 </Tabs>
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+
+          {!isPublicMode && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-lg h-9 w-9 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl p-0 border-0 shadow-2xl">
+                      <DialogHeader className="p-6 pb-0">
+                        <DialogTitle className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                            <DollarSign className="w-6 h-6 text-emerald-600" />
+                          </div>
+                          Pricing Configuration
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="p-6">
+                        {productId ? (
+                          <PricingTab productId={productId} />
+                        ) : (
+                          <div className="p-12 text-center text-gray-400">
+                            <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                            <p className="font-bold">No Product Identified</p>
+                            <p className="text-xs">Pricing cannot be configured without a product ID.</p>
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Pricing Settings</p>
+              </TooltipContent>
+            </Tooltip>
           )}
 
           <Tooltip>

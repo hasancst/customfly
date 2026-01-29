@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop, Shapes, Zap } from 'lucide-react';
+import { OutputSettingsTool } from './common/OutputSettingsTool';
 import { IMAGE_PRESETS } from '../constants/filters';
-import { IMAGE_SHAPES } from '../constants/shapes';
 import {
   Collapsible,
   CollapsibleContent,
@@ -30,12 +30,16 @@ interface ImageToolProps {
   selectedElement?: CanvasElement;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   onCrop?: () => void;
+  canvasDimensions?: { width: number; height: number };
 }
 
-export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop }: ImageToolProps) {
+export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions }: ImageToolProps) {
   const [removeBgType, setRemoveBgType] = useState<'js' | 'rembg'>(selectedElement?.removeBgType || 'js');
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [userImages, setUserImages] = useState<any[]>([]);
+  const [shapeGroups, setShapeGroups] = useState<any[]>([]);
+  const [selectedShapeGroupId, setSelectedShapeGroupId] = useState<string>('all');
+  const [availableShapes, setAvailableShapes] = useState<any[]>([]);
   const fetch = useAuthenticatedFetch();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,16 +52,92 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
         console.error("Failed to fetch image gallery:", err);
       }
     }
+
+    async function fetchShapes() {
+      try {
+        const response = await fetch('/imcst_api/assets?type=shape');
+        if (response.ok) {
+          const assets = await response.json();
+          setShapeGroups(assets);
+
+          const allShapes: any[] = [];
+          assets.forEach((asset: any) => {
+            const lines = asset.value.split('\n').filter(Boolean);
+            lines.forEach((line: string) => {
+              const parts = line.split('|');
+              if (parts.length >= 2) {
+                const name = parts[0];
+                const svg = parts.slice(1).join('|');
+                allShapes.push({
+                  id: `${asset.id}-${name}`,
+                  assetId: asset.id,
+                  name,
+                  svg
+                });
+              }
+            });
+          });
+          setAvailableShapes(allShapes);
+        }
+      } catch (err) {
+        console.error("Failed to fetch shapes:", err);
+      }
+    }
+
     fetchImages();
+    fetchShapes();
   }, [fetch]);
+
+  const parseMaskFromSvg = (svgString: string) => {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgString, 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return null;
+
+      const viewBox = svg.getAttribute('viewBox') || '0 0 100 100';
+
+      const path = doc.querySelector('path');
+      if (path) {
+        const d = path.getAttribute('d');
+        if (d) return { path: d, viewBox };
+      }
+
+      const polygon = doc.querySelector('polygon');
+      if (polygon) {
+        const points = polygon.getAttribute('points');
+        if (points) return { path: points, viewBox };
+      }
+
+      const circle = doc.querySelector('circle');
+      if (circle) {
+        const cx = parseFloat(circle.getAttribute('cx') || '50');
+        const cy = parseFloat(circle.getAttribute('cy') || '50');
+        const r = parseFloat(circle.getAttribute('r') || '50');
+        const d = `M ${cx - r}, ${cy} a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`;
+        return { path: d, viewBox };
+      }
+    } catch (e) {
+      console.error("SVG Parse Error:", e);
+    }
+    return null;
+  };
+
+  const filteredShapes = availableShapes.filter(s => {
+    // Filter by user selection in dropdown only
+    if (selectedShapeGroupId !== 'all' && s.assetId !== selectedShapeGroupId) return false;
+    return true;
+  });
+
+  const availableGroups = shapeGroups; // All groups available
 
   const handleAddFromGallery = (url: string) => {
     const newElement: CanvasElement = {
       id: `image-${Date.now()}`,
       type: 'image',
       src: url,
-      x: 200,
-      y: 150,
+      x: (canvasDimensions?.width || 1000) / 2 - 100,
+      y: (canvasDimensions?.height || 1000) / 2 - 100,
       width: 200,
       height: 200,
       rotation: 0,
@@ -121,8 +201,8 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
           id: `image-${Date.now()}-${index}`,
           type: 'image',
           src: url,
-          x: 200 + (index * 20),
-          y: 150 + (index * 20),
+          x: ((canvasDimensions?.width || 1000) / 2 - 100) + (index * 20),
+          y: ((canvasDimensions?.height || 1000) / 2 - 100) + (index * 20),
           width: 200,
           height: 200,
           rotation: 0,
@@ -274,6 +354,17 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       {/* 2. Selection Specific Settings */}
       {selectedElement?.type === 'image' && (
         <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+            <div className="flex flex-col">
+              <Label className="text-xs font-bold text-gray-700 uppercase">Show on Canvas</Label>
+              <p className="text-[9px] text-gray-500">Toggle visibility of this placeholder</p>
+            </div>
+            <Switch
+              checked={selectedElement.opacity !== 0}
+              onCheckedChange={(checked) => handleUpdate({ opacity: checked ? 100 : 0 })}
+            />
+          </div>
+
           <div className="flex items-center justify-between pb-2">
             <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Image Style</Label>
             <div className="flex gap-2">
@@ -390,6 +481,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             </div>
           </div>
 
+
           {/* Image Shapes */}
           <Collapsible className="space-y-2">
             <CollapsibleTrigger asChild>
@@ -402,31 +494,91 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               </div>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-1">
-              <div className="grid grid-cols-4 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
-                {IMAGE_SHAPES.map((shape) => (
+              <div className="space-y-3 p-2 bg-gray-50 rounded-xl border border-gray-100">
+                {availableGroups.length > 1 && (
+                  <Select value={selectedShapeGroupId} onValueChange={setSelectedShapeGroupId}>
+                    <SelectTrigger className="w-full h-8 text-[10px] uppercase font-bold border-orange-100">
+                      <SelectValue placeholder="Select Group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="text-[10px] uppercase font-bold text-gray-500">All Shapes</SelectItem>
+                      {availableGroups.map(g => (
+                        <SelectItem key={g.id} value={g.id} className="text-[10px] uppercase font-bold">{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                <div className="grid grid-cols-4 gap-2">
                   <button
-                    key={shape.id}
-                    onClick={() => handleUpdate({ maskShape: shape.path, maskViewBox: shape.viewBox || '0 0 100 100' })}
-                    className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-[10px] font-bold ${selectedElement.maskShape === shape.path
+                    onClick={() => handleUpdate({ maskShape: undefined, maskViewBox: undefined })}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-[10px] font-bold ${!selectedElement.maskShape
                       ? 'bg-orange-600 border-orange-600 text-white'
                       : 'bg-white border-gray-200 text-gray-600 hover:border-orange-400'
                       }`}
                   >
                     <div className="w-8 h-8 mb-1 flex items-center justify-center">
-                      {shape.id === 'none' ? (
-                        <ImageIcon className="w-5 h-5 opacity-40" />
-                      ) : (
-                        <svg viewBox={shape.viewBox || "0 0 100 100"} className={`w-6 h-6 ${selectedElement.maskShape === shape.path ? 'fill-white' : 'fill-orange-600'}`}>
-                          {shape.path.startsWith('M') ? <path d={shape.path} /> : <polygon points={shape.path} />}
-                        </svg>
-                      )}
+                      <ImageIcon className="w-5 h-5 opacity-40" />
                     </div>
-                    <span className="truncate w-full text-center">{shape.name}</span>
+                    <span className="truncate w-full text-center">None</span>
                   </button>
-                ))}
+
+                  {filteredShapes.map((shape) => {
+                    const maskData = parseMaskFromSvg(shape.svg);
+                    return (
+                      <button
+                        key={shape.id}
+                        onClick={() => {
+                          if (maskData) {
+                            handleUpdate({ maskShape: maskData.path, maskViewBox: maskData.viewBox });
+                          }
+                        }}
+                        className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-[10px] font-bold ${selectedElement.maskShape === maskData?.path
+                          ? 'bg-orange-600 border-orange-600 text-white'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-orange-400'
+                          }`}
+                      >
+                        <div className="w-8 h-8 mb-1 flex items-center justify-center">
+                          <div
+                            className={`w-6 h-6 flex items-center justify-center shape-preview ${selectedElement.maskShape === maskData?.path ? '[&_svg]:fill-white' : '[&_svg]:fill-orange-600'}`}
+                            dangerouslySetInnerHTML={{ __html: shape.svg }}
+                          />
+                        </div>
+                        <span className="truncate w-full text-center">{shape.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Advanced Config */}
+          <Collapsible className="space-y-2">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 w-full rounded-xl bg-gray-50 border border-gray-200 cursor-pointer group hover:bg-gray-100">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-bold text-gray-700 uppercase">Advanced Config</span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-400 group-data-[state=open]:rotate-180 transition-transform" />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1">
+              <div className="p-4 bg-white rounded-xl border border-gray-200">
+                <OutputSettingsTool element={selectedElement} onUpdate={handleUpdate} />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            .shape-preview svg {
+              width: 100%;
+              height: 100%;
+              fill: currentColor;
+            }
+          `}} />
 
           {/* Filters Presets */}
           <Collapsible className="space-y-2">

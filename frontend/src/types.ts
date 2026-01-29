@@ -2,7 +2,7 @@ export type MonogramType = 'Diamond' | 'Circle' | 'Round' | 'Scallop' | 'Stacked
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'field' | 'swatch' | 'phone' | 'date' | 'map' | 'monogram' | 'gallery' | 'textarea' | 'file_upload' | 'product_color' | 'dropdown' | 'button' | 'checkbox' | 'number' | 'time';
+  type: 'text' | 'image' | 'field' | 'swatch' | 'phone' | 'date' | 'map' | 'monogram' | 'gallery' | 'textarea' | 'file_upload' | 'product_color' | 'dropdown' | 'button' | 'checkbox' | 'number' | 'time' | 'shape';
   x: number;
   y: number;
   width?: number;
@@ -65,6 +65,7 @@ export interface CanvasElement {
   };
   maskShape?: string; // Path/SVG for masking
   maskViewBox?: string; // viewBox for masking
+  allowedShapeGroups?: string[];
   lockAspectRatio?: boolean;
 
   // Engraving specific
@@ -133,6 +134,16 @@ export interface CanvasElement {
   hideLabel?: boolean;
   isEditableByCustomer?: boolean;
   logic?: ElementLogic;
+  svgCode?: string;
+  outputSettings?: OutputSettings;
+}
+
+export interface OutputSettings {
+  fileType: 'png' | 'jpg' | 'jpeg' | 'pdf' | 'svg' | 'ai' | 'eps';
+  dpi: number;
+  includeBaseMockup: boolean; // "Full output base mockup and option" vs "Option only"
+  includeOriginalFile: boolean; // Include original uploaded file
+  separateFilesByType?: boolean; // Export separated files for text, images, etc.
 }
 
 export interface VisibilityRule {
