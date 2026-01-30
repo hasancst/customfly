@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Maximize2, X, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Maximize2, X } from 'lucide-react';
+import DesignerPublic from '../../pages/DesignerPublic';
 
 interface ModalViewProps {
     productId: string;
@@ -10,9 +10,6 @@ interface ModalViewProps {
 
 export default function ModalView({ productId, shop }: ModalViewProps) {
     const [isOpen, setIsOpen] = useState(false);
-
-    // Logic to fetch config/design would go here similar to EmbeddedView
-    // But we might only fetch when modal opens
 
     return (
         <div>
@@ -29,13 +26,13 @@ export default function ModalView({ productId, shop }: ModalViewProps) {
                             <X className="w-5 h-5" />
                         </Button>
                     </div>
-                    <div className="flex-1 overflow-hidden relative bg-gray-100 flex items-center justify-center">
-                        <p className="text-gray-500">Full Screen Modal Designer for Product {productId}</p>
-                        {/* Full Designer Component would be rendered here */}
-                    </div>
-                    <div className="h-16 border-t bg-white flex items-center justify-end px-4 gap-2">
-                        <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                        <Button>Add to Cart</Button>
+                    <div className="flex-1 overflow-hidden relative bg-gray-100">
+                        <DesignerPublic
+                            productId={productId}
+                            shopDomain={shop}
+                            isPublicMode={true}
+                            layout="modal"
+                        />
                     </div>
                 </div>
             )}

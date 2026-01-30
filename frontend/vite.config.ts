@@ -29,13 +29,31 @@ export default defineConfig({
             : 'assets/admin-[hash].js';
         },
         chunkFileNames: (chunkInfo) => {
-          // Separate chunks for admin and public
-          const isPublic = chunkInfo.facadeModuleId?.includes('main-public') ||
-            chunkInfo.facadeModuleId?.includes('PublicApp');
-          return isPublic
-            ? 'assets/public-chunks/[name]-[hash].js'
-            : 'assets/admin-chunks/[name]-[hash].js';
+          return 'assets/chunks/[name]-[hash].js';
         },
+        manualChunks: (id) => {
+          // Group core vendors to avoid circular dependencies between UI components and Shopify libs
+          // Core React (must be loaded first)
+          if (id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/scheduler/')) {
+            return 'vendor-react';
+          }
+          // Separate Shopify-specific libs
+          if (id.includes('@shopify/polaris') ||
+            id.includes('@shopify/app-bridge')) {
+            return 'vendor-shopify';
+          }
+          // Shared UI libs (Radix, Lucide)
+          if (id.includes('@radix-ui') ||
+            id.includes('lucide-react')) {
+            return 'vendor-ui';
+          }
+          // Separate heavy graphic libs for lazy loading
+          if (id.includes('html2canvas') || id.includes('jspdf') || id.includes('pdfjs-dist')) {
+            return 'vendor-graphics';
+          }
+        }
       },
     },
     // Increase chunk size warning limit

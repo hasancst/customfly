@@ -9,9 +9,19 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import morgan from "morgan";
 import { spawn } from "child_process";
+import NodeCache from "node-cache";
+import rateLimit from "express-rate-limit";
+
+const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: { error: "Too many uploads from this IP, please try again after 15 minutes" }
+});
 
 const prisma = new PrismaClient();
 const app = express();
@@ -127,7 +137,16 @@ console.log("SHOPIFY CONFIG:", {
     expandedScopes: Array.from(shopify.api.config.scopes.toArray())
 });
 
-app.get(shopify.config.auth.path, shopify.auth.begin());
+app.get(shopify.config.auth.path, (req, res, next) => {
+    const shop = req.query.shop;
+    if (!shop || shop === 'undefined' || shop === 'null') {
+        return res.status(400).json({
+            error: "No shop provided",
+            message: "Authentication requires a valid shop parameter."
+        });
+    }
+    next();
+}, shopify.auth.begin());
 app.get(
     shopify.config.auth.callbackPath,
     shopify.auth.callback(),
@@ -1575,6 +1594,10 @@ app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) =>
     try {
         const { shop, shopifyProductId } = req.params;
 
+        const cacheKey = `pub_prod_${shop}_${shopifyProductId}`;
+        const cached = cache.get(cacheKey);
+        if (cached) return res.json(cached);
+
         // Fetch Product Config
         let config = await prisma.merchantConfig.findFirst({
             where: { shop, shopifyProductId }
@@ -1587,24 +1610,24 @@ app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) =>
             });
         }
 
-        // Fetch Template Design (if any) - For now we just check if there's a saved design for this product that is a template?
-        // Or if the product ITSELF has a default design.
-        // Let's assume we want to load the "Global Settings" design as a starting point if no specific design exists.
+        // Fetch Template Design (if any)
         let initialDesign = await prisma.savedDesign.findFirst({
-            where: { shop, shopifyProductId: 'global_settings_config', isTemplate: true } // Assuming we link global design to global config id or similar
+            where: { shop, shopifyProductId: 'global_settings_config', isTemplate: true }
         });
 
-        // Actually, we saved global design with id 'global_settings_design'.
         if (!initialDesign) {
             initialDesign = await prisma.savedDesign.findFirst({
                 where: { shop, id: 'global_settings_design' }
             });
         }
 
-        res.json({
+        const responseData = {
             config: config || {},
             design: initialDesign ? initialDesign.designJson : null
-        });
+        };
+
+        cache.set(cacheKey, responseData);
+        res.json(responseData);
 
     } catch (error) {
         console.error("[Public API] Error fetching product:", error);
@@ -1614,7 +1637,7 @@ app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) =>
 
 // 2. Upload Public Design (for Add to Cart)
 // In a real app, this should probably use S3/R2/GCS. For this local setup, we'll save to disk and serve via static.
-app.post("/imcst_public_api/upload", express.json({ limit: '50mb' }), async (req, res) => {
+app.post("/imcst_public_api/upload", uploadLimiter, express.json({ limit: '50mb' }), async (req, res) => {
     try {
         const { imageBase64, shop } = req.body;
         if (!imageBase64) return res.status(400).json({ error: "Missing imageBase64" });

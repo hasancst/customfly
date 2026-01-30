@@ -2,18 +2,18 @@ import { useState, useEffect } from 'react';
 import { Palette, Library } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { CanvasElement } from '@/types';
-import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ShapeToolProps {
     selectedElement: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    customFetch?: any;
 }
 
-export function ShapeTool({ selectedElement, onUpdateElement }: ShapeToolProps) {
+export function ShapeTool({ selectedElement, onUpdateElement, customFetch }: ShapeToolProps) {
     const [availableShapes, setAvailableShapes] = useState<any[]>([]);
-    const fetch = useAuthenticatedFetch();
+    const fetch = customFetch || window.fetch;
 
     useEffect(() => {
         async function fetchShapes() {

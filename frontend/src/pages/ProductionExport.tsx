@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { Canvas } from '../components/Canvas';
-import html2canvas from 'html2canvas';
 import { Spinner, Text, Box, Button, InlineStack, Card, Page, Layout } from '@shopify/polaris';
 import { ExportIcon } from '@shopify/polaris-icons';
 
@@ -40,11 +39,12 @@ export default function ProductionExport() {
         }
 
         try {
+            const html2canvas = (await import('html2canvas')).default;
             const canvas = await html2canvas(canvasElement, {
                 useCORS: true,
                 scale: scale, // 4x for production quality (approx 300-400 DPI depending on base size)
                 backgroundColor: null,
-                ignoreElements: (element) => {
+                ignoreElements: (element: Element) => {
                     return element.classList.contains('imcst-preview-hide');
                 }
             });
@@ -133,9 +133,14 @@ export default function ProductionExport() {
                                     paperSize={designJson.paperSize || 'A4'}
                                     customPaperDimensions={designJson.customPaperDimensions || { width: 210, height: 297 }}
                                     safeAreaPadding={0}
+                                    safeAreaRadius={0}
+                                    safeAreaWidth={210}
+                                    safeAreaHeight={297}
                                     safeAreaShape="rectangle"
                                     safeAreaOffset={{ x: 0, y: 0 }}
                                     onUpdateSafeAreaOffset={() => { }}
+                                    onUpdateSafeAreaWidth={() => { }}
+                                    onUpdateSafeAreaHeight={() => { }}
                                     baseImage={firstPage.baseImage}
                                     baseImageColor={firstPage.baseImageColor}
                                     baseImageColorEnabled={firstPage.baseImageColorEnabled}

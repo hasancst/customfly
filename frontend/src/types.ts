@@ -190,3 +190,22 @@ export interface ProductVariant {
   size: string;
   material: string;
 }
+
+export interface PageData {
+  id: string;
+  name: string;
+  elements: CanvasElement[];
+  baseImage?: string;
+  baseImageProperties?: {
+    x: number;
+    y: number;
+    scale: number;
+    width?: number;
+    height?: number;
+    crop?: { x: number; y: number; width: number; height: number };
+  };
+  baseImageColor?: string;
+  baseImageColorEnabled?: boolean;
+  useVariantImage?: boolean;
+  baseImageAsMask?: boolean;
+}

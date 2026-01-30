@@ -1,6 +1,6 @@
 import { CanvasElement, VisibilityRule } from '../types';
 
-export const compareValues = (currentValue: any, operator: string, targetValue: any): boolean => {
+const compareValues = (currentValue: any, operator: string, targetValue: any): boolean => {
     const normCurrent = String(currentValue).toLowerCase();
     const normTarget = String(targetValue).toLowerCase();
 

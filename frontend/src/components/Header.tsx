@@ -28,7 +28,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { PricingTab } from './PricingTab';
 
 interface HeaderProps {
   onUndo: () => void;
@@ -51,6 +50,7 @@ interface HeaderProps {
   buttonText?: string;
   lastSavedTime?: Date | null;
   productId?: string;
+  pricingConfigComponent?: React.ReactNode;
 }
 
 export function Header({
@@ -74,6 +74,7 @@ export function Header({
   buttonText = 'Design It',
   lastSavedTime,
   productId,
+  pricingConfigComponent,
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -326,13 +327,13 @@ export function Header({
                         </DialogTitle>
                       </DialogHeader>
                       <div className="p-6">
-                        {productId ? (
-                          <PricingTab productId={productId} />
+                        {pricingConfigComponent ? (
+                          pricingConfigComponent
                         ) : (
                           <div className="p-12 text-center text-gray-400">
                             <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                            <p className="font-bold">No Product Identified</p>
-                            <p className="text-xs">Pricing cannot be configured without a product ID.</p>
+                            <p className="font-bold">Not Available</p>
+                            <p className="text-xs">Pricing configuration is only available in Admin mode.</p>
                           </div>
                         )}
                       </div>

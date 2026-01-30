@@ -62,7 +62,7 @@ export default function Pricing() {
                             <Box padding="600">
                                 {selectedTab === 0 ? (
                                     <div className="max-w-3xl mx-auto">
-                                        <PricingTab productId="global_settings_config" />
+                                        <PricingTab productId="global_settings_config" customFetch={fetch} />
                                     </div>
                                 ) : selectedTab === 1 ? (
                                     <ResourceList

@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { CanvasElement } from '@/types';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -31,16 +30,17 @@ interface ImageToolProps {
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   onCrop?: () => void;
   canvasDimensions?: { width: number; height: number };
+  customFetch?: any;
 }
 
-export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions }: ImageToolProps) {
+export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions, customFetch }: ImageToolProps) {
   const [removeBgType, setRemoveBgType] = useState<'js' | 'rembg'>(selectedElement?.removeBgType || 'js');
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [userImages, setUserImages] = useState<any[]>([]);
   const [shapeGroups, setShapeGroups] = useState<any[]>([]);
   const [selectedShapeGroupId, setSelectedShapeGroupId] = useState<string>('all');
   const [availableShapes, setAvailableShapes] = useState<any[]>([]);
-  const fetch = useAuthenticatedFetch();
+  const fetch = customFetch || window.fetch;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {

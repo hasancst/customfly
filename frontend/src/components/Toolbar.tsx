@@ -33,9 +33,10 @@ interface ToolbarProps {
   onSelectElement?: (id: string) => void;
   onDeleteElement?: (id: string) => void;
   canvasDimensions?: { width: number; height: number };
+  customFetch?: any;
 }
 
-export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, canvasDimensions }: ToolbarProps) {
+export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, canvasDimensions, customFetch }: ToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
 
   const optionTypes = [
@@ -378,6 +379,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     selectedElement={selectedElement}
                     onUpdateElement={onUpdateElement}
                     canvasDimensions={canvasDimensions}
+                    customFetch={customFetch}
                   />
                 )}
                 {selectedElement.type === 'image' && (
@@ -387,6 +389,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     onUpdateElement={onUpdateElement}
                     onCrop={onCrop}
                     canvasDimensions={canvasDimensions}
+                    customFetch={customFetch}
                   />
                 )}
                 {selectedElement.type === 'gallery' && (
@@ -394,6 +397,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     onAddElement={onAddElement}
                     selectedElement={selectedElement}
                     onUpdateElement={onUpdateElement}
+                    customFetch={customFetch}
                   />
                 )}
                 {selectedElement.type === 'shape' && (
@@ -418,6 +422,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     userOptions={userOptions}
                     onRefreshAssets={onRefreshAssets}
                     onSaveAsset={onSaveAsset}
+                    customFetch={customFetch}
                   />
                 )}
                 {selectedElement.type === 'dropdown' && (

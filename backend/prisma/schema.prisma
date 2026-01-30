@@ -141,3 +141,15 @@ model PromoCode {
   @@unique([shop, code])
   @@index([shop])
 }
+
+model DesignUpload {
+  id        String   @id @default(uuid())
+  shop      String
+  productId String
+  filename  String
+  url       String
+  size      Int
+  createdAt DateTime @default(now())
+  
+  @@index([shop, productId])
+}

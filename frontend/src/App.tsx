@@ -14,15 +14,32 @@ import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink, useLocation
 import { Provider as AppBridgeProvider, NavigationMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisProvider, Frame } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
-import "@shopify/polaris/build/esm/styles.css";
 
 export default function App() {
-    const urlParams = new URLSearchParams(window.location.search);
+    const rawParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams();
+    rawParams.forEach((val, key) => {
+        if (val !== 'undefined' && val !== 'null' && val !== '') {
+            urlParams.set(key, val);
+        }
+    });
+    const cleanSearch = urlParams.toString() ? `?${urlParams.toString()}` : '';
 
     const LinkComponent = ({ children, url, ...rest }: any) => {
         const location = useLocation();
         const search = location.search;
-        const newUrl = url + (url.includes('?') ? '&' : '?') + (search.startsWith('?') ? search.substring(1) : search);
+
+        // Sanitize search params for internal links
+        const params = new URLSearchParams(search);
+        const cleanParams = new URLSearchParams();
+        params.forEach((val, key) => {
+            if (val !== 'undefined' && val !== 'null' && val !== '') {
+                cleanParams.set(key, val);
+            }
+        });
+        const sanitizedSearch = cleanParams.toString() ? `?${cleanParams.toString()}` : '';
+
+        const newUrl = url + (url.includes('?') ? '&' : (sanitizedSearch ? '?' : '')) + (sanitizedSearch.startsWith('?') ? sanitizedSearch.substring(1) : sanitizedSearch);
 
         return (
             <RouterLink to={newUrl} {...rest}>
@@ -45,11 +62,11 @@ export default function App() {
         <PolarisProvider i18n={enTranslations} linkComponent={LinkComponent}>
             <BrowserRouter>
                 {isPublic ? (
-                    <MainContent />
+                    <MainContent cleanSearch={cleanSearch} />
                 ) : (
                     <AppBridgeProvider config={config}>
                         <RoutePropagator />
-                        <MainContent />
+                        <MainContent cleanSearch={cleanSearch} />
                     </AppBridgeProvider>
                 )}
             </BrowserRouter>
@@ -57,7 +74,7 @@ export default function App() {
     );
 }
 
-function MainContent() {
+function MainContent({ cleanSearch }: { cleanSearch: string }) {
     const location = useLocation();
     const isDesigner = location.pathname.includes('/designer');
 
@@ -95,19 +112,18 @@ function MainContent() {
             )}
             <Routes>
                 <Route path="/dashboard" element={<AdminDashboard />} />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<Navigate to={`/dashboard${cleanSearch}`} replace />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/help" element={<Help />} />
+                <Route path="/exitiframe" element={<ExitIframe />} />
                 <Route path="/assets" element={<Assets />} />
                 <Route path="/orders" element={<Orders />} />
                 <Route path="/production/:designId" element={<ProductionExport />} />
+                <Route path="/designer/:productId" element={<Designer />} />
+                <Route path="/designer" element={<Designer />} />
                 <Route path="/assets/:id" element={<AssetDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/designer" element={<GlobalSettingsDesigner />} />
-                <Route path="/pricing" element={<Pricing />} />
-                <Route path="/help" element={<Help />} />
-                <Route path="/designer/:productId" element={<Designer />} />
-                <Route path="/designer" element={<Designer />} />
-                <Route path="/storefront/:productId" element={<StorefrontEntry />} />
-                <Route path="/exitiframe" element={<ExitIframe />} />
             </Routes>
         </>
     );
@@ -119,13 +135,3 @@ function MainContent() {
     return <Frame>{content}</Frame>;
 }
 
-import { LayoutDetector } from '@/components/storefront/LayoutDetector';
-function StorefrontEntry() {
-    const location = useLocation();
-    const productId = location.pathname.split('/').pop() || '';
-    const shop = new URLSearchParams(location.search).get('shop') || '';
-
-    if (!productId || !shop) return <div>Missing productId or shop</div>;
-
-    return <LayoutDetector productId={productId} shop={shop} />;
-}

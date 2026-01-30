@@ -23,15 +23,15 @@ import {
     SelectTrigger,
     SelectValue
 } from '@/components/ui/select';
-import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
 import { toast } from 'sonner';
 
 interface PricingTabProps {
     productId: string;
+    customFetch?: any;
 }
 
-export function PricingTab({ productId }: PricingTabProps) {
-    const fetch = useAuthenticatedFetch();
+export function PricingTab({ productId, customFetch }: PricingTabProps) {
+    const fetch = customFetch || window.fetch;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -86,6 +86,10 @@ export function PricingTab({ productId }: PricingTabProps) {
         const loadConfig = async () => {
             try {
                 const response = await fetch(`/imcst_api/pricing/config/${productId}`);
+                if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) {
+                    console.error("Failed to load pricing config: Invalid response", response.status);
+                    return;
+                }
                 const data = await response.json();
                 if (data && !data.error) {
                     setConfig(prev => ({
@@ -106,6 +110,10 @@ export function PricingTab({ productId }: PricingTabProps) {
         const loadCurrency = async () => {
             try {
                 const response = await fetch('/imcst_api/shop/currency');
+                if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) {
+                    console.error("Failed to load shop currency: Invalid response", response.status);
+                    return;
+                }
                 const data = await response.json();
                 if (data.currency) {
                     setCurrency(data.currency);

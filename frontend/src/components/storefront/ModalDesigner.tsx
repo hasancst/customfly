@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DesignerPublic } from '../../pages/Designer';
+import DesignerPublic from '../../pages/DesignerPublic';
 
 interface ModalDesignerProps {
     productId: string;

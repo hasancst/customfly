@@ -113,8 +113,6 @@ export function Summary({
   onToggleSafeArea,
   safeAreaPadding,
   onSafeAreaPaddingChange,
-  safeAreaRadius = 0,
-  onSafeAreaRadiusChange,
   onResetSafeAreaOffset,
   onReset,
   shopifyVariants = [],
@@ -134,13 +132,10 @@ export function Summary({
   shopifyOptions = [],
   onToggleSummary,
   safeAreaOffset = { x: 0, y: 0 },
-  onOpenCropModal,
-  onOpenBaseImageModal,
   baseImageColorEnabled = true,
   onBaseImageColorEnabledChange,
   baseImageColor = '',
   onBaseImageColorChange,
-  colorPalette = [],
   activePaletteColors = [],
   designerLayout = 'redirect',
   onDesignerLayoutChange,
@@ -151,7 +146,6 @@ export function Summary({
   onToggleBaseImageAsMask,
   productOutputSettings,
   onProductOutputSettingsChange,
-  onUpdateElement,
 }: SummaryProps) {
   const selectedVariant = React.useMemo(() =>
     (shopifyVariants || []).find(v => v.id === selectedVariantId),
@@ -365,7 +359,7 @@ export function Summary({
                   <Select value={designerLayout} onValueChange={onDesignerLayoutChange}>
                     <SelectTrigger className="h-9 rounded-lg bg-white border-amber-200 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="redirect">Redirect to Designer</SelectItem>
+                      <SelectItem value="redirect">Open Designer</SelectItem>
                       <SelectItem value="inline">Inline on Product Page</SelectItem>
                       <SelectItem value="modal">Modal Popup</SelectItem>
                       <SelectItem value="wizard">Step-by-Step Wizard</SelectItem>

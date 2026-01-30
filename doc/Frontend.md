@@ -51,10 +51,10 @@ frontend/
 ```
 
 ### Masalah
-❌ `PublicApp.tsx` tidak punya entry point sendiri  
-❌ Build hanya menghasilkan satu bundle (admin + public)  
-❌ Public app masih load Polaris dependencies (tidak efisien)  
-❌ Tidak ada layout separation antara admin dan public  
+✅ `PublicApp.tsx` tidak punya entry point sendiri -> **Solved** (Dibuat `main-public.tsx` & `public.html`)  
+✅ Build hanya menghasilkan satu bundle (admin + public) -> **Solved** (Output terpisah)  
+✅ Public app masih load Polaris dependencies (tidak efisien) -> **Solved** (Code split `vendor-shopify` vs `vendor-ui`)  
+✅ Tidak ada layout separation antara admin dan public -> **Solved** (`PublicLayout` created)  
 
 ---
 
@@ -121,24 +121,6 @@ Routes:
 ---
 
 ### ❌ Yang Masih Kurang
-
-#### 1. Frontend Build & Entry Points
-- [ ] `public.html` - Public app entry point
-- [ ] `main-public.tsx` - Public app initialization
-- [ ] Vite multi-entry build configuration
-- [ ] Layout separation (PublicLayout vs Polaris Frame)
-
-#### 2. Public API Endpoints (Backend)
-- [ ] `GET /imcst_public_api/config/:shop/:productId` - Product config
-- [ ] `GET /imcst_public_api/design/:shop/:productId` - Design template
-- [ ] `POST /imcst_public_api/upload` - Upload design image
-- [ ] CORS configuration untuk Shopify domains
-
-#### 3. Shopify Integration
-- [ ] App Embed extension (`extensions/app-embed/`)
-- [ ] Script loading logic untuk storefront
-- [ ] Add to Cart workflow
-- [ ] Custom properties integration (`_Design`, `_CustomizationData`)
 
 #### 4. State Management
 - [ ] Context API untuk public app
@@ -338,23 +320,23 @@ npx prisma db push
 ### Phase 1: Frontend Separation (11 tasks)
 
 #### 1.1 Entry Points & Build (4 tasks)
-- [ ] Create `frontend/public.html` <!-- id: 101 -->
-- [ ] Create `frontend/src/main-public.tsx` <!-- id: 102 -->
-- [ ] Update `frontend/vite.config.ts` untuk multi-entry build <!-- id: 103 -->
-- [ ] Test build: `npm run build` dan verify output <!-- id: 104 -->
+- [x] Create `frontend/public.html` <!-- id: 101 -->
+- [x] Create `frontend/src/main-public.tsx` <!-- id: 102 -->
+- [x] Update `frontend/vite.config.ts` untuk multi-entry build <!-- id: 103 -->
+- [x] Test build: `npm run build` dan verify output <!-- id: 104 -->
 
 #### 1.2 Layout Components (3 tasks)
-- [ ] Create `PublicLayout.tsx` <!-- id: 105 -->
-- [ ] Create `PublicHeader.tsx` <!-- id: 106 -->
-- [ ] Create `PublicFooter.tsx` <!-- id: 107 -->
+- [x] Create `PublicLayout.tsx` <!-- id: 105 -->
+- [x] Create `PublicHeader.tsx` <!-- id: 106 -->
+- [x] Create `PublicFooter.tsx` <!-- id: 107 -->
 
 #### 1.3 Update PublicApp (2 tasks)
-- [ ] Modify `PublicApp.tsx` untuk use PublicLayout <!-- id: 108 -->
-- [ ] Test all modes: embedded, modal, wizard <!-- id: 109 -->
+- [x] Modify `PublicApp.tsx` untuk use PublicLayout <!-- id: 108 -->
+- [x] Test all modes: embedded, modal, wizard <!-- id: 109 -->
 
 #### 1.4 Verification (2 tasks)
-- [ ] Check bundle sizes (public < admin) <!-- id: 110 -->
-- [ ] Test dev server untuk both apps <!-- id: 111 -->
+- [x] Check bundle sizes (public < admin) <!-- id: 110 -->
+- [x] Test dev server untuk both apps <!-- id: 111 -->
 
 ---
 

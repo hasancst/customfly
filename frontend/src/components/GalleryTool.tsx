@@ -5,15 +5,15 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CanvasElement } from '@/types';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
 interface GalleryToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    customFetch?: any;
 }
 
-export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: GalleryToolProps) {
+export function GalleryTool({ onAddElement, selectedElement, onUpdateElement, customFetch }: GalleryToolProps) {
     const [galleryMode, setGalleryMode] = useState<'all' | 'categorized'>(
         selectedElement?.galleryMode || 'categorized'
     );
@@ -22,7 +22,7 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement }: 
     const [selectedGalleries, setSelectedGalleries] = useState<string[]>(
         selectedElement?.gallerySourceIds || []
     );
-    const fetch = useAuthenticatedFetch();
+    const fetch = customFetch || window.fetch;
 
     useEffect(() => {
         if (selectedElement?.type === 'gallery') {

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import React from 'react';
 import { useAppBridge } from '@shopify/app-bridge-react';
 import { Fullscreen } from '@shopify/app-bridge/actions';
 import { Toolbar } from '../components/Toolbar';
@@ -8,7 +7,7 @@ import { Summary } from '../components/Summary';
 import { ContextualToolbar } from '../components/ContextualToolbar';
 import { ImageCropModal } from '../components/ImageCropModal';
 import { BaseImageModal } from '../components/BaseImageModal';
-import { CanvasElement } from '../types';
+import { CanvasElement, PageData } from '../types';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { ChevronLeft, Image as ImageIcon, UploadCloud, Save, Copy, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,25 +20,6 @@ import {
     DialogTrigger
 } from '@/components/ui/dialog';
 import { PricingTab } from '../components/PricingTab';
-
-interface PageData {
-    id: string;
-    name: string;
-    elements: CanvasElement[];
-    baseImage?: string;
-    baseImageProperties?: {
-        x: number;
-        y: number;
-        scale: number;
-        width?: number;
-        height?: number;
-        crop?: { x: number; y: number; width: number; height: number };
-    };
-    baseImageColor?: string;
-    baseImageColorEnabled?: boolean;
-    useVariantImage?: boolean;
-    baseImageAsMask?: boolean;
-}
 
 const parseAssetColors = (value: string) => {
     if (!value) return [];
@@ -146,13 +126,13 @@ export default function GlobalSettingsDesigner() {
     }, [shopifyApp]);
 
     const addToHistory = useCallback((currentPages: PageData[]) => {
-        setHistory(prev => {
+        setHistory((prev: PageData[][]) => {
             const newHistory = prev.slice(0, historyIndex + 1);
             newHistory.push(JSON.parse(JSON.stringify(currentPages)));
             if (newHistory.length > 50) newHistory.shift();
             return newHistory;
         });
-        setHistoryIndex(prev => prev + 1);
+        setHistoryIndex((prev: number) => prev + 1);
     }, [historyIndex]);
 
     const fetchAssets = useCallback(async () => {
@@ -502,7 +482,7 @@ export default function GlobalSettingsDesigner() {
                         onSelectedColorAssetIdChange={setSelectedColorAssetId}
                         activePaletteColors={activePaletteColors}
                         baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled}
-                        onToggleBaseImageColor={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: v } : p))}
+                        onBaseImageColorEnabledChange={(v: boolean) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: v } : p))}
                         baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
                         onBaseImageColorChange={(c) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: c } : p))}
                         baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask}

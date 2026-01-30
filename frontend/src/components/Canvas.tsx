@@ -33,6 +33,7 @@ interface CanvasProps {
   baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
   isPublicMode?: boolean;
+  safeAreaShape?: 'rectangle' | 'circle';
 }
 
 export function Canvas({
@@ -65,6 +66,7 @@ export function Canvas({
   baseImageProperties,
   onUpdateBaseImage,
   isPublicMode = false,
+  safeAreaShape = 'rectangle',
 }: CanvasProps) {
   const dragControls = useDragControls();
   const productColors: Record<string, string> = {

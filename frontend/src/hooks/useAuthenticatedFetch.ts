@@ -25,8 +25,17 @@ export function useAuthenticatedFetch() {
         if (currentSearch) {
             const separator = uri.includes('?') ? '&' : '?';
             const params = new URLSearchParams(currentSearch);
-            // removing potentially conflicting params if necessary, but usually passing all is safer for context
-            finalUri = `${uri}${separator}${params.toString()}`;
+
+            // Sanitize params: remove any "undefined" or "null" string values
+            const cleanParams = new URLSearchParams();
+            params.forEach((value, key) => {
+                if (value !== 'undefined' && value !== 'null' && value !== '') {
+                    cleanParams.set(key, value);
+                }
+            });
+
+            const paramsStr = cleanParams.toString();
+            finalUri = paramsStr ? `${uri}${separator}${paramsStr}` : uri;
         }
 
         const response = await fetch(finalUri, {
@@ -42,7 +51,10 @@ export function useAuthenticatedFetch() {
             if (authUrlHeader) {
                 redirect.dispatch(Redirect.Action.REMOTE, authUrlHeader);
             } else {
-                redirect.dispatch(Redirect.Action.REMOTE, "/api/auth");
+                const rawShop = new URLSearchParams(window.location.search).get('shop');
+                const shop = (rawShop && rawShop !== 'undefined' && rawShop !== 'null') ? rawShop : null;
+                const authUrl = shop ? `/api/auth?shop=${shop}` : "/api/auth";
+                redirect.dispatch(Redirect.Action.REMOTE, authUrl);
             }
             return response;
         }
