@@ -13,6 +13,7 @@ export default function DesignerAdmin() {
   const shopifyApp = useAppBridge();
 
   const [productData, setProductData] = useState<any>(null);
+  const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [assets, setAssets] = useState<{ fonts: any[], colors: any[], options: any[] }>({ fonts: [], colors: [], options: [] });
   const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
@@ -32,11 +33,12 @@ export default function DesignerAdmin() {
       const prodRes = await fetch(`/imcst_api/products/${productId}`);
       if (prodRes.ok) setProductData(await prodRes.json());
 
-      const [fontsRes, colorsRes, optionsRes, designsRes] = await Promise.all([
+      const [fontsRes, colorsRes, optionsRes, designsRes, configRes] = await Promise.all([
         fetch('/imcst_api/assets?type=font'),
         fetch('/imcst_api/assets?type=color'),
         fetch('/imcst_api/assets?type=option'),
-        fetch(`/imcst_api/design/product/${productId}`)
+        fetch(`/imcst_api/design/product/${productId}`),
+        fetch(`/imcst_api/config/${productId}`)
       ]);
 
       setAssets({
@@ -46,6 +48,7 @@ export default function DesignerAdmin() {
       });
 
       if (designsRes.ok) setSavedDesigns(await designsRes.json());
+      if (configRes.ok) setConfig(await configRes.json());
 
     } catch (err) {
       console.error(err);
@@ -58,6 +61,15 @@ export default function DesignerAdmin() {
 
   if (loading) return <div>Loading Admin Designer...</div>;
 
+  // Construct default pages if no designs exist, using config data
+  const hasConfig = config && !config.error;
+  const defaultPages = hasConfig ? [{
+    id: 'default',
+    name: 'Side 1',
+    elements: [],
+    baseImage: config.baseImage || '',
+    baseImageProperties: config.baseImageProperties || { x: 0, y: 0, scale: 1, width: 1000, height: 1000 }
+  }] : undefined;
 
   const latestDesign = savedDesigns && savedDesigns.length > 0
     ? [...savedDesigns].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
@@ -68,10 +80,8 @@ export default function DesignerAdmin() {
       <Toaster />
       <DesignerCore
         isPublicMode={false}
-        initialPages={latestDesign?.designJson || undefined}
-        initialConfig={latestDesign ? {
-          designName: latestDesign.name // Optional: restore name if DesignerCore supports it
-        } : {}}
+        initialPages={latestDesign?.designJson || defaultPages || undefined}
+        initialConfig={hasConfig ? config : {}}
         productId={productId}
         productData={productData}
         userFonts={assets.fonts}
@@ -81,12 +91,38 @@ export default function DesignerAdmin() {
         pricingConfigComponent={productId ? <PricingTab productId={productId} customFetch={fetch} /> : null}
         customFetch={fetch}
         onSave={async (data) => {
-          const res = await fetch('/imcst_api/design', {
+          // 1. Save Design
+          const designRes = await fetch('/imcst_api/design', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...data, shopifyProductId: productId })
+            body: JSON.stringify({
+              name: data.name,
+              designJson: data.designJson,
+              isTemplate: data.isTemplate,
+              previewUrl: data.previewUrl,
+              shopifyProductId: productId
+            })
           });
-          return res.ok ? await res.json() : null;
+
+          // 2. Save Config (MerchantConfig)
+          const configRes = await fetch('/imcst_api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId,
+              ...data.config,
+              // Special: Sync active page's base image to merchant config
+              baseImage: data.designJson[0]?.baseImage || data.config.baseImage,
+              baseImageProperties: data.designJson[0]?.baseImageProperties || data.config.baseImageProperties
+            })
+          });
+
+          if (designRes.ok && configRes.ok) {
+            // Refresh local data to sync
+            loadData();
+            return await designRes.json();
+          }
+          return null;
         }}
         onBack={() => window.history.back()}
       />

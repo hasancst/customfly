@@ -1,7 +1,7 @@
 
 import "@shopify/shopify-api/adapters/node";
 import { shopifyApi } from "@shopify/shopify-api";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
+import { restResources } from "@shopify/shopify-api/rest/admin/2026-01";
 import { PrismaClient } from "@prisma/client";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import 'dotenv/config';
@@ -15,7 +15,7 @@ const shopify = shopifyApi({
     scopes: process.env.SCOPES ? process.env.SCOPES.split(",") : [],
     hostName: process.env.SHOPIFY_APP_URL.replace(/https?:\/\//, ""),
     isEmbeddedApp: true,
-    apiVersion: "2024-10",
+    apiVersion: "2026-01",
     restResources,
 });
 

@@ -1,22 +1,33 @@
 import { useCallback } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { getSessionToken } from "@shopify/app-bridge-utils";
-import { Redirect } from "@shopify/app-bridge/actions";
 
 /**
  * A hook that returns a function to make authenticated fetch requests to the backend.
- * It manually retrieves the Shopify session token and injects it into the Authorization header.
- * This is a more robust approach when getAuthenticatedFetch fails in some environments.
+ * It retrieves the Shopify session token from App Bridge and injects it into the Authorization header.
+ * This hook MUST be used inside a component wrapped by AppBridgeProvider.
  */
 export function useAuthenticatedFetch() {
+    // Get App Bridge instance from React context (only works in admin context)
     const app = useAppBridge();
 
     return useCallback(async (uri: string, options?: any) => {
-        const token = await getSessionToken(app);
+        let token = '';
+
+        if (app) {
+            try {
+                token = await getSessionToken(app);
+                console.log('[AUTH] Session token retrieved successfully');
+            } catch (e) {
+                console.warn("[AUTH] Failed to get session token:", e);
+            }
+        } else {
+            console.warn("[AUTH] App Bridge not available");
+        }
 
         const headers = {
             ...(options?.headers || {}),
-            Authorization: `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
         // Append current window query params (host, shop, etc) to the URI
@@ -46,15 +57,13 @@ export function useAuthenticatedFetch() {
         // Handle potential re-authorization from the backend
         if (response.headers.get("X-Shopify-API-Request-Failure-Reauthorize") === "1") {
             const authUrlHeader = response.headers.get("X-Shopify-API-Request-Failure-Reauthorize-Url");
-            // Redirect to the auth URL if provided
-            const redirect = Redirect.create(app);
             if (authUrlHeader) {
-                redirect.dispatch(Redirect.Action.REMOTE, authUrlHeader);
+                window.location.href = authUrlHeader;
             } else {
                 const rawShop = new URLSearchParams(window.location.search).get('shop');
                 const shop = (rawShop && rawShop !== 'undefined' && rawShop !== 'null') ? rawShop : null;
                 const authUrl = shop ? `/api/auth?shop=${shop}` : "/api/auth";
-                redirect.dispatch(Redirect.Action.REMOTE, authUrl);
+                window.location.href = authUrl;
             }
             return response;
         }

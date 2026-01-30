@@ -1,11 +1,10 @@
 <div
-  id="pc-design-button"
-  data-mode="button"
-  data-label="{{ block.settings.button_label }}">
+  id="imcst-public-root"
+  data-product-id="{{ product.id }}"
+  data-shop="{{ shop.permanent_domain }}">
 </div>
 
-{{ 'core.js' | asset_url | script_tag }}
-{{ 'design-button.js' | asset_url | script_tag }}
+<script src="https://custom.duniasantri.com/imcst_public_api/storefront.js" async></script>
 
 {% schema %}
 {

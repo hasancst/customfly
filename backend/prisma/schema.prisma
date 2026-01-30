@@ -60,6 +60,7 @@ model MerchantConfig {
   enabledTools          Json?    // { text: true, image: true, etc }
   buttonText            String   @default("Design It")
   buttonStyle           Json?    // { color: "#000", bgColor: "#fff" }
+  outputSettings        Json?    // { fileType: "png", dpi: 300, etc }
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

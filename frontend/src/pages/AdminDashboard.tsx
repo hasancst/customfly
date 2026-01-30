@@ -93,24 +93,43 @@ export default function AdminDashboard() {
                     config: configRes.status
                 });
 
+
                 let prodData: Product[] = [];
                 let collData: Collection[] = [];
 
                 if (prodRes.ok) {
-                    const data = await prodRes.json();
-                    console.log('[DASHBOARD] Products received:', data.length);
-                    if (Array.isArray(data)) prodData = data;
+                    const contentType = prodRes.headers.get("content-type");
+                    console.log('[DASHBOARD] Products content-type:', contentType);
+                    if (!contentType?.includes("application/json")) {
+                        console.error('[DASHBOARD] Products returned non-JSON:', await prodRes.text());
+                    } else {
+                        const data = await prodRes.json();
+                        console.log('[DASHBOARD] Products received:', data.length);
+                        if (Array.isArray(data)) prodData = data;
+                    }
                 }
 
                 if (collRes.ok) {
-                    const data = await collRes.json();
-                    console.log('[DASHBOARD] Collections received:', data.length);
-                    if (Array.isArray(data)) collData = data;
+                    const contentType = collRes.headers.get("content-type");
+                    console.log('[DASHBOARD] Collections content-type:', contentType);
+                    if (!contentType?.includes("application/json")) {
+                        console.error('[DASHBOARD] Collections returned non-JSON:', await collRes.text());
+                    } else {
+                        const data = await collRes.json();
+                        console.log('[DASHBOARD] Collections received:', data.length);
+                        if (Array.isArray(data)) collData = data;
+                    }
                 }
 
                 let configData: any[] = [];
                 if (configRes.ok) {
-                    configData = await configRes.json();
+                    const contentType = configRes.headers.get("content-type");
+                    console.log('[DASHBOARD] Config content-type:', contentType);
+                    if (!contentType?.includes("application/json")) {
+                        console.error('[DASHBOARD] Config returned non-JSON:', await configRes.text());
+                    } else {
+                        configData = await configRes.json();
+                    }
                 }
 
                 setProducts(prodData);

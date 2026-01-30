@@ -40,13 +40,13 @@ const parseAssetColors = (value: string) => {
 const DUMMY_PRODUCT = {
     id: 'global_dummy',
     title: 'Global Default Settings',
-    variants: [{ id: 'dummy_variant', title: 'Default Variant', price: '0.00', image: 'https://cdn.shopify.com/s/files/1/0533/2089/files/t-shirt-mockup.png' }],
+    variants: [{ id: 'dummy_variant', title: 'Default Variant', price: '0.00', image: 'https://placehold.co/600x600?text=T-Shirt+Mockup' }],
     options: [{ name: 'Size', position: 1, values: ['S', 'M', 'L'] }],
-    images: ['https://cdn.shopify.com/s/files/1/0533/2089/files/t-shirt-mockup.png']
+    images: ['https://placehold.co/600x600?text=T-Shirt+Mockup']
 };
 
 // Dummy Base Image (Placeholder)
-const DUMMY_BASE_IMAGE = 'https://cdn.shopify.com/s/files/1/0533/2089/files/t-shirt-mockup.png';
+const DUMMY_BASE_IMAGE = 'https://placehold.co/600x600?text=T-Shirt+Mockup';
 
 const DEFAULT_ELEMENTS: CanvasElement[] = [
     {

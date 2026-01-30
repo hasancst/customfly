@@ -132,6 +132,12 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
   const availableGroups = shapeGroups; // All groups available
 
   const handleAddFromGallery = (url: string) => {
+    if (selectedElement?.type === 'image') {
+      onUpdateElement(selectedElement.id, { src: url });
+      toast.success("Image replaced");
+      return;
+    }
+
     const newElement: CanvasElement = {
       id: `image-${Date.now()}`,
       type: 'image',
@@ -197,20 +203,25 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       }
 
       if (url) {
-        const newElement: CanvasElement = {
-          id: `image-${Date.now()}-${index}`,
-          type: 'image',
-          src: url,
-          x: ((canvasDimensions?.width || 1000) / 2 - 100) + (index * 20),
-          y: ((canvasDimensions?.height || 1000) / 2 - 100) + (index * 20),
-          width: 200,
-          height: 200,
-          rotation: 0,
-          opacity: 100,
-          zIndex: Date.now() + index,
-          removeBg: false,
-        };
-        onAddElement(newElement);
+        if (index === 0 && selectedElement?.type === 'image') {
+          onUpdateElement(selectedElement.id, { src: url });
+          toast.success("Image replaced");
+        } else {
+          const newElement: CanvasElement = {
+            id: `image-${Date.now()}-${index}`,
+            type: 'image',
+            src: url,
+            x: ((canvasDimensions?.width || 1000) / 2 - 100) + (index * 20),
+            y: ((canvasDimensions?.height || 1000) / 2 - 100) + (index * 20),
+            width: 200,
+            height: 200,
+            rotation: 0,
+            opacity: 100,
+            zIndex: Date.now() + index,
+            removeBg: false,
+          };
+          onAddElement(newElement);
+        }
       }
     } catch (err) {
       console.error("Error processing file:", err);

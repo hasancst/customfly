@@ -11,6 +11,7 @@ export interface CanvasElement {
   opacity: number;
   zIndex: number;
   enableBounce?: boolean;
+  locked?: boolean;
 
   // Text specific
   text?: string;
@@ -208,4 +209,5 @@ export interface PageData {
   baseImageColorEnabled?: boolean;
   useVariantImage?: boolean;
   baseImageAsMask?: boolean;
+  baseImageMaskInvert?: boolean;
 }

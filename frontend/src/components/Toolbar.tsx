@@ -34,12 +34,13 @@ interface ToolbarProps {
   onDeleteElement?: (id: string) => void;
   canvasDimensions?: { width: number; height: number };
   customFetch?: any;
+  allowedTools?: string[];
 }
 
-export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, canvasDimensions, customFetch }: ToolbarProps) {
+export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, canvasDimensions, customFetch, allowedTools }: ToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
 
-  const optionTypes = [
+  const allOptionTypes = [
     { id: 'text', label: 'Text', icon: Type, color: 'bg-blue-500', desc: 'Custom text' },
     { id: 'image', label: 'Image', icon: Image, color: 'bg-purple-500', desc: 'Upload photo' },
     { id: 'gallery', label: 'Gallery', icon: Images, color: 'bg-pink-500', desc: 'Image library' },
@@ -55,6 +56,10 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
     { id: 'time', label: 'Time Picker', icon: Clock, color: 'bg-fuchsia-500', desc: 'Booking time' },
     { id: 'shape', label: 'Shape', icon: Shapes, color: 'bg-blue-500', desc: 'Custom shapes' },
   ];
+
+  const optionTypes = allowedTools
+    ? allOptionTypes.filter(opt => allowedTools.includes(opt.id))
+    : allOptionTypes;
 
   const handleAddOption = (type: any) => {
     const canvasW = canvasDimensions?.width || 1000;
@@ -379,7 +384,6 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     selectedElement={selectedElement}
                     onUpdateElement={onUpdateElement}
                     canvasDimensions={canvasDimensions}
-                    customFetch={customFetch}
                   />
                 )}
                 {selectedElement.type === 'image' && (
@@ -422,7 +426,6 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     userOptions={userOptions}
                     onRefreshAssets={onRefreshAssets}
                     onSaveAsset={onSaveAsset}
-                    customFetch={customFetch}
                   />
                 )}
                 {selectedElement.type === 'dropdown' && (

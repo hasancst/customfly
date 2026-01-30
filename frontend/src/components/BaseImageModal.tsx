@@ -1,5 +1,11 @@
 import React, { useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ImageIcon, CloudUpload, ShoppingBag, CheckCircle2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -58,12 +64,16 @@ export function BaseImageModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col max-h-[85vh]">
+            <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" aria-describedby="base-image-description">
+                <div className="sr-only" id="base-image-description">Select a base image from store gallery or upload your own.</div>
                 <DialogHeader className="p-6 pb-2 border-b border-gray-100 shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
                         <ImageIcon className="w-5 h-5 text-indigo-600" />
                         Setup Base Mockup Image
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Choose a base image for your design from the available options or upload a custom one.
+                    </DialogDescription>
                     <p className="text-sm text-gray-500">Choose how you want to set the background product image.</p>
                 </DialogHeader>
 
@@ -129,7 +139,7 @@ export function BaseImageModal({
                                             onClick={() => { onSelectImage(img, false, applyToVariant); onClose(); }}
                                             className={`group relative aspect-square rounded-xl border-2 transition-all cursor-pointer overflow-hidden ${currentBaseImage === img ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-gray-100 hover:border-indigo-300'}`}
                                         >
-                                            <img src={img} className="w-full h-full object-cover" alt={`Product ${idx}`} />
+                                            <img src={img} className="w-full h-full object-cover" alt={`Product ${idx} `} />
                                             {currentBaseImage === img && (
                                                 <div className="absolute top-1 right-1 bg-indigo-500 text-white rounded-full p-0.5 shadow-lg">
                                                     <CheckCircle2 className="w-3.5 h-3.5" />

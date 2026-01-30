@@ -9,8 +9,15 @@ export function RedirectDesigner({ productId, shop, config }: RedirectDesignerPr
     const buttonStyle = config?.buttonStyle || {};
 
     const handleRedirect = () => {
-        const host = btoa(`${shop}/admin`);
-        window.location.href = `/designer/${productId}?shop=${shop}&host=${host}`;
+        // Use Shopify App Proxy URL for a better domain experience
+        // Template: https://{shop}/apps/customfly/public/designer/open/{productId}?shop={shop}
+        if (shop) {
+            window.location.href = `https://${shop}/apps/customfly/public/designer/open/${productId}?shop=${shop}`;
+        } else {
+            // Fallback to direct app URL if shop is missing (shouldn't happen here)
+            const baseUrl = (window as any).IMCST_BASE_URL || 'https://custom.duniasantri.com';
+            window.location.href = `${baseUrl}/public/designer/open/${productId}?shop=${shop}`;
+        }
     };
 
     return (

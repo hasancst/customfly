@@ -23,13 +23,14 @@ interface CanvasProps {
   safeAreaWidth?: number;
   safeAreaHeight?: number;
   safeAreaOffset: { x: number; y: number };
-  onUpdateSafeAreaOffset: (offset: { x: number; y: number }) => void;
+  onUpdateSafeAreaOffset: (offset: { x: number; y: number }, skipHistory?: boolean) => void;
   onUpdateSafeAreaWidth: (width: number) => void;
   onUpdateSafeAreaHeight: (height: number) => void;
   baseImage?: string;
   baseImageColor?: string;
   baseImageColorEnabled?: boolean;
   baseImageAsMask?: boolean;
+  baseImageMaskInvert?: boolean;
   baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
   isPublicMode?: boolean;
@@ -63,10 +64,10 @@ export function Canvas({
   baseImageColor,
   baseImageColorEnabled = false,
   baseImageAsMask = false,
+  baseImageMaskInvert = false,
   baseImageProperties,
   onUpdateBaseImage,
   isPublicMode = false,
-  safeAreaShape = 'rectangle',
 }: CanvasProps) {
   const dragControls = useDragControls();
   const productColors: Record<string, string> = {
@@ -183,7 +184,7 @@ export function Canvas({
           >
             {/* Base Image */}
             {baseImage && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[0]">
                 <motion.div
                   drag
                   dragMomentum={false}
@@ -215,21 +216,24 @@ export function Canvas({
               </div>
             )}
 
-            {/* Safe Print Area Overlay */}
-            {showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (
+            {/* Safe Print Area Overlay (Only show handles/border in Admin) */}
+            {showSafeArea && !isPublicMode && !isNaN(currentWidth) && !isNaN(currentHeight) && (
               <motion.div
                 drag
                 dragControls={dragControls}
                 dragListener={false}
                 dragMomentum={false}
                 dragElastic={0}
-                onDragEnd={(_, info) => {
+                onDrag={(e, info) => {
                   onUpdateSafeAreaOffset({
-                    x: (safeAreaOffset?.x || 0) + info.offset.x / (validZoom / 100),
-                    y: (safeAreaOffset?.y || 0) + info.offset.y / (validZoom / 100)
-                  });
+                    x: (safeAreaOffset?.x || 0) + info.delta.x / (validZoom / 100),
+                    y: (safeAreaOffset?.y || 0) + info.delta.y / (validZoom / 100)
+                  }, true); // skipHistory
                 }}
-                className="absolute inset-0 z-10 pointer-events-none group/safe-area imcst-preview-hide"
+                onDragEnd={() => {
+                  onUpdateSafeAreaOffset(safeAreaOffset, false); // commitHistory
+                }}
+                className="absolute inset-0 z-30 pointer-events-none group/safe-area imcst-preview-hide"
                 style={{
                   x: (safeAreaOffset?.x || 0) * (validZoom / 100),
                   y: (safeAreaOffset?.y || 0) * (validZoom / 100),
@@ -319,15 +323,16 @@ export function Canvas({
                       <div className="absolute inset-0 pointer-events-none">
                         <svg width={currentWidth || 0} height={currentHeight || 0}>
                           <rect
-                            x={insetX}
-                            y={insetY}
+                            x={insetX + (safeAreaOffset.x * zoomMult)}
+                            y={insetY + (safeAreaOffset.y * zoomMult)}
                             width={safeW}
                             height={safeH}
                             rx={safeAreaRadius * zoomMult}
                             ry={safeAreaRadius * zoomMult}
                             fill="none"
                             stroke="#4f46e5"
-                            strokeWidth="3"
+                            strokeWidth={3}
+                            strokeDasharray="8 4"
                           />
                         </svg>
                       </div>
@@ -375,20 +380,45 @@ export function Canvas({
 
             {/* Elements */}
             <div
-              className="absolute inset-0 z-[2]"
+              className="absolute inset-0 z-[10]"
               style={{
-                ...(baseImageAsMask && baseImage ? {
-                  WebkitMaskImage: `linear-gradient(black, black), url(${baseImage})`,
-                  maskImage: `linear-gradient(black, black), url(${baseImage})`,
-                  WebkitMaskComposite: 'source-out',
-                  maskComposite: 'exclude',
-                  WebkitMaskSize: `100% 100%, ${(baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px ${(baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px`,
-                  maskSize: `100% 100%, ${(baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px ${(baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * (validZoom / 100)}px`,
-                  WebkitMaskPosition: `0 0, calc(50% + ${(baseImageProperties?.x || 0) * (validZoom / 100)}px) calc(50% + ${(baseImageProperties?.y || 0) * (validZoom / 100)}px)`,
-                  maskPosition: `0 0, calc(50% + ${(baseImageProperties?.x || 0) * (validZoom / 100)}px) calc(50% + ${(baseImageProperties?.y || 0) * (validZoom / 100)}px)`,
-                  WebkitMaskRepeat: 'no-repeat, no-repeat',
-                  maskRepeat: 'no-repeat, no-repeat',
-                } : {}),
+                ...(baseImageAsMask && baseImage ? (() => {
+                  const zoomMult = validZoom / 100;
+                  const imgW = (baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * zoomMult;
+                  const imgH = (baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * zoomMult;
+                  const posX = `calc(50% + ${(baseImageProperties?.x || 0) * zoomMult}px)`;
+                  const posY = `calc(50% + ${(baseImageProperties?.y || 0) * zoomMult}px)`;
+
+                  if (baseImageMaskInvert) {
+                    // Inverted: Reveal in opaque areas (standard intersect)
+                    return {
+                      WebkitMaskImage: `url(${baseImage})`,
+                      maskImage: `url(${baseImage})`,
+                      WebkitMaskComposite: 'destination-in',
+                      maskComposite: 'intersect',
+                      WebkitMaskSize: `${imgW}px ${imgH}px`,
+                      maskSize: `${imgW}px ${imgH}px`,
+                      WebkitMaskPosition: `${posX} ${posY}`,
+                      maskPosition: `${posX} ${posY}`,
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskRepeat: 'no-repeat',
+                    };
+                  } else {
+                    // Standard: Reveal in transparent areas (exclude/punch hole)
+                    return {
+                      WebkitMaskImage: `linear-gradient(#000, #000), url(${baseImage})`,
+                      maskImage: `linear-gradient(#000, #000), url(${baseImage})`,
+                      WebkitMaskComposite: 'destination-out',
+                      maskComposite: 'exclude',
+                      WebkitMaskSize: `100% 100%, ${imgW}px ${imgH}px`,
+                      maskSize: `100% 100%, ${imgW}px ${imgH}px`,
+                      WebkitMaskPosition: `0 0, ${posX} ${posY}`,
+                      maskPosition: `0 0, ${posX} ${posY}`,
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskRepeat: 'no-repeat',
+                    };
+                  }
+                })() : {}),
                 ...(showSafeArea ? (() => {
                   const p = (safeAreaPadding || 0) / 100;
                   const wPercent = safeAreaWidth !== undefined ? safeAreaWidth / 100 : (1 - 2 * p);
@@ -403,8 +433,11 @@ export function Canvas({
                   const clipTop = (currentHeight - safeH) / 2 + (safeAreaOffset.y * zoomMult);
                   const clipBottom = (currentHeight - safeH) / 2 - (safeAreaOffset.y * zoomMult);
 
+                  const clipValue = `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px round ${safeAreaRadius * zoomMult}px)`;
+
                   return {
-                    clipPath: `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px round ${safeAreaRadius * zoomMult}px)`
+                    WebkitClipPath: clipValue,
+                    clipPath: clipValue
                   };
                 })() : {})
               }}
@@ -438,12 +471,8 @@ export function Canvas({
             )}
           </div>
 
-          {/* Zoom */}
-          <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg border border-gray-200">
-            <span className="text-sm font-medium text-gray-700">{validZoom}%</span>
-          </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

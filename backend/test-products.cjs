@@ -19,7 +19,7 @@ async function test() {
         apiSecretKey: process.env.SHOPIFY_API_SECRET,
         scopes: process.env.SCOPES.split(','),
         hostName: 'custom.duniasantri.com',
-        apiVersion: '2024-10',
+        apiVersion: '2026-01',
         isEmbeddedApp: true
     });
 

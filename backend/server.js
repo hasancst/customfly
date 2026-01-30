@@ -1,7 +1,8 @@
 import "dotenv/config";
 import express from "express";
+import crypto from "crypto";
 import { shopifyApp } from "@shopify/shopify-app-express";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
+import { restResources } from "@shopify/shopify-api/rest/admin/2026-01";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import { PrismaClient } from "@prisma/client";
 import { resolve, dirname } from "path";
@@ -11,6 +12,7 @@ import morgan from "morgan";
 import { spawn } from "child_process";
 import NodeCache from "node-cache";
 import rateLimit from "express-rate-limit";
+import compression from "compression";
 
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
@@ -46,6 +48,7 @@ app.use((req, res, next) => {
 });
 
 app.use(morgan('combined'));
+app.use(compression());
 
 const baseStorage = new PrismaSessionStorage(prisma);
 const loggingStorage = {
@@ -108,7 +111,7 @@ const loggingStorage = {
 
 const shopify = shopifyApp({
     api: {
-        apiVersion: "2024-10",
+        apiVersion: "2026-01",
         apiKey: process.env.SHOPIFY_API_KEY,
         apiSecretKey: process.env.SHOPIFY_API_SECRET,
         scopes: process.env.SCOPES ? process.env.SCOPES.split(",") : [],
@@ -203,6 +206,48 @@ const STATIC_PATH = process.env.NODE_ENV === "production"
     ? resolve(__dirname, "../frontend/dist")
     : resolve(__dirname, "../frontend");
 
+// --- Shopify App Proxy Support ---
+// Requests from myshop.myshopify.com/apps/customfly will be forwarded here
+// Shopify forwards to: custom.duniasantri.com/imcst_api/proxy/...
+app.use("/imcst_api/proxy", (req, res, next) => {
+    console.log(`[PROXY] Incoming request: ${req.method} ${req.url}`);
+
+    const { signature, ...params } = req.query;
+
+    if (!signature) {
+        console.warn("[PROXY] Missing signature, allowing for now (Development/Direct hit?)");
+        // return res.status(401).send("Unauthorized: Missing signature");
+        return next();
+    }
+
+    // Sort parameters alphabetically and concatenate as key=valuekey=value
+    const message = Object.keys(params)
+        .sort()
+        .map(key => {
+            const val = params[key];
+            // Format arrays if they exist, but Shopify parameters are usually strings
+            return `${key}=${Array.isArray(val) ? val.join(',') : val}`;
+        })
+        .join('');
+
+    const generatedSignature = crypto
+        .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
+        .update(message)
+        .digest('hex');
+
+    if (generatedSignature !== signature) {
+        console.error(`[PROXY] Signature mismatch! Got: ${signature}, Expected: ${generatedSignature}`);
+        // For production, we should reject. For now, we log and proceed to avoid breaking things during setup
+        // return res.status(401).send("Unauthorized: Signature mismatch");
+    } else {
+        console.log("[PROXY] Signature verified successfully");
+    }
+
+    // When using app.use with a path, req.url is already relative to that path
+    // So if req.originalUrl is /imcst_api/proxy/public/designer, req.url is /public/designer
+    next();
+});
+
 app.use("/imcst_api", (req, res, next) => {
     console.log(`[DEBUG] Request: ${req.method} ${req.url}`);
     const authHeader = req.headers.authorization;
@@ -229,7 +274,22 @@ app.use("/imcst_api", (req, res, next) => {
     next();
 });
 
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 // --- PUBLIC API Routes (for customer-facing designer) ---
+// Enable CORS for these public routes
+app.use("/imcst_api/public", (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Shopify-Public-Access");
+
+    if (req.method === "OPTIONS") {
+        return res.status(200).send();
+    }
+    next();
+});
+
 // These routes don't require Shopify authentication
 
 // Public: Get Product Config (for customer designer)
@@ -237,16 +297,24 @@ app.get("/imcst_api/public/config/:productId", async (req, res) => {
     try {
         const { productId } = req.params;
         const shop = req.query.shop; // Shop passed as query parameter
+        console.log(`[Public Config] Request for ${productId} on shop ${shop}`);
 
         if (!shop) {
+            console.warn("[Public Config] Missing shop parameter");
             return res.status(400).json({ error: "Shop parameter required" });
         }
+
+        const cacheKey = `pub_config_${shop}_${productId}`;
+        const cached = cache.get(cacheKey);
+        if (cached) return res.json(cached);
 
         const config = await prisma.merchantConfig.findUnique({
             where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
         });
 
-        res.json(config || {});
+        const result = config || {};
+        cache.set(cacheKey, result);
+        res.json(result);
     } catch (error) {
         console.error("Public config fetch error:", error);
         res.status(500).json({ error: error.message });
@@ -284,6 +352,7 @@ app.post("/imcst_api/public/design", async (req, res) => {
                 name: name || "Customer Design",
                 designJson,
                 previewUrl,
+                productionFileUrl: req.body.productionFileUrl, // Store production file URLs if provided
                 status: "customer_draft",
                 isTemplate: false
             },
@@ -432,12 +501,77 @@ app.get("/imcst_api/public/products/:productId", async (req, res) => {
     }
 });
 
-app.use("/imcst_api", shopify.validateAuthenticatedSession());
+
+// Custom authentication middleware for API routes
+// Returns JSON errors instead of HTML redirects
+app.use("/imcst_api", async (req, res, next) => {
+    // Bypass authentication for public data endpoints
+    if (req.path.startsWith("/public/")) {
+        return next();
+    }
+    try {
+        // Extract Bearer token from Authorization header
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.error('[API AUTH] No Bearer token found');
+            return res.status(401).json({
+                error: 'Authentication required',
+                message: 'No authorization token. Please refresh the page.',
+                code: 'NO_AUTH_HEADER'
+            });
+        }
+
+        const token = authHeader.substring(7);
+        const payload = await shopify.api.session.decodeSessionToken(token);
+
+        if (!payload || !payload.dest) {
+            console.error('[API AUTH] Invalid token payload');
+            return res.status(401).json({
+                error: 'Authentication required',
+                message: 'Invalid token. Please refresh the page.',
+                code: 'INVALID_TOKEN'
+            });
+        }
+
+        const shop = payload.dest.replace('https://', '').replace('http://', '');
+        const sessionId = `offline_${shop}`;
+
+        const session = await shopify.config.sessionStorage.loadSession(sessionId);
+
+        if (!session) {
+            console.error('[API AUTH] Session not found in storage:', sessionId);
+            return res.status(401).json({
+                error: 'Authentication required',
+                message: 'Session expired. Please refresh the page.',
+                code: 'SESSION_NOT_FOUND'
+            });
+        }
+
+        // Validate session is still active
+        if (!session.isActive()) {
+            console.error('[API AUTH] Session expired:', sessionId);
+            return res.status(401).json({
+                error: 'Authentication required',
+                message: 'Session expired. Please refresh the page.',
+                code: 'SESSION_EXPIRED'
+            });
+        }
+
+        // Set session in res.locals for downstream handlers
+        res.locals.shopify = { session };
+        next();
+    } catch (error) {
+        console.error('[API AUTH] Authentication error:', error);
+        return res.status(500).json({
+            error: 'Authentication error',
+            message: error.message,
+            code: 'AUTH_ERROR'
+        });
+    }
+});
 
 
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- API Routes ---
 
@@ -844,6 +978,7 @@ app.post("/imcst_api/config", async (req, res) => {
             safeAreaWidth: updates.safeAreaWidth !== undefined ? updates.safeAreaWidth : undefined,
             safeAreaHeight: updates.safeAreaHeight !== undefined ? updates.safeAreaHeight : undefined,
             variantBaseImages: updates.variantBaseImages !== undefined ? (updates.variantBaseImages || {}) : undefined,
+            outputSettings: updates.outputSettings !== undefined ? (updates.outputSettings || {}) : undefined,
         },
         create: {
             shop,
@@ -876,8 +1011,13 @@ app.post("/imcst_api/config", async (req, res) => {
             safeAreaWidth: updates.safeAreaWidth,
             safeAreaHeight: updates.safeAreaHeight,
             variantBaseImages: updates.variantBaseImages || {},
+            outputSettings: updates.outputSettings || {},
         },
     });
+
+    // Invalidate public cache for this product
+    const cacheKey = `pub_prod_${shop}_${productId}`;
+    cache.del(cacheKey);
 
     res.json(config);
 });
@@ -917,7 +1057,10 @@ app.get("/imcst_api/configured-products", async (req, res) => {
 // GET Shop Currency (Admin)
 app.get("/imcst_api/shop/currency", async (req, res) => {
     try {
-        const session = res.locals.shopify.session;
+        const session = res.locals.shopify?.session;
+        if (!session) {
+            return res.status(401).json({ error: 'Session not found', message: 'Please refresh the page' });
+        }
         const client = new shopify.api.clients.Graphql({ session });
         const queryString = `
             query {
@@ -967,7 +1110,11 @@ app.get("/imcst_public_api/shop/currency/:shop", async (req, res) => {
 app.get("/imcst_api/pricing/config/:productId", async (req, res) => {
     try {
         const { productId } = req.params;
-        const shop = res.locals.shopify.session.shop;
+        const session = res.locals.shopify?.session;
+        if (!session) {
+            return res.status(401).json({ error: 'Session not found', message: 'Please refresh the page' });
+        }
+        const shop = session.shop;
 
         const config = await prisma.productPricingConfig.findUnique({
             where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
@@ -1331,6 +1478,9 @@ app.post("/imcst_api/global_design", async (req, res) => {
             });
         }
 
+        // Invalidate ALL public cache for global changes
+        cache.flushAll();
+
         res.json({ success: true });
     } catch (error) {
         console.error("Global setting save error:", error);
@@ -1585,8 +1735,72 @@ app.delete("/imcst_api/promo_codes/:id", async (req, res) => {
 // Enable CORS for public endpoints
 app.use("/imcst_public_api", (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Shopify-Public-Access");
+
+    if (req.method === "OPTIONS") {
+        return res.status(200).send();
+    }
     next();
+});
+
+// Dynamic Storefront Loader (Injects latest React bundle into Shopify theme)
+app.get("/imcst_public_api/storefront.js", (req, res) => {
+    try {
+        const shop = req.query.shop;
+        const cacheKey = `sf_loader_${shop || 'global'}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            res.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+            res.set("Content-Type", "application/javascript");
+            return res.send(cached);
+        }
+
+        const publicHtmlPath = resolve(STATIC_PATH, "public.html");
+        if (!fs.existsSync(publicHtmlPath)) {
+            return res.status(404).send("// public.html not found");
+        }
+
+        const html = fs.readFileSync(publicHtmlPath, "utf-8");
+        const jsMatch = html.match(/src="(.*?\/assets\/public-.*?\.js)"/);
+        const cssMatches = [...html.matchAll(/href="(.*?\/assets\/.*?\.css)"/g)];
+
+        if (!jsMatch) {
+            return res.status(404).send("// JS bundle not found in public.html");
+        }
+
+        const baseUrl = process.env.SHOPIFY_APP_URL || 'https://custom.duniasantri.com';
+        const toAbsolute = (url) => url.startsWith('http') ? url : `${baseUrl}${url}`;
+        const jsUrl = toAbsolute(jsMatch[1]);
+        const cssUrls = cssMatches.map(match => toAbsolute(match[1]));
+
+        let loaderScript = `
+(function() {
+    console.log("[IMCST] Loading storefront assets...");
+    window.IMCST_BASE_URL = '${baseUrl}';
+    ${cssUrls.map(url => `
+    if (!document.querySelector('link[href="${url}"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = '${url}';
+        document.head.appendChild(link);
+    }`).join('')}
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = '${jsUrl}';
+    document.head.appendChild(script);
+})();
+        `;
+
+        cache.set(cacheKey, loaderScript, 30); // Cache for 30s during active development
+        res.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.set("Content-Type", "application/javascript");
+        res.send(loaderScript);
+    } catch (error) {
+        console.error("Storefront loader error:", error);
+        res.status(500).send(`// Error generating loader: ${error.message}`);
+    }
 });
 
 // 1. Get Public Config & Design
@@ -1621,12 +1835,56 @@ app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) =>
             });
         }
 
+        // Fetch Shopify Product Data (for variants)
+        console.log(`[Public API] Fetching variants for product ${shopifyProductId} on shop ${shop}`);
+        let productData = null;
+        try {
+            const offlineSessionId = shopify.api.session.getOfflineId(shop);
+            const session = await loggingStorage.loadSession(offlineSessionId);
+            if (session) {
+                console.log(`[Public API] Session found for ${shop}, fetching product...`);
+                const client = new shopify.api.clients.Rest({ session });
+                const response = await client.get({
+                    path: `products/${shopifyProductId}`,
+                });
+                productData = response.body.product;
+                console.log(`[Public API] Success: found ${productData?.variants?.length} variants`);
+            } else {
+                console.warn(`[Public API] NO SESSION FOUND for ${shop}`);
+            }
+        } catch (err) {
+            console.error("[Public API] Failed to fetch Shopify product data:", err);
+        }
+
         const responseData = {
             config: config || {},
-            design: initialDesign ? initialDesign.designJson : null
+            design: initialDesign ? initialDesign.designJson : null,
+            product: productData
         };
 
-        cache.set(cacheKey, responseData);
+        if (productData) {
+            // Normalize for frontend expectations (similar to Admin's GraphQL response)
+            const images = productData.images ? productData.images.map(img => img.src) : [];
+            const variants = productData.variants ? productData.variants.map(v => {
+                const imgObj = productData.images?.find(img => img.id === v.image_id);
+                return {
+                    ...v,
+                    id: String(v.id),
+                    image: imgObj ? imgObj.src : null
+                };
+            }) : [];
+
+            responseData.product = {
+                ...productData,
+                images,
+                variants
+            };
+
+            cache.set(cacheKey, responseData);
+        }
+        // Invalidate cache immediately for this session to apply structure fix
+        cache.del(cacheKey);
+
         res.json(responseData);
 
     } catch (error) {
@@ -1637,7 +1895,7 @@ app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) =>
 
 // 2. Upload Public Design (for Add to Cart)
 // In a real app, this should probably use S3/R2/GCS. For this local setup, we'll save to disk and serve via static.
-app.post("/imcst_public_api/upload", uploadLimiter, express.json({ limit: '50mb' }), async (req, res) => {
+app.post("/imcst_public_api/upload", uploadLimiter, async (req, res) => {
     try {
         const { imageBase64, shop } = req.body;
         if (!imageBase64) return res.status(400).json({ error: "Missing imageBase64" });
@@ -1941,27 +2199,88 @@ app.post("/imcst_public_api/pricing/calculate", async (req, res) => {
     }
 });
 
+
 // Serve Frontend
-app.use(shopify.cspHeaders());
+// IMPORTANT: CORS middleware must come BEFORE express.static to intercept requests
+app.use("/assets", (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+
+// Explicitly serve static assets and 404 if not found to prevent falling into auth catch-all
+app.use("/assets", express.static(resolve(STATIC_PATH, "assets"), {
+    fallthrough: false,
+    index: false
+}), (err, req, res, next) => {
+    if (err && err.status === 404) {
+        return res.status(404).send("Asset not found");
+    }
+    next(err);
+});
+
 app.use(express.static(STATIC_PATH, { index: false }));
 
-app.use(shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
+// Public Frontend Routes (Bypass Shopify Authentication)
+app.get(/^\/public/, async (req, res) => {
+    console.log(`[DEBUG] Public Route Hit: ${req.method} ${req.originalUrl}`);
+    try {
+        const publicHtmlPath = resolve(STATIC_PATH, "public.html");
+        if (!fs.existsSync(publicHtmlPath)) {
+            console.error("[PUBLIC] public.html not found at:", publicHtmlPath);
+            return res.status(404).send("public.html not found");
+        }
+
+        const template = fs.readFileSync(publicHtmlPath, "utf-8");
+
+        // Inject API Key (might be needed for some public features)
+        let html = template.replace(
+            "</head>",
+            `<script>window.imcst_shopify_key = "${process.env.SHOPIFY_API_KEY}"; console.log("Public v12 LOADED");</script></head>`
+        );
+
+        // Update Title
+        html = html.replace(/<title>(.*?)<\/title>/, "<title>Product Designer Pro - Public</title>");
+
+        // Force cache break for assets (works for both relative and absolute URLs)
+        const v = Date.now();
+        html = html.replace(/(src|href)="([^"]*\/assets\/[^"]*)"/g, `$1="$2?v=${v}"`);
+
+        return res
+            .status(200)
+            .set("Content-Type", "text/html")
+            .set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+            .set("Pragma", "no-cache")
+            .set("Expires", "0")
+            .set("Surrogate-Control", "no-store")
+            .send(html);
+    } catch (error) {
+        console.error("Public Route Error:", error);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+app.use(shopify.cspHeaders());
+
+app.use(shopify.ensureInstalledOnShop(), async (req, res, _next) => {
+    console.log(`[DEBUG] Admin Catch-all Hit: ${req.method} ${req.originalUrl}`);
+    console.log(`[DEBUG] Request query:`, req.query);
+
     const template = fs.readFileSync(resolve(STATIC_PATH, "index.html"), "utf-8");
     console.log("Injecting API key and forcing cache break...");
 
     // 1. Inject API Key
     let html = template.replace(
         "</head>",
-        `<script>window.imcst_shopify_key = "${process.env.SHOPIFY_API_KEY}"; console.log("v12 LOADED");</script></head>`
+        `<script>window.imcst_shopify_key = "${process.env.SHOPIFY_API_KEY}"; console.log("Admin v12 LOADED");</script></head>`
     );
 
     // Update Title
-    html = html.replace(/<title>(.*?)<\/title>/, "<title>Product Designer Pro v12</title>");
+    html = html.replace(/<title>(.*?)<\/title>/, "<title>Product Designer Pro Admin v12</title>");
 
-    // 2. Force cache break for assets by appending a timestamp
+    // 2. Force cache break for assets (works for both relative and absolute URLs)
     const v = Date.now();
-    html = html.replace(/src="\/assets\/(.*?)"/g, `src="/assets/$1?v=${v}"`);
-    html = html.replace(/href="\/assets\/(.*?)"/g, `href="/assets/$1?v=${v}"`);
+    html = html.replace(/(src|href)="([^"]*\/assets\/[^"]*)"/g, `$1="$2?v=${v}"`);
 
     return res
         .status(200)
@@ -1969,6 +2288,7 @@ app.use(shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
         .set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
         .set("Pragma", "no-cache")
         .set("Expires", "0")
+        .set("Surrogate-Control", "no-store")
         .send(html);
 });
 

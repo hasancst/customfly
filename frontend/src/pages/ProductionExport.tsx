@@ -42,10 +42,22 @@ export default function ProductionExport() {
             const html2canvas = (await import('html2canvas')).default;
             const canvas = await html2canvas(canvasElement, {
                 useCORS: true,
-                scale: scale, // 4x for production quality (approx 300-400 DPI depending on base size)
+                scale: scale,
                 backgroundColor: null,
                 ignoreElements: (element: Element) => {
-                    return element.classList.contains('imcst-preview-hide');
+                    if (element.classList.contains('imcst-preview-hide')) return true;
+
+                    const tagName = element.tagName.toLowerCase();
+                    if (tagName.includes('-') ||
+                        element.classList.contains('cart-drawer') ||
+                        element.classList.contains('shopify-section') ||
+                        element.id.includes('shopify-section') ||
+                        element.closest('.shopify-section')
+                    ) {
+                        if (element.contains(canvasElement)) return false;
+                        return true;
+                    }
+                    return false;
                 }
             });
 
