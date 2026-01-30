@@ -1,11 +1,25 @@
-<div id="pc-auto-load-root" data-enabled="true"></div>
-{{ 'core.js' | asset_url | script_tag }}
-{{ 'auto-load.js' | asset_url | script_tag }}
+{% comment %}
+  Customizer Auto Load - App Embed
+  Renders the customizer button on product pages
+{% endcomment %}
+
+{% if product %}
+  <div
+    id="imcst-public-root"
+    data-enabled="true"
+    data-product-id="{{ product.id }}"
+    data-shop="{{ shop.permanent_domain }}"
+    style="margin: 1rem 0;">
+  </div>
+  <script src="https://custom.duniasantri.com/imcst_public_api/storefront.js" async></script>
+{% endif %}
 
 {% schema %}
 {
   "name": "Customizer Auto Load",
-  "target": "body",
-  "settings": []
+  "target": "section",
+  "available_if": "{{ product != blank }}",
+  "settings": [],
+  "templates": ["product"]
 }
 {% endschema %}
