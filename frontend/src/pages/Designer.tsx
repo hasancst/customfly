@@ -15,7 +15,7 @@ export default function DesignerAdmin() {
   const [productData, setProductData] = useState<any>(null);
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [assets, setAssets] = useState<{ fonts: any[], colors: any[], options: any[] }>({ fonts: [], colors: [], options: [] });
+  const [assets, setAssets] = useState<{ fonts: any[], colors: any[], options: any[], galleries: any[] }>({ fonts: [], colors: [], options: [], galleries: [] });
   const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
 
   // Admin Fullscreen
@@ -27,39 +27,54 @@ export default function DesignerAdmin() {
     }
   }, [shopifyApp]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
-      const prodRes = await fetch(`/imcst_api/products/${productId}`);
-      if (prodRes.ok) setProductData(await prodRes.json());
+      if (!isBackground) setLoading(true);
 
-      const [fontsRes, colorsRes, optionsRes, designsRes, configRes] = await Promise.all([
-        fetch('/imcst_api/assets?type=font'),
-        fetch('/imcst_api/assets?type=color'),
-        fetch('/imcst_api/assets?type=option'),
+      const [assetsRes, designsRes, configRes, prodRes] = await Promise.all([
+        fetch('/imcst_api/assets'),
         fetch(`/imcst_api/design/product/${productId}`),
-        fetch(`/imcst_api/config/${productId}`)
+        fetch(`/imcst_api/config/${productId}`),
+        fetch(`/imcst_api/products/${productId}`)
       ]);
 
-      setAssets({
-        fonts: fontsRes.ok ? await fontsRes.json() : [],
-        colors: colorsRes.ok ? await colorsRes.json() : [],
-        options: optionsRes.ok ? await optionsRes.json() : []
-      });
+      if (prodRes && prodRes.ok) setProductData(await prodRes.json());
 
-      if (designsRes.ok) setSavedDesigns(await designsRes.json());
-      if (configRes.ok) setConfig(await configRes.json());
+      if (assetsRes && assetsRes.ok) {
+        const allAssets = await assetsRes.json();
+        setAssets({
+          fonts: allAssets.filter((a: any) => a.type === 'font'),
+          colors: allAssets.filter((a: any) => a.type === 'color'),
+          options: allAssets.filter((a: any) => a.type === 'option'),
+          galleries: allAssets.filter((a: any) => a.type === 'gallery')
+        });
+      }
+
+      if (designsRes && designsRes.ok) setSavedDesigns(await designsRes.json());
+      if (configRes && configRes.ok) setConfig(await configRes.json());
 
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, [productId, fetch]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (loading) return <div>Loading Admin Designer...</div>;
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-white flex flex-col items-center justify-center gap-6 animate-in fade-in duration-500">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-full border-4 border-indigo-50 border-t-indigo-600 animate-spin"></div>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <h2 className="text-xl font-bold text-gray-900">CustomFly Designer</h2>
+          <p className="text-sm font-medium text-gray-500 animate-pulse">Initializing creative workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Construct default pages if no designs exist, using config data
   const hasConfig = config && !config.error;
@@ -82,11 +97,13 @@ export default function DesignerAdmin() {
         isPublicMode={false}
         initialPages={latestDesign?.designJson || defaultPages || undefined}
         initialConfig={hasConfig ? config : {}}
+        initialDesignId={latestDesign?.id} // Pass initial ID
         productId={productId}
         productData={productData}
         userFonts={assets.fonts}
         userColors={assets.colors}
         userOptions={assets.options}
+        userGalleries={assets.galleries}
         savedDesigns={savedDesigns}
         pricingConfigComponent={productId ? <PricingTab productId={productId} customFetch={fetch} /> : null}
         customFetch={fetch}
@@ -96,6 +113,7 @@ export default function DesignerAdmin() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              id: data.id, // Pass ID to enable update
               name: data.name,
               designJson: data.designJson,
               isTemplate: data.isTemplate,
@@ -119,7 +137,7 @@ export default function DesignerAdmin() {
 
           if (designRes.ok && configRes.ok) {
             // Refresh local data to sync
-            loadData();
+            loadData(true);
             return await designRes.json();
           }
           return null;

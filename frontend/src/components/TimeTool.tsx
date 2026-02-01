@@ -21,6 +21,8 @@ interface TimeToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    userFonts?: any[];
+    userColors?: any[];
 }
 
 const TIME_FORMATS = [
@@ -28,7 +30,7 @@ const TIME_FORMATS = [
     { value: 'hh:mm a', label: '02:30 PM (12 Hour)' },
 ];
 
-export function TimeTool({ onAddElement, selectedElement, onUpdateElement }: TimeToolProps) {
+export function TimeTool({ onAddElement, selectedElement, onUpdateElement, userFonts, userColors = [] }: TimeToolProps) {
     const formatTime = (timeString: string, format: string) => {
         if (!timeString) return '';
         // timeString expected in HH:mm format (from input type="time")
@@ -50,13 +52,6 @@ export function TimeTool({ onAddElement, selectedElement, onUpdateElement }: Tim
         return timeString;
     };
 
-    const [timeValue, setTimeValue] = useState(selectedElement?.text || '12:00'); // Store raw time in text or specific field? 
-    // Wait, element.text usually holds the DISPLAY text. We need to store raw value separately probably, or parse it back.
-    // DateTool stored dateValue. Let's start using specific fields if added to types.
-    // For now I'll use separate state but if types don't support timeValue, I might need to rely on text parsing or add it.
-    // Let's assume I can add timeValue to types, or just stick to text if simple. Re-parsing "02:30 PM" to "14:30" is annoying.
-    // I'll add timeValue to types later or rely on state persistence.
-    // Actually, DateTool used dateValue. Let's use timeValue.
 
     const [rawTime, setRawTime] = useState('12:00'); // HH:mm format
     const [timeFormat, setTimeFormat] = useState(selectedElement?.dateFormat || 'HH:mm'); // Reuse dateFormat or add timeFormat? 
@@ -130,7 +125,7 @@ export function TimeTool({ onAddElement, selectedElement, onUpdateElement }: Tim
         <div className="space-y-6 pb-4">
             <div className="px-1 space-y-4">
                 <div className="space-y-1.5">
-                    <Label className="text-sm font-bold text-gray-700">Field Label</Label>
+                    <Label className="text-sm font-bold text-gray-700">Title</Label>
                     <Input
                         value={label}
                         onChange={(e) => {
@@ -223,6 +218,26 @@ export function TimeTool({ onAddElement, selectedElement, onUpdateElement }: Tim
                             </SelectContent>
                         </Select>
 
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Select
+                                value={selectedElement?.fontAssetId || "none"}
+                                onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                    <SelectValue placeholder="Global Default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Global Default</SelectItem>
+                                    {userFonts?.map((asset: any) => (
+                                        <SelectItem key={asset.id} value={asset.id}>
+                                            {asset.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div className="flex gap-3">
                             <Input
                                 type="number"
@@ -273,6 +288,30 @@ export function TimeTool({ onAddElement, selectedElement, onUpdateElement }: Tim
                                 }}
                             />
                         </div>
+                    </div>
+
+                    {/* Color Palette Selector */}
+                    <div className="space-y-1.5 pt-2">
+                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                        <Select
+                            value={selectedElement?.colorAssetId || "none"}
+                            onValueChange={(val) => {
+                                const finalVal = val === "none" ? undefined : val;
+                                onUpdateElement(selectedElement!.id, { colorAssetId: finalVal });
+                            }}
+                        >
+                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                <SelectValue placeholder="Global Default" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Global Default</SelectItem>
+                                {userColors?.map((asset) => (
+                                    <SelectItem key={asset.id} value={asset.id}>
+                                        {asset.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CollapsibleContent>
             </Collapsible>

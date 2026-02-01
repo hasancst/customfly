@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Page, Layout, Card, Tabs, ResourceList, ResourceItem, Text, Button, Modal, FormLayout, TextField, Icon, EmptyState, Badge, Filters, Pagination, Box, BlockStack, Toast } from '@shopify/polaris';
-import { DeleteIcon, PlusIcon, SettingsIcon, ViewIcon, EditIcon } from '@shopify/polaris-icons';
+import { DeleteIcon, PlusIcon, SettingsIcon, ViewIcon, EditIcon, StarFilledIcon } from '@shopify/polaris-icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
@@ -11,6 +11,7 @@ interface Asset {
     name: string;
     value: string;
     config?: any;
+    isDefault?: boolean;  // NEW: Mark if this is the default asset for its type
     createdAt: string;
 }
 
@@ -23,6 +24,7 @@ export default function Assets() {
     const [editAssetId, setEditAssetId] = useState<string | null>(null);
     const [editAssetName, setEditAssetName] = useState('');
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [isSettingDefault, setIsSettingDefault] = useState<string | null>(null);  // NEW
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
 
     // Search & Pagination states
@@ -60,7 +62,12 @@ export default function Assets() {
             const response = await fetch('/imcst_api/assets');
             if (response.ok) {
                 const data = await response.json();
+                console.log("Assets fetched successfully:", data.length, "items");
                 setAssets(data);
+            } else {
+                console.error("Assets fetch failed with status:", response.status);
+                const errorText = await response.text();
+                console.error("Response body:", errorText);
             }
         } catch (error) {
             console.error("Failed to fetch assets:", error);
@@ -151,6 +158,32 @@ export default function Assets() {
             console.error("Failed to delete asset:", error);
         } finally {
             setIsDeleting(null);
+        }
+    };
+
+    const handleSetDefault = async (id: string) => {
+        setIsSettingDefault(id);
+        try {
+            const response = await fetch(`/imcst_api/assets/${id}/set-default`, {
+                method: 'PUT'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                showToast(`${data.asset.name} is now the default for ${data.asset.type}`);
+
+                // Update local state: unmark others of same type, mark this one
+                setAssets(prev => prev.map(a => {
+                    if (a.type === data.asset.type) {
+                        return { ...a, isDefault: a.id === id };
+                    }
+                    return a;
+                }));
+            }
+        } catch (error) {
+            console.error("Failed to set default asset:", error);
+        } finally {
+            setIsSettingDefault(null);
         }
     };
 
@@ -295,9 +328,14 @@ export default function Assets() {
             >
                 <div className="flex items-center justify-between">
                     <div className="flex-1">
-                        <Text variant="bodyMd" fontWeight="bold" as="h3">
-                            {name}
-                        </Text>
+                        <div className="flex items-center gap-2">
+                            <Text variant="bodyMd" fontWeight="bold" as="h3">
+                                {name}
+                            </Text>
+                            {asset.isDefault && (
+                                <Badge tone="success" progress="complete">Default</Badge>
+                            )}
+                        </div>
                         {(asset.type === 'font' || asset.type === 'color' || asset.type === 'gallery' || asset.type === 'option' || asset.type === 'shape') ? (
                             <div className="flex flex-col gap-0.5">
                                 {/* Details removed or managed in detail page */}
@@ -319,6 +357,17 @@ export default function Assets() {
                             </Button>
                         )}
                         <div className="flex gap-1.5">
+                            <div className={`border rounded-md flex items-center justify-center transition-colors ${asset.isDefault ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 hover:bg-yellow-50'}`}>
+                                <Button
+                                    icon={StarFilledIcon}
+                                    variant="plain"
+                                    tone={asset.isDefault ? 'success' : undefined}
+                                    loading={isSettingDefault === id}
+                                    disabled={asset.isDefault}
+                                    onClick={() => handleSetDefault(id)}
+                                    accessibilityLabel="Set as Default"
+                                />
+                            </div>
                             <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
                                 <Button
                                     icon={EditIcon}

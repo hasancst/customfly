@@ -18,7 +18,7 @@ export default defineConfig({
     },
   },
   build: {
-    emptyOutDir: false,
+    emptyOutDir: true,
     rollupOptions: {
       input: {
         admin: path.resolve(__dirname, 'index.html'),
@@ -27,11 +27,14 @@ export default defineConfig({
       output: {
         entryFileNames: (chunkInfo) => {
           return chunkInfo.name === 'public'
-            ? 'assets/public-[hash].js'
-            : 'assets/admin-[hash].js';
+            ? 'imcst_assets/public-[hash].js'
+            : 'imcst_assets/admin-[hash].js';
         },
         chunkFileNames: (chunkInfo) => {
-          return 'assets/chunks/[name]-[hash].js';
+          return 'imcst_assets/chunks/[name]-[hash].js';
+        },
+        assetFileNames: (assetInfo) => {
+          return 'imcst_assets/[name]-[hash][extname]';
         },
         manualChunks: (id) => {
           // Group core vendors to avoid circular dependencies between UI components and Shopify libs

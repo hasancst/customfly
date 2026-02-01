@@ -4,7 +4,7 @@
   "description": "This directory will contain the backend services required for the Shopify Custom Product App.",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "start": "node server.js",
     "dev": "cross-env NODE_ENV=development node --watch server.js",
     "prisma:generate": "prisma generate",
@@ -27,5 +27,8 @@
     "node-cache": "^5.1.2",
     "prisma": "^5.22.0",
     "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }

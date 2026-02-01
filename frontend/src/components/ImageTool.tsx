@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Upload, RotateCw, Image as ImageIcon, Wand2, Sliders, ChevronDown, Crop, Shapes, Zap } from 'lucide-react';
-import { OutputSettingsTool } from './common/OutputSettingsTool';
 import { IMAGE_PRESETS } from '../constants/filters';
 import {
   Collapsible,
@@ -30,16 +29,19 @@ interface ImageToolProps {
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   onCrop?: () => void;
   canvasDimensions?: { width: number; height: number };
+  userImages?: any[];
   customFetch?: any;
 }
 
-export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions, customFetch }: ImageToolProps) {
+export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions, userImages: propUserImages, customFetch }: ImageToolProps) {
   const [removeBgType, setRemoveBgType] = useState<'js' | 'rembg'>(selectedElement?.removeBgType || 'js');
   const [isRemovingBg, setIsRemovingBg] = useState(false);
-  const [userImages, setUserImages] = useState<any[]>([]);
+  const [userImages, setUserImages] = useState<any[]>(propUserImages || []);
   const [shapeGroups, setShapeGroups] = useState<any[]>([]);
   const [selectedShapeGroupId, setSelectedShapeGroupId] = useState<string>('all');
   const [availableShapes, setAvailableShapes] = useState<any[]>([]);
+  const [imageLabel, setImageLabel] = useState<string>(selectedElement?.label || '');
+  const [showLabel, setShowLabel] = useState<boolean>(selectedElement?.showLabel !== false);
   const fetch = customFetch || window.fetch;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,9 +86,19 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       }
     }
 
-    fetchImages();
+    if (!propUserImages) {
+      fetchImages();
+    }
     fetchShapes();
-  }, [fetch]);
+  }, [fetch, propUserImages]);
+
+  // Sync label state when selected element changes
+  useEffect(() => {
+    if (selectedElement) {
+      setImageLabel(selectedElement.label || '');
+      setShowLabel(selectedElement.showLabel !== false);
+    }
+  }, [selectedElement?.id]);
 
   const parseMaskFromSvg = (svgString: string) => {
     try {
@@ -302,10 +314,46 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
     }
   };
 
+  const allImages = [...userImages];
+
   return (
     <div className="space-y-6 pb-6">
       {/* 1. Permanent Upload Section */}
       <div className="space-y-6">
+        {/* Label Input - Above Upload */}
+        <div className="space-y-3 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100">
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-indigo-900 uppercase tracking-wide">Title</Label>
+            <Input
+              value={imageLabel}
+              onChange={(e) => {
+                setImageLabel(e.target.value);
+                if (selectedElement) {
+                  handleUpdate({ label: e.target.value });
+                }
+              }}
+              placeholder="Enter label for this image..."
+              className="h-10 rounded-lg bg-white border-indigo-200 focus:border-indigo-400"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-white/60 rounded-xl border border-indigo-100/50">
+            <div className="flex flex-col">
+              <Label className="text-xs font-bold text-gray-700 uppercase">Show label</Label>
+              <p className="text-[9px] text-gray-500">Display this label to customers on the storefront</p>
+            </div>
+            <Switch
+              checked={showLabel}
+              onCheckedChange={(checked) => {
+                setShowLabel(checked);
+                if (selectedElement) {
+                  handleUpdate({ showLabel: checked });
+                }
+              }}
+            />
+          </div>
+        </div>
+
         <div>
           <Label className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-tight flex items-center gap-2">
             <Upload className="w-4 h-4 text-indigo-600" />
@@ -328,19 +376,25 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             />
           </div>
         </div>
+      </div>
 
-        {userImages.length > 0 && (
-          <div>
-            <Label className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2 uppercase tracking-tight">
-              <ImageIcon className="w-4 h-4 text-indigo-600" />
-              Your Assets
-            </Label>
-            <div className="grid grid-cols-3 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100 max-h-48 overflow-y-auto shadow-inner">
-              {userImages.map((img: any) => (
+      <Separator />
+
+      {/* 2. Your Assets Section */}
+      {allImages.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2 uppercase tracking-tight">
+            <ImageIcon className="w-4 h-4 text-indigo-600" />
+            Your Assets
+          </Label>
+
+          <div className="bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50">
+            <div className="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto custom-scrollbar p-1">
+              {allImages.filter(img => img.type !== 'gallery').map((img: any) => (
                 <button
                   key={img.id}
                   onClick={() => handleAddFromGallery(img.value)}
-                  className="group relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-500 transition-all bg-white shadow-sm hover:shadow-md"
+                  className="group relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-white hover:border-indigo-400 transition-all shadow-sm hover:shadow-md"
                 >
                   <img
                     src={img.value}
@@ -350,15 +404,15 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                       e.currentTarget.style.display = 'none';
                     }}
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
-                    <Plus className="w-6 h-6 text-white opacity-0 group-hover:opacity-100" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Plus className="w-6 h-6 text-white" />
                   </div>
                 </button>
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <Separator />
 
@@ -564,23 +618,6 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Advanced Config */}
-          <Collapsible className="space-y-2">
-            <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between p-3 w-full rounded-xl bg-gray-50 border border-gray-200 cursor-pointer group hover:bg-gray-100">
-                <div className="flex items-center gap-3">
-                  <Zap className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-bold text-gray-700 uppercase">Advanced Config</span>
-                </div>
-                <ChevronDown className="w-4 h-4 text-gray-400 group-data-[state=open]:rotate-180 transition-transform" />
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-1">
-              <div className="p-4 bg-white rounded-xl border border-gray-200">
-                <OutputSettingsTool element={selectedElement} onUpdate={handleUpdate} />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
 
           <style dangerouslySetInnerHTML={{
             __html: `

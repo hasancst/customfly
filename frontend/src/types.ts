@@ -12,12 +12,18 @@ export interface CanvasElement {
   zIndex: number;
   enableBounce?: boolean;
   locked?: boolean;
+  lockMove?: boolean;
+  lockResize?: boolean;
+  lockRotate?: boolean;
+  lockDelete?: boolean;
+  lockDuplicate?: boolean;
 
   // Text specific
   text?: string;
   fontSize?: number;
   fontFamily?: string;
   fontWeight?: number;
+  letterSpacing?: number;
   italic?: boolean;
   underline?: boolean;
   textAlign?: 'left' | 'center' | 'right';
@@ -34,7 +40,6 @@ export interface CanvasElement {
   textMode?: 'shrink' | 'wrap';
   maxChars?: number;
   textCase?: 'none' | 'uppercase' | 'lowercase';
-  textType?: 'all' | 'numbers';
   bridge?: {
     curve: number;
     offsetY: number;
@@ -42,6 +47,11 @@ export interface CanvasElement {
     trident: boolean;
     oblique: boolean;
   };
+
+  productId?: string;
+  pricingConfigComponent?: React.ReactNode;
+  handle?: string;
+  shop?: string;
 
   // Image specific
   src?: string;
@@ -79,6 +89,7 @@ export interface CanvasElement {
   fieldType?: 'text' | 'email' | 'number' | 'textarea';
   placeholder?: string;
   label?: string;
+  showLabel?: boolean; // Controls if label is shown in public frontend
 
   // Swatch specific
   swatchColors?: string[];
@@ -137,6 +148,18 @@ export interface CanvasElement {
   logic?: ElementLogic;
   svgCode?: string;
   outputSettings?: OutputSettings;
+  fontAssetId?: string;
+  colorAssetId?: string;
+  disableCustomColors?: boolean;
+  disableGradients?: boolean;
+  disableRotation?: boolean;
+  disableOpacity?: boolean;
+  disableTextCase?: boolean;
+  disableTextAlign?: boolean;
+  disableFontSize?: boolean;
+  disableFontFamily?: boolean;
+  disableTextDecoration?: boolean;
+  disableColorPickerUI?: boolean;
 }
 
 export interface OutputSettings {
@@ -181,6 +204,8 @@ export interface ShopifyOption {
 export interface ShopifyProduct {
   id: string;
   title: string;
+  handle?: string;
+  shop?: string;
   variants: ShopifyVariant[];
   options: ShopifyOption[];
   images: string[];
@@ -210,4 +235,5 @@ export interface PageData {
   useVariantImage?: boolean;
   baseImageAsMask?: boolean;
   baseImageMaskInvert?: boolean;
+  variantBaseImages?: Record<string, string>; // Mapping of Variant ID -> Mockup URL
 }

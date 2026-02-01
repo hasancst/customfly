@@ -21,9 +21,11 @@ interface NumberToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    userFonts?: any[];
+    userColors?: any[];
 }
 
-export function NumberTool({ onAddElement, selectedElement, onUpdateElement }: NumberToolProps) {
+export function NumberTool({ onAddElement, selectedElement, onUpdateElement, userFonts, userColors = [] }: NumberToolProps) {
     const [defaultValue, setDefaultValue] = useState<number>(selectedElement?.defaultValue !== undefined ? Number(selectedElement.defaultValue) : 0);
     const [label, setLabel] = useState(selectedElement?.label || '');
     const [fontSize, setFontSize] = useState(selectedElement?.fontSize || 32);
@@ -103,7 +105,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement }: N
             {/* Main Input Section */}
             <div className="px-1 space-y-4">
                 <div className="space-y-1.5">
-                    <Label className="text-sm font-bold text-gray-700">Field Label</Label>
+                    <Label className="text-sm font-bold text-gray-700">Title</Label>
                     <Input
                         value={label}
                         onChange={(e) => {
@@ -225,6 +227,26 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement }: N
                             </SelectContent>
                         </Select>
 
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Select
+                                value={selectedElement?.fontAssetId || "none"}
+                                onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-white">
+                                    <SelectValue placeholder="Global Default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Global Default</SelectItem>
+                                    {userFonts?.map((asset: any) => (
+                                        <SelectItem key={asset.id} value={asset.id}>
+                                            {asset.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div className="flex gap-3">
                             <Input
                                 type="number"
@@ -276,6 +298,30 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement }: N
                                 }}
                             />
                         </div>
+                    </div>
+
+                    {/* Color Palette Selector */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                        <Select
+                            value={selectedElement?.colorAssetId || "none"}
+                            onValueChange={(val) => {
+                                const finalVal = val === "none" ? undefined : val;
+                                onUpdateElement(selectedElement!.id, { colorAssetId: finalVal });
+                            }}
+                        >
+                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                <SelectValue placeholder="Global Default" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Global Default</SelectItem>
+                                {userColors?.map((asset) => (
+                                    <SelectItem key={asset.id} value={asset.id}>
+                                        {asset.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CollapsibleContent>
             </Collapsible>

@@ -50,6 +50,30 @@ app.use((req, res, next) => {
 app.use(morgan('combined'));
 app.use(compression());
 
+// Static files (frontend) path configuration
+const STATIC_PATH = process.env.NODE_ENV === "production"
+    ? resolve(__dirname, "../frontend/dist")
+    : resolve(__dirname, "../frontend");
+
+// --- Static Assets (Served Early) ---
+app.use((req, res, next) => {
+    const ext = req.path.split('.').pop()?.toLowerCase();
+    const staticExts = ['ttf', 'woff', 'woff2', 'otf', 'ico', 'png', 'svg', 'webmanifest', 'js', 'css', 'map'];
+
+    if (staticExts.includes(ext)) {
+        const fileName = req.path.startsWith('/') ? req.path.substring(1) : req.path;
+        const filePath = resolve(STATIC_PATH, fileName);
+
+        if (fs.existsSync(filePath)) {
+            console.log(`[STATIC] Serving: ${fileName}`);
+            return express.static(STATIC_PATH, { index: false })(req, res, next);
+        } else {
+            console.log(`[STATIC] Not found on disk: ${filePath}`);
+        }
+    }
+    next();
+});
+
 const baseStorage = new PrismaSessionStorage(prisma);
 const loggingStorage = {
     storeSession: async (session) => {
@@ -202,9 +226,6 @@ app.post(
 const PORT = process.env.PORT || 3011;
 
 // Static files (frontend)
-const STATIC_PATH = process.env.NODE_ENV === "production"
-    ? resolve(__dirname, "../frontend/dist")
-    : resolve(__dirname, "../frontend");
 
 // --- Shopify App Proxy Support ---
 // Requests from myshop.myshopify.com/apps/customfly will be forwarded here
@@ -694,6 +715,14 @@ app.get("/imcst_api/products/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const session = res.locals.shopify.session;
+
+        const cacheKey = `product_${session.shop}_${id}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            console.log(`[CACHE HIT] Product ${id} for ${session.shop}`);
+            return res.json(cached);
+        }
+
         const client = new shopify.api.clients.Graphql({ session });
 
         const queryString = `
@@ -783,9 +812,11 @@ app.get("/imcst_api/products/:id", async (req, res) => {
                 }
 
                 return variant;
-            })
+            }),
+            shop: session.shop
         };
 
+        cache.set(cacheKey, product, 300); // Cache for 5 minutes
         res.json(product);
     } catch (error) {
         console.error("Error fetching product:", error);
@@ -926,14 +957,53 @@ app.post("/imcst_api/shop_config", async (req, res) => {
 
 // 1. Get Product Config
 app.get("/imcst_api/config/:productId", async (req, res) => {
-    const { productId } = req.params;
-    const shop = res.locals.shopify.session.shop;
+    try {
+        const { productId } = req.params;
+        const shop = res.locals.shopify.session.shop;
 
-    const config = await prisma.merchantConfig.findUnique({
-        where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
-    });
+        const cacheKey = `config_${shop}_${productId}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            console.log(`[CACHE HIT] Config for ${productId}`);
+            return res.json(cached);
+        }
 
-    res.json(config || { error: "Not found" });
+        const config = await prisma.merchantConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
+        });
+
+        // Get default assets & overrides in parallel
+        const overrideIds = ['font', 'color', 'option', 'gallery', 'shape']
+            .map(t => config?.[`${t}AssetId`]).filter(Boolean);
+
+        const [defaults, overrides] = await Promise.all([
+            prisma.asset.findMany({ where: { shop, isDefault: true } }),
+            overrideIds.length > 0 ? prisma.asset.findMany({ where: { id: { in: overrideIds } } }) : Promise.resolve([])
+        ]);
+
+        // Resolve assets (override or default)
+        const assets = {};
+        for (const type of ['font', 'color', 'option', 'gallery', 'shape']) {
+            const overrideId = config?.[`${type}AssetId`];
+            const override = overrides.find(o => o.id === overrideId);
+
+            if (override) {
+                assets[type] = { ...override, isOverride: true };
+            } else {
+                const defaultAsset = defaults.find(a => a.type === type);
+                if (defaultAsset) {
+                    assets[type] = { ...defaultAsset, isOverride: false };
+                }
+            }
+        }
+
+        const result = { ...(config || {}), assets };
+        cache.set(cacheKey, result, 300); // 5 min cache
+        res.json(result);
+    } catch (error) {
+        console.error("Config fetch error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // 2. Save Product Config
@@ -972,6 +1042,12 @@ app.post("/imcst_api/config", async (req, res) => {
             enabledTools: updates.enabledTools !== undefined ? updates.enabledTools : undefined,
             buttonText: updates.buttonText !== undefined ? updates.buttonText : undefined,
             buttonStyle: updates.buttonStyle !== undefined ? updates.buttonStyle : undefined,
+            // Asset Overrides
+            fontAssetId: updates.fontAssetId !== undefined ? updates.fontAssetId : undefined,
+            colorAssetId: updates.colorAssetId !== undefined ? updates.colorAssetId : undefined,
+            optionAssetId: updates.optionAssetId !== undefined ? updates.optionAssetId : undefined,
+            galleryAssetId: updates.galleryAssetId !== undefined ? updates.galleryAssetId : undefined,
+            shapeAssetId: updates.shapeAssetId !== undefined ? updates.shapeAssetId : undefined,
             // New mask & safe area fields
             baseImageAsMask: updates.baseImageAsMask !== undefined ? !!updates.baseImageAsMask : undefined,
             safeAreaRadius: updates.safeAreaRadius !== undefined ? updates.safeAreaRadius : undefined,
@@ -1005,6 +1081,12 @@ app.post("/imcst_api/config", async (req, res) => {
             enabledTools: updates.enabledTools || {},
             buttonText: updates.buttonText || "Design It",
             buttonStyle: updates.buttonStyle || {},
+            // Asset Overrides
+            fontAssetId: updates.fontAssetId,
+            colorAssetId: updates.colorAssetId,
+            optionAssetId: updates.optionAssetId,
+            galleryAssetId: updates.galleryAssetId,
+            shapeAssetId: updates.shapeAssetId,
             // New mask & safe area fields
             baseImageAsMask: !!updates.baseImageAsMask,
             safeAreaRadius: updates.safeAreaRadius || 0,
@@ -1403,6 +1485,13 @@ app.get("/imcst_api/assets", async (req, res) => {
         const { type } = req.query;
         const shop = res.locals.shopify.session.shop;
 
+        const cacheKey = `assets_${shop}_${type || 'all'}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            console.log(`[CACHE HIT] Assets for ${shop} (${type || 'all'})`);
+            return res.json(cached);
+        }
+
         const where = { shop };
         if (type) where.type = type;
 
@@ -1411,8 +1500,62 @@ app.get("/imcst_api/assets", async (req, res) => {
             orderBy: { createdAt: 'desc' }
         });
 
+        cache.set(cacheKey, assets, 600); // Cache for 10 minutes
         res.json(assets);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 5a. Get Default Assets
+app.get("/imcst_api/assets/defaults", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+
+        const defaults = await prisma.asset.findMany({
+            where: { shop, isDefault: true }
+        });
+
+        // Group by type
+        const grouped = defaults.reduce((acc, asset) => {
+            acc[asset.type] = asset;
+            return acc;
+        }, {});
+
+        res.json(grouped);
+    } catch (error) {
+        console.error("Error fetching default assets:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 5b. Set Asset as Default
+app.put("/imcst_api/assets/:id/set-default", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+
+        // Get the asset to find its type
+        const asset = await prisma.asset.findUnique({ where: { id } });
+        if (!asset || asset.shop !== shop) {
+            return res.status(404).json({ error: "Asset not found" });
+        }
+
+        // Unmark all other assets of the same type
+        await prisma.asset.updateMany({
+            where: { shop, type: asset.type, isDefault: true },
+            data: { isDefault: false }
+        });
+
+        // Mark this one as default
+        await prisma.asset.update({
+            where: { id },
+            data: { isDefault: true }
+        });
+
+        res.json({ success: true, asset: { ...asset, isDefault: true } });
+    } catch (error) {
+        console.error("Error setting default asset:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1592,6 +1735,10 @@ app.post("/imcst_api/assets", async (req, res) => {
             }
         });
 
+        // Invalidate cache
+        cache.del(`assets_${shop}_all`);
+        cache.del(`assets_${shop}_${type}`);
+
         res.json(asset);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1625,6 +1772,10 @@ app.put("/imcst_api/assets/:id", async (req, res) => {
             data: dataToUpdate
         });
 
+        // Invalidate cache
+        cache.del(`assets_${shop}_all`);
+        cache.del(`assets_${shop}_${asset.type}`);
+
         res.json(updatedAsset);
     } catch (error) {
         console.error(`[PUT Asset Error]:`, error);
@@ -1649,6 +1800,10 @@ app.delete("/imcst_api/assets/:id", async (req, res) => {
         await prisma.asset.delete({
             where: { id }
         });
+
+        // Invalidate cache
+        cache.del(`assets_${shop}_all`);
+        cache.del(`assets_${shop}_${asset.type}`);
 
         res.json({ success: true });
     } catch (error) {
@@ -1762,8 +1917,8 @@ app.get("/imcst_public_api/storefront.js", (req, res) => {
         }
 
         const html = fs.readFileSync(publicHtmlPath, "utf-8");
-        const jsMatch = html.match(/src="(.*?\/assets\/public-.*?\.js)"/);
-        const cssMatches = [...html.matchAll(/href="(.*?\/assets\/.*?\.css)"/g)];
+        const jsMatch = html.match(/src="(.*?\/(?:assets|imcst_assets)\/public-.*?\.js)"/);
+        const cssMatches = [...html.matchAll(/href="(.*?\/(?:assets|imcst_assets)\/.*?\.css)"/g)];
 
         if (!jsMatch) {
             return res.status(404).send("// JS bundle not found in public.html");
@@ -1849,6 +2004,7 @@ app.get("/imcst_public_api/product/:shop/:shopifyProductId", async (req, res) =>
                 });
                 productData = response.body.product;
                 console.log(`[Public API] Success: found ${productData?.variants?.length} variants`);
+                console.log(`[Public API] Options:`, JSON.stringify(productData?.options, null, 2));
             } else {
                 console.warn(`[Public API] NO SESSION FOUND for ${shop}`);
             }
@@ -2202,14 +2358,14 @@ app.post("/imcst_public_api/pricing/calculate", async (req, res) => {
 
 // Serve Frontend
 // IMPORTANT: CORS middleware must come BEFORE express.static to intercept requests
-app.use("/assets", (req, res, next) => {
+app.use("/imcst_assets", (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
 // Explicitly serve static assets and 404 if not found to prevent falling into auth catch-all
-app.use("/assets", express.static(resolve(STATIC_PATH, "assets"), {
+app.use("/imcst_assets", express.static(resolve(STATIC_PATH, "imcst_assets"), {
     fallthrough: false,
     index: false
 }), (err, req, res, next) => {
@@ -2219,7 +2375,7 @@ app.use("/assets", express.static(resolve(STATIC_PATH, "assets"), {
     next(err);
 });
 
-app.use(express.static(STATIC_PATH, { index: false }));
+// Public Frontend Routes (Bypass Shopify Authentication)
 
 // Public Frontend Routes (Bypass Shopify Authentication)
 app.get(/^\/public/, async (req, res) => {
@@ -2244,7 +2400,7 @@ app.get(/^\/public/, async (req, res) => {
 
         // Force cache break for assets (works for both relative and absolute URLs)
         const v = Date.now();
-        html = html.replace(/(src|href)="([^"]*\/assets\/[^"]*)"/g, `$1="$2?v=${v}"`);
+        html = html.replace(/(src|href)="([^"]*\/imcst_assets\/[^"]*)"/g, `$1="$2?v=${v}"`);
 
         return res
             .status(200)
@@ -2280,7 +2436,7 @@ app.use(shopify.ensureInstalledOnShop(), async (req, res, _next) => {
 
     // 2. Force cache break for assets (works for both relative and absolute URLs)
     const v = Date.now();
-    html = html.replace(/(src|href)="([^"]*\/assets\/[^"]*)"/g, `$1="$2?v=${v}"`);
+    html = html.replace(/(src|href)="([^"]*\/imcst_assets\/[^"]*)"/g, `$1="$2?v=${v}"`);
 
     return res
         .status(200)

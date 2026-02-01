@@ -20,13 +20,15 @@ interface DropdownToolProps {
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
     productData?: any;
     userOptions?: any[];
+    userFonts?: any[];
 }
 
 export function DropdownTool({
     selectedElement,
     onUpdateElement,
     productData,
-    userOptions
+    userOptions,
+    userFonts
 }: DropdownToolProps) {
     const [newItem, setNewItem] = React.useState('');
     const productOptions = productData?.options || [];
@@ -89,7 +91,7 @@ export function DropdownTool({
                 {/* General Settings */}
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Field Label</Label>
+                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Title</Label>
                         <Input
                             value={selectedElement.label || ''}
                             onChange={(e) => onUpdateElement(selectedElement.id, { label: e.target.value })}
@@ -135,15 +137,24 @@ export function DropdownTool({
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex flex-col justify-end space-y-1.5">
-                            <div className="flex items-center justify-between py-1.5 px-2 bg-gray-50/50 rounded-lg border border-gray-100">
-                                <Label className="text-[10px] font-bold text-gray-700">Searchable</Label>
-                                <Switch
-                                    checked={!!selectedElement.isSearchable}
-                                    onCheckedChange={(val) => onUpdateElement(selectedElement.id, { isSearchable: val })}
-                                    className="scale-75"
-                                />
-                            </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Select
+                                value={selectedElement.fontAssetId || "none"}
+                                onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-white">
+                                    <SelectValue placeholder="Global Default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Global Default</SelectItem>
+                                    {userFonts?.map((asset) => (
+                                        <SelectItem key={asset.id} value={asset.id}>
+                                            {asset.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
@@ -169,8 +180,8 @@ export function DropdownTool({
                                 </p>
                             )}
                             <div className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all ${(selectedElement.dropdownStyle || 'classic') === 'outline' ? 'bg-white border-2 border-cyan-400 shadow-sm shadow-cyan-50' :
-                                    (selectedElement.dropdownStyle || 'classic') === 'soft' ? 'bg-cyan-50/50 border border-cyan-100 text-cyan-900' :
-                                        'bg-white border border-gray-200 shadow-sm'
+                                (selectedElement.dropdownStyle || 'classic') === 'soft' ? 'bg-cyan-50/50 border border-cyan-100 text-cyan-900' :
+                                    'bg-white border border-gray-200 shadow-sm'
                                 }`}>
                                 <span className="text-xs text-gray-400 truncate">
                                     {selectedElement.placeholder || 'Select option...'}
@@ -190,7 +201,7 @@ export function DropdownTool({
                 <div className="space-y-3">
                     <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
                         <Link2 className="w-3 h-3" />
-                        Options Source
+                        Group Options
                     </Label>
                     <Select
                         value={selectedElement.linkedAssetId?.startsWith('shopify:') ? selectedElement.linkedAssetId.replace('shopify:', '') : (selectedElement.linkedAssetId ? `asset:${selectedElement.linkedAssetId}` : 'none')}
@@ -285,6 +296,7 @@ export function DropdownTool({
                     </p>
                 </div>
             </div>
-        </div >
+
+        </div>
     );
 }

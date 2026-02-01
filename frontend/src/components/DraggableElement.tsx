@@ -57,6 +57,10 @@ const BridgeText = ({
 
     const fontSizeRaw = fontSize * 2; // Render at 2x for better quality
     tempCtx.font = `${element.fontWeight || 400} ${fontSizeRaw}px ${element.fontFamily || 'Inter'}`;
+    // @ts-ignore - letterSpacing is a standard but sometimes missing from types
+    if ('letterSpacing' in tempCtx) {
+      tempCtx.letterSpacing = `${(element.letterSpacing || 0) * 2}px`;
+    }
     const text = element.text || '';
     const metrics = tempCtx.measureText(text);
 
@@ -442,11 +446,11 @@ export const DraggableElement = memo(({
         const newY = startY_orig + globalOffsetY;
 
         let newFontSize = startFontSize;
-        if (element.type === 'text') {
+        if (element.type === 'text' || element.type === 'monogram') {
           const isEdgeHandle = ['n', 's', 'e', 'w'].includes(resizeHandle || '');
 
-          if (element.textMode === 'shrink') {
-            // MODE SHRINK: Selalu proposional dari handle mana pun
+          if (element.textMode === 'shrink' || element.type === 'monogram') {
+            // MODE SHRINK (or Monogram): Selalu proposional dari handle mana pun
             const scale = newWidth / startWidth;
             newFontSize = startFontSize * scale;
             newHeight = startHeight * scale;
@@ -685,6 +689,7 @@ export const DraggableElement = memo(({
                   strokeLinejoin="round"
                   paintOrder="stroke fill"
                   textAnchor="middle"
+                  letterSpacing={element.letterSpacing}
                 >
                   <textPath
                     href={`#${pathId}`}
@@ -724,7 +729,8 @@ export const DraggableElement = memo(({
                     'center',
               overflow: 'visible',
               padding: 0,
-              visibility: isEditing ? 'hidden' : 'visible'
+              visibility: isEditing ? 'hidden' : 'visible',
+              letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
             }}
           >
             <div
@@ -996,6 +1002,7 @@ export const DraggableElement = memo(({
                 ...gradientStyle,
                 ...getStrokeStyle(),
                 color: element.fillType === 'gradient' ? 'transparent' : color,
+                letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
               }}>
                 {l2}
               </span>
@@ -1033,7 +1040,8 @@ export const DraggableElement = memo(({
                 fontSize: size,
                 ...gradientStyle,
                 ...getStrokeStyle(),
-                color: element.fillType === 'gradient' ? 'transparent' : color
+                color: element.fillType === 'gradient' ? 'transparent' : color,
+                letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
               }}>{l3}</div>
             </div>
           );
@@ -1049,6 +1057,7 @@ export const DraggableElement = memo(({
             alignItems: 'center',
             justifyContent: 'center',
             lineHeight: 1,
+            letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
           }}>
             <span style={{
               fontFamily: `${fontPrefix}-Left`,
@@ -1362,8 +1371,12 @@ export const DraggableElement = memo(({
     }
 
     e.stopPropagation();
-    setIsDragging(true);
     onSelect();
+
+    // Allow selection but prevent dragging if locked
+    if (element.lockMove) return;
+
+    setIsDragging(true);
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -1439,7 +1452,7 @@ export const DraggableElement = memo(({
         }
       }}
       onClick={(e) => e.stopPropagation()}
-      className={`draggable-element ${element.type === 'text' ? 'draggable-text' : element.type === 'image' ? 'draggable-image' : element.type === 'shape' ? 'draggable-shape' : ''} absolute ${(isResizing || isRotating || !canInteract) ? 'cursor-default' : 'cursor-move'}`}
+      className={`draggable-element ${element.type === 'text' ? 'draggable-text' : element.type === 'image' ? 'draggable-image' : element.type === 'shape' ? 'draggable-shape' : ''} absolute ${(isResizing || isRotating || !canInteract || element.lockMove) ? 'cursor-default' : 'cursor-move'}`}
       style={{
         left: localState.x * (zoom / 100),
         top: localState.y * (zoom / 100),
@@ -1479,7 +1492,8 @@ export const DraggableElement = memo(({
             lineHeight: 1.1,
             textAlign: (element.textAlign || 'center') as any,
             color: element.color || '#000000',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
           }}
         />
       )}
@@ -1497,72 +1511,82 @@ export const DraggableElement = memo(({
           {!isDragging && (
             <div className="absolute inset-0 pointer-events-none">
               {/* NW: Delete */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onDelete(); }}
-                className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] top-0 left-0 -translate-x-[80%] -translate-y-[80%] cursor-pointer group"
-                title="Delete"
-              >
-                <div className="w-7 h-7 bg-white border-2 border-red-500 text-red-500 shadow-md rounded-full flex items-center justify-center hover:bg-red-50 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" />
+              {!element.lockDelete && (
+                <div
+                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onDelete(); }}
+                  className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] top-0 left-0 -translate-x-[80%] -translate-y-[80%] cursor-pointer group"
+                  title="Delete"
+                >
+                  <div className="w-7 h-7 bg-white border-2 border-red-500 text-red-500 shadow-md rounded-full flex items-center justify-center hover:bg-red-50 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* NE: Rotate */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startRotating(e); }}
-                className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] top-0 right-0 translate-x-[80%] -translate-y-[80%] cursor-alias group"
-                title="Rotate"
-              >
-                <div className={`w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-full flex items-center justify-center transition-all ${isRotating ? 'scale-110 bg-indigo-50' : 'hover:bg-indigo-50'}`}>
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+              {!element.lockRotate && (
+                <div
+                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startRotating(e); }}
+                  className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] top-0 right-0 translate-x-[80%] -translate-y-[80%] cursor-alias group"
+                  title="Rotate"
+                >
+                  <div className={`w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-full flex items-center justify-center transition-all ${isRotating ? 'scale-110 bg-indigo-50' : 'hover:bg-indigo-50'}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* SW: Duplicate */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onDuplicate(); }}
-                className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] bottom-0 left-0 -translate-x-[80%] translate-y-[80%] cursor-pointer group"
-                title="Duplicate"
-              >
-                <div className="w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-full flex items-center justify-center hover:bg-indigo-50 transition-colors">
-                  <Copy className="w-3.5 h-3.5" />
+              {!element.lockDuplicate && (
+                <div
+                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onDuplicate(); }}
+                  className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] bottom-0 left-0 -translate-x-[80%] translate-y-[80%] cursor-pointer group"
+                  title="Duplicate"
+                >
+                  <div className="w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-full flex items-center justify-center hover:bg-indigo-50 transition-colors">
+                    <Copy className="w-3.5 h-3.5" />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* SE: Resize */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'se'); }}
-                className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] bottom-0 right-0 translate-x-[80%] translate-y-[80%] cursor-nwse-resize group"
-                title="Resize"
-              >
-                <div className={`w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-sm flex items-center justify-center transition-all ${isResizing ? 'scale-110 bg-indigo-50 border-indigo-700' : 'hover:bg-indigo-50'}`}>
-                  <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-current" />
-                </div>
-              </div>
+              {!element.lockResize && (
+                <>
+                  <div
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'se'); }}
+                    className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] bottom-0 right-0 translate-x-[80%] translate-y-[80%] cursor-nwse-resize group"
+                    title="Resize"
+                  >
+                    <div className={`w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-sm flex items-center justify-center transition-all ${isResizing ? 'scale-110 bg-indigo-50 border-indigo-700' : 'hover:bg-indigo-50'}`}>
+                      <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-current" />
+                    </div>
+                  </div>
 
-              {/* Edge Handles for smooth line resizing */}
-              {/* Top Handle */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'n'); }}
-                className="absolute h-4 left-4 right-4 top-0 -translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]"
-              />
-              {/* Bottom Handle */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 's'); }}
-                className="absolute h-4 left-4 right-4 bottom-0 translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]"
-              />
-              {/* Left Handle */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'w'); }}
-                className="absolute w-4 top-4 bottom-4 left-0 -translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]"
-              />
-              {/* Right Handle */}
-              <div
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'e'); }}
-                className="absolute w-4 top-4 bottom-4 right-0 translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]"
-              />
+                  {/* Edge Handles for smooth line resizing */}
+                  {/* Top Handle */}
+                  <div
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'n'); }}
+                    className="absolute h-4 left-4 right-4 top-0 -translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]"
+                  />
+                  {/* Bottom Handle */}
+                  <div
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 's'); }}
+                    className="absolute h-4 left-4 right-4 bottom-0 translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]"
+                  />
+                  {/* Left Handle */}
+                  <div
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'w'); }}
+                    className="absolute w-4 top-4 bottom-4 left-0 -translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]"
+                  />
+                  {/* Right Handle */}
+                  <div
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'e'); }}
+                    className="absolute w-4 top-4 bottom-4 right-0 translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]"
+                  />
+                </>
+              )}
             </div>
           )}
         </>

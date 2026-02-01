@@ -21,7 +21,6 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
 import {
     Popover,
     PopoverContent,
@@ -34,20 +33,25 @@ interface SwatchToolProps {
     selectedElement: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
     productData: any; // Using any for simplicity, ideally should match ShopifyProduct type
-    userColors?: any[];
     userOptions?: any[];
+    activeElementPaletteColors?: { name: string, value: string }[];
+    userFonts?: any[];
     onRefreshAssets?: () => void;
     onSaveAsset?: (asset: any) => Promise<any>;
 }
 
-export function SwatchTool({ selectedElement, onUpdateElement, productData, userColors, userOptions, onRefreshAssets, onSaveAsset }: SwatchToolProps) {
+export function SwatchTool({ selectedElement, onUpdateElement, productData, userOptions, userFonts, activeElementPaletteColors = [], onRefreshAssets, onSaveAsset }: SwatchToolProps) {
     const [newColor, setNewColor] = React.useState('#000000');
     const [newItemName, setNewItemName] = React.useState('');
 
     // Extract available options from product data
     const productOptions = productData?.options || [];
 
-    const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null);
+    const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(
+        selectedElement.linkedAssetId?.startsWith('shopify:')
+            ? null
+            : (selectedElement.linkedAssetId || null)
+    );
     const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
     const [newAssetName, setNewAssetName] = React.useState('');
     const [newAssetValues, setNewAssetValues] = React.useState(''); // Line separated
@@ -105,13 +109,6 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                 swatchColors: [...currentColors, newValue]
             });
         }
-    };
-
-    const parsePaletteColors = (assetValue: string) => {
-        return assetValue.split('\n').filter(Boolean).map(line => {
-            const parts = line.split('|');
-            return parts.length > 1 ? parts[1].trim() : parts[0].trim();
-        });
     };
 
     const handleCreateAsset = async () => {
@@ -185,6 +182,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
             onUpdateElement(selectedElement.id, {
                 swatchColors: swatchValuesWithImages,
+                linkedAssetId: `shopify:${optionName}`
             });
             setSelectedAssetId(null); // It's a shopify variant, not a local asset group
         }
@@ -202,6 +200,60 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
             </div>
 
             <div className="p-4 space-y-6 flex-1 overflow-y-auto">
+                {/* Group Options Selector */}
+                <div className="space-y-3">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
+                        <Link2 className="w-3 h-3" />
+                        Group Options
+                    </Label>
+                    <Select
+                        value={selectedElement.linkedAssetId?.startsWith('shopify:') ? selectedElement.linkedAssetId.replace('shopify:', '') : (selectedElement.linkedAssetId ? `asset:${selectedElement.linkedAssetId}` : 'none')}
+                        onValueChange={(val) => {
+                            if (val === 'none') {
+                                handleLinkOption('none');
+                            } else if (val.startsWith('asset:')) {
+                                const assetId = val.replace('asset:', '');
+                                const asset = userOptions?.find(a => String(a.id) === String(assetId));
+                                if (asset) {
+                                    const lines = asset.value.split('\n').filter(Boolean);
+                                    onUpdateElement(selectedElement.id, {
+                                        linkedAssetId: assetId,
+                                        swatchColors: lines.map((l: string) => l.trim())
+                                    });
+                                    setSelectedAssetId(assetId);
+                                }
+                            } else {
+                                handleLinkOption(val);
+                            }
+                        }}
+                    >
+                        <SelectTrigger className="h-9 bg-white border-gray-200">
+                            <SelectValue placeholder="Select an option source..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">None (Manual Setup)</SelectItem>
+                            {productOptions.length > 0 && (
+                                <>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50">Shopify Options</div>
+                                    {productOptions.map((opt: any) => (
+                                        <SelectItem key={opt.name} value={opt.name}>{opt.name}</SelectItem>
+                                    ))}
+                                </>
+                            )}
+                            {userOptions && userOptions.length > 0 && (
+                                <>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50 mt-1">Saved Asset Groups</div>
+                                    {userOptions.map((asset) => (
+                                        <SelectItem key={asset.id} value={`asset:${asset.id}`}>
+                                            {asset.name}
+                                        </SelectItem>
+                                    ))}
+                                </>
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
+
                 <div className="space-y-4">
                     <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold text-gray-400 uppercase">Swatch Shape</Label>
@@ -220,6 +272,26 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                         </Select>
                     </div>
 
+                    <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                        <Select
+                            value={selectedElement.fontAssetId || "none"}
+                            onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
+                        >
+                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                <SelectValue placeholder="Global Default" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Global Default</SelectItem>
+                                {userFonts?.map((asset) => (
+                                    <SelectItem key={asset.id} value={asset.id}>
+                                        {asset.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     {/* Visual Preview Box */}
                     <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-3">
                         <Label className="text-[9px] font-bold text-gray-400 uppercase">Swatch Preview</Label>
@@ -229,8 +301,8 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                                     <div
                                         key={i}
                                         className={`border-2 border-white shadow-sm transition-all ${(selectedElement.swatchShape || 'circle') === 'square' ? 'rounded-none' :
-                                                (selectedElement.swatchShape || 'circle') === 'rounded' ? 'rounded-lg' :
-                                                    'rounded-full'
+                                            (selectedElement.swatchShape || 'circle') === 'rounded' ? 'rounded-lg' :
+                                                'rounded-full'
                                             } w-7 h-7`}
                                         style={{ backgroundColor: ['#ef4444', '#3b82f6', '#10b981'][i] }}
                                     />
@@ -242,92 +314,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
                 <Separator className="bg-gray-100" />
 
-                {/* Link to Product Option */}
-                <div className="space-y-3">
-                    <Label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
-                        <Link2 className="w-3 h-3" />
-                        Import from Product Option
-                    </Label>
-                    <Select onValueChange={(val) => {
-                        if (val.startsWith('asset:')) {
-                            const assetId = val.replace('asset:', '');
-                            const asset = userOptions?.find(a => a.id === assetId);
-                            if (asset) {
-                                // Asset value is typically newline separated 'Name|#Hex' or just '#Hex'
-                                // We need just the colors/values for now.
-                                // Assuming simple format for now: text lines
-                                const lines = asset.value.split('\n').filter(Boolean);
-                                // Keep the full "Name|Color" format if present, so we can display Name and use Color
-                                // The rendering logic handles splitting.
-                                onUpdateElement(selectedElement.id, { swatchColors: lines.map((l: string) => l.trim()) });
-                                setSelectedAssetId(assetId);
-                            }
-                        } else {
-                            handleLinkOption(val);
-                        }
-                    }}>
-                        <SelectTrigger className="h-9 bg-white border-gray-200">
-                            <SelectValue placeholder="Select an option source..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">None (Manual Setup)</SelectItem>
-
-                            {/* Product Options */}
-                            {productOptions.length > 0 && (
-                                <React.Fragment>
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-400">Shopify Variant</div>
-                                    {productOptions.map((opt: any) => (
-                                        <SelectItem key={opt.name} value={opt.name}>
-                                            {opt.name}
-                                        </SelectItem>
-                                    ))}
-                                </React.Fragment>
-                            )}
-
-                            {/* Saved Assets Options */}
-                            {userOptions && (
-                                (() => {
-                                    const filteredAssets = userOptions.filter(asset => {
-                                        const assetPid = asset.config?.productId || asset.productId;
-                                        return !assetPid || (productData?.id && String(assetPid) === String(productData.id));
-                                    });
-
-                                    if (filteredAssets.length === 0) return null;
-
-                                    return (
-                                        <React.Fragment>
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-gray-400">Saved Assets (Options)</div>
-                                            {filteredAssets.map((asset) => (
-                                                <SelectItem key={asset.id} value={`asset:${asset.id}`}>
-                                                    {asset.name || asset.optionName || 'Untitled Option'}
-                                                </SelectItem>
-                                            ))}
-                                        </React.Fragment>
-                                    );
-                                })()
-                            )}
-                            <div className="p-2 border-t border-gray-100 mt-1">
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start h-8 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        setIsCreateModalOpen(true);
-                                    }}
-                                >
-                                    <Plus className="w-3 h-3 mr-2" />
-                                    Add New Option Group
-                                </Button>
-                            </div>
-                        </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-gray-400">
-                        Import from Product Options or your Saved Assets library.
-                    </p>
-                </div>
-
-                {/* Color Items Preview */}
-                {selectedElement.swatchColors && selectedElement.swatchColors.length > 0 ? (
+                {(selectedElement.swatchColors && selectedElement.swatchColors.length > 0) ? (
                     <div className="space-y-3">
                         <Label className="text-xs font-bold text-gray-500 uppercase">Current Items</Label>
                         <ScrollArea className="h-[200px] w-full rounded-xl border border-gray-100 bg-gray-50/50 p-2">
@@ -381,13 +368,14 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                                                                     <div className="space-y-2">
                                                                         <Label className="text-[10px] font-bold uppercase text-gray-500">Preset Palette</Label>
                                                                         <div className="grid grid-cols-6 gap-1.5 overflow-y-auto max-h-32">
-                                                                            {userColors && userColors.length > 0 ? (
-                                                                                userColors.flatMap(asset => parsePaletteColors(asset.value)).map((hex, pIdx) => (
+                                                                            {activeElementPaletteColors.length > 0 ? (
+                                                                                activeElementPaletteColors.map((color, pIdx) => (
                                                                                     <button
-                                                                                        key={`${hex}-${pIdx}`}
+                                                                                        key={`${color.value}-${pIdx}`}
                                                                                         className="w-7 h-7 rounded-sm border border-gray-100 shadow-sm hover:scale-110 transition-transform"
-                                                                                        style={{ backgroundColor: hex }}
-                                                                                        onClick={() => handleUpdateItemValue(idx, hex)}
+                                                                                        style={{ backgroundColor: color.value }}
+                                                                                        onClick={() => handleUpdateItemValue(idx, color.value)}
+                                                                                        title={color.name}
                                                                                     />
                                                                                 ))
                                                                             ) : (
@@ -521,42 +509,43 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                     </div>
                 )}
 
-            </div>
+                {/* Create Asset Modal */}
+                <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create Option Group</DialogTitle>
+                            <DialogDescription>
+                                Create a reusable group of swatch options.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label>Group Name</Label>
+                                <Input
+                                    placeholder="e.g. Premium Colors"
+                                    value={newAssetName}
+                                    onChange={(e) => setNewAssetName(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Initial Values</Label>
+                                <Input
+                                    placeholder="Name|#Hex (one per line)"
+                                    value={newAssetValues}
+                                    onChange={(e) => setNewAssetValues(e.target.value)}
+                                />
+                                <p className="text-[10px] text-gray-400">Format: Color Name|#HexCode (e.g. Ruby Red|#e0115f)</p>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
+                            <Button onClick={handleCreateAsset}>Create Asset</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-            {/* Create Asset Modal */}
-            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Create Option Group</DialogTitle>
-                        <DialogDescription>
-                            Create a reusable group of swatch options.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label>Group Name</Label>
-                            <Input
-                                placeholder="e.g. Premium Colors"
-                                value={newAssetName}
-                                onChange={(e) => setNewAssetName(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Initial Values</Label>
-                            <Input
-                                placeholder="Name|#Hex (one per line, but for now just one)"
-                                value={newAssetValues}
-                                onChange={(e) => setNewAssetValues(e.target.value)}
-                            />
-                            <p className="text-[10px] text-gray-400">Format: Color Name|#HexCode (e.g. Ruby Red|#e0115f)</p>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleCreateAsset}>Create Asset</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
+            </div>
         </div>
     );
 }

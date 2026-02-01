@@ -40,6 +40,8 @@ export default function DesignerPublic({
                 if (prodRes.ok) {
                     const data = await prodRes.json();
                     console.log("[DesignerPublic] Fetched product data:", data);
+                    console.log("[DesignerPublic] Product variants:", data.product?.variants);
+                    console.log("[DesignerPublic] Product options:", data.product?.options);
                     setConfigData(data.config);
                     setInitialDesign(data.design);
                     setShopifyProduct(data.product);

@@ -10,19 +10,18 @@ interface GalleryToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    userGalleries?: any[];
     customFetch?: any;
 }
 
-export function GalleryTool({ onAddElement, selectedElement, onUpdateElement, customFetch }: GalleryToolProps) {
+export function GalleryTool({ onAddElement, selectedElement, onUpdateElement, userGalleries = [], customFetch }: GalleryToolProps) {
     const [galleryMode, setGalleryMode] = useState<'all' | 'categorized'>(
         selectedElement?.galleryMode || 'categorized'
     );
     const [maxImages, setMaxImages] = useState(selectedElement?.galleryMaxImages || 10);
-    const [availableGalleries, setAvailableGalleries] = useState<any[]>([]);
     const [selectedGalleries, setSelectedGalleries] = useState<string[]>(
         selectedElement?.gallerySourceIds || []
     );
-    const fetch = customFetch || window.fetch;
 
     useEffect(() => {
         if (selectedElement?.type === 'gallery') {
@@ -32,26 +31,12 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement, cu
         }
     }, [selectedElement]);
 
-    // Fetch available galleries from assets
+    // Default to select all galleries if no selection exists and we're not editing an existing element
     useEffect(() => {
-        async function fetchGalleries() {
-            try {
-                const res = await fetch('/imcst_api/assets?type=gallery');
-                if (res.ok) {
-                    const galleries = await res.json();
-                    setAvailableGalleries(galleries);
-
-                    // Default to select all galleries if no selection exists and we're not editing an existing element
-                    if (!selectedElement && selectedGalleries.length === 0 && galleries.length > 0) {
-                        setSelectedGalleries(galleries.map((g: any) => g.id));
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to fetch galleries:', err);
-            }
+        if (!selectedElement && selectedGalleries.length === 0 && userGalleries.length > 0) {
+            setSelectedGalleries(userGalleries.map((g: any) => g.id));
         }
-        fetchGalleries();
-    }, [fetch, selectedElement, selectedGalleries.length]);
+    }, [selectedElement, userGalleries, selectedGalleries.length]);
 
     const handleAddGallery = () => {
         const newElement: CanvasElement = {
@@ -123,9 +108,9 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement, cu
             <div className="px-1 space-y-3">
                 <Label className="text-sm font-bold text-gray-700">Select Source Galleries</Label>
 
-                {availableGalleries.length > 0 ? (
+                {userGalleries.length > 0 ? (
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                        {availableGalleries.map((gallery) => {
+                        {userGalleries.map((gallery: any) => {
                             const isSelected = selectedGalleries.includes(gallery.id);
                             return (
                                 <button

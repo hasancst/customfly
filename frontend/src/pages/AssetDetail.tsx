@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Modal, Box, BlockStack, Filters, Pagination, Select, FormLayout, TextField, Combobox, Listbox, Icon, Tag, InlineStack, Checkbox, ProgressBar, Toast } from '@shopify/polaris';
 import { DeleteIcon, PlusIcon, SearchIcon, EditIcon, DragHandleIcon } from '@shopify/polaris-icons';
 import { Reorder } from 'framer-motion';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 
@@ -42,6 +42,7 @@ interface ListItem {
 
 export default function AssetDetail() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const fetch = useAuthenticatedFetch();
 
     const [asset, setAsset] = useState<Asset | null>(null);
@@ -92,7 +93,11 @@ export default function AssetDetail() {
             const response = await fetch(`/imcst_api/assets`);
             if (response.ok) {
                 const data = await response.json();
-                const found = data.find((a: Asset) => a.id === id);
+                console.log("Fetching asset detail for ID:", id, "Total assets:", data.length);
+                const found = data.find((a: Asset) => String(a.id) === String(id));
+                if (!found) {
+                    console.error("Asset not found in list. ID seeking:", id);
+                }
                 setAsset(found || null);
             }
         } catch (error) {
@@ -663,7 +668,7 @@ export default function AssetDetail() {
 
 
     if (isLoading) return <Page><Layout><Layout.Section><Card>Loading...</Card></Layout.Section></Layout></Page>;
-    if (!asset) return <Page><Layout><Layout.Section><Card>Asset not found</Card></Layout.Section></Layout></Page>;
+    if (!asset) return <Page><Layout><Layout.Section><Card><BlockStack gap="200"><Text variant="headingMd" as="h2">Asset not found</Text><Text tone="subdued" as="p">Could not find asset with ID: {id}</Text><Button onClick={() => navigate('/assets')}>Back to Assets</Button></BlockStack></Card></Layout.Section></Layout></Page>;
 
     return (
         <Page

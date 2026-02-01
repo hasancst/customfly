@@ -61,6 +61,13 @@ model MerchantConfig {
   buttonText            String   @default("Design It")
   buttonStyle           Json?    // { color: "#000", bgColor: "#fff" }
   outputSettings        Json?    // { fileType: "png", dpi: 300, etc }
+  
+  // NEW: Asset Group Overrides (optional, falls back to defaults)
+  fontAssetId           String?  // Reference to Asset.id where type='font'
+  colorAssetId          String?  // Reference to Asset.id where type='color'
+  optionAssetId         String?  // Reference to Asset.id where type='option'
+  galleryAssetId        String?  // Reference to Asset.id where type='gallery'
+  shapeAssetId          String?  // Reference to Asset.id where type='shape'
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -93,12 +100,15 @@ model Asset {
   shop      String
   type      String
   name      String
+  label     String?
   value     String
   config    Json?
+  isDefault Boolean  @default(false)  // Mark as default for all products
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([shop, type])
+  @@index([shop, type, isDefault])  // Index for faster default lookups
 }
 
 model GoogleFont {

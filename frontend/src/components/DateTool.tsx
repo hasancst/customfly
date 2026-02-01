@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Settings2, Calendar } from 'lucide-react';
+import { Plus, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,8 @@ interface DateToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    userFonts?: any[];
+    userColors?: any[];
 }
 
 const DATE_FORMATS = [
@@ -32,7 +34,7 @@ const DATE_FORMATS = [
     { value: 'MMM D, YYYY', label: 'Dec 31, 2025' },
 ];
 
-export function DateTool({ onAddElement, selectedElement, onUpdateElement }: DateToolProps) {
+export function DateTool({ onAddElement, selectedElement, onUpdateElement, userFonts, userColors = [] }: DateToolProps) {
     const formatDate = (dateString: string, format: string) => {
         if (!dateString) return '';
         const date = new Date(dateString);
@@ -133,7 +135,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement }: Dat
             {/* Main Input Section */}
             <div className="px-1 space-y-4">
                 <div className="space-y-1.5">
-                    <Label className="text-sm font-bold text-gray-700">Field Label</Label>
+                    <Label className="text-sm font-bold text-gray-700">Title</Label>
                     <Input
                         value={label}
                         onChange={(e) => {
@@ -229,6 +231,26 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement }: Dat
                             </SelectContent>
                         </Select>
 
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Select
+                                value={selectedElement?.fontAssetId || "none"}
+                                onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
+                            >
+                                <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                    <SelectValue placeholder="Global Default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Global Default</SelectItem>
+                                    {userFonts?.map((asset: any) => (
+                                        <SelectItem key={asset.id} value={asset.id}>
+                                            {asset.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div className="flex gap-3">
                             <Input
                                 type="number"
@@ -280,6 +302,30 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement }: Dat
                                 }}
                             />
                         </div>
+                    </div>
+
+                    {/* Color Palette Selector */}
+                    <div className="space-y-1.5 pt-2">
+                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                        <Select
+                            value={selectedElement?.colorAssetId || "none"}
+                            onValueChange={(val) => {
+                                const finalVal = val === "none" ? undefined : val;
+                                onUpdateElement(selectedElement!.id, { colorAssetId: finalVal });
+                            }}
+                        >
+                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                <SelectValue placeholder="Global Default" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Global Default</SelectItem>
+                                {userColors?.map((asset) => (
+                                    <SelectItem key={asset.id} value={asset.id}>
+                                        {asset.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CollapsibleContent>
             </Collapsible>

@@ -56,17 +56,22 @@ export default function App() {
 
     const isPublic = !config.host;
 
-    console.log("App startup", { isPublic, host: config.host ? "present" : "missing" });
+    console.log("App initialization:", {
+        host: config.host ? "detected" : "MISSING",
+        apiKey: config.apiKey ? "present" : "MISSING",
+        isPublic,
+        url: window.location.href
+    });
 
     return (
         <PolarisProvider i18n={enTranslations} linkComponent={LinkComponent}>
             <BrowserRouter>
                 {isPublic ? (
-                    <MainContent cleanSearch={cleanSearch} />
+                    <MainContent cleanSearch={cleanSearch} isPublic={true} />
                 ) : (
                     <AppBridgeProvider config={config}>
                         <RoutePropagator />
-                        <MainContent cleanSearch={cleanSearch} />
+                        <MainContent cleanSearch={cleanSearch} isPublic={false} />
                     </AppBridgeProvider>
                 )}
             </BrowserRouter>
@@ -74,13 +79,13 @@ export default function App() {
     );
 }
 
-function MainContent({ cleanSearch }: { cleanSearch: string }) {
+function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic: boolean }) {
     const location = useLocation();
     const isDesigner = location.pathname.includes('/designer');
 
     const content = (
         <>
-            {!isDesigner && (
+            {!isPublic && (
                 <NavigationMenu
                     navigationLinks={[
                         {

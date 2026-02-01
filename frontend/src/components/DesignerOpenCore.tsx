@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Toolbar } from './Toolbar';
 import { Canvas } from './Canvas';
 import { Summary } from './Summary';
@@ -108,12 +108,16 @@ export function DesignerOpenCore({
     const [isAutoSaving, setIsAutoSaving] = useState(false);
 
     const [selectedVariantId, setSelectedVariantId] = useState<string>('');
-    const [selectedColorAssetId, setSelectedColorAssetId] = useState<string | null>(initialConfig.selectedColorAssetId || null);
+    const [selectedBaseColorAssetId, setSelectedBaseColorAssetId] = useState<string | null>(initialConfig.assets?.selectedBaseColorAssetId || initialConfig.selectedBaseColorAssetId || null);
+    const [selectedElementColorAssetId, setSelectedElementColorAssetId] = useState<string | null>(initialConfig.assets?.colorAssetId || initialConfig.colorAssetId || initialConfig.selectedColorAssetId || null);
+    const [selectedFontAssetId, setSelectedFontAssetId] = useState<string | null>(initialConfig.assets?.fontAssetId || initialConfig.fontAssetId || null);
+    const [selectedOptionAssetId, setSelectedOptionAssetId] = useState<string | null>(initialConfig.assets?.optionAssetId || initialConfig.optionAssetId || null);
+    const [selectedGalleryAssetId, setSelectedGalleryAssetId] = useState<string | null>(initialConfig.assets?.galleryAssetId || initialConfig.galleryAssetId || null);
+    const [selectedShapeAssetId, setSelectedShapeAssetId] = useState<string | null>(initialConfig.assets?.shapeAssetId || initialConfig.shapeAssetId || null);
 
     const [isCropModalOpen, setIsCropModalOpen] = useState(false);
     const [isBaseImageModalOpen, setIsBaseImageModalOpen] = useState(false);
     const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
-
     // Initialize selected variant
     useEffect(() => {
         if (productData?.variants && productData.variants.length > 0) {
@@ -125,6 +129,15 @@ export function DesignerOpenCore({
             console.warn("[DesignerOpenCore] productData present but no variants found:", productData);
         }
     }, [productData, selectedVariantId]);
+
+    useEffect(() => {
+        console.log('DesignerOpenCore Initial Data:', {
+            productData,
+            variants: productData?.variants,
+            initialConfig,
+            variantBaseImages: initialConfig?.variantBaseImages
+        });
+    }, [productData]);
 
     const addToHistory = useCallback((currentPages: PageData[]) => {
         setHistory(prev => {
@@ -377,7 +390,13 @@ export function DesignerOpenCore({
                 unit,
                 paperSize,
                 customPaperDimensions,
-                selectedColorAssetId,
+                selectedBaseColorAssetId,
+                selectedElementColorAssetId,
+                fontAssetId: selectedFontAssetId,
+                colorAssetId: selectedElementColorAssetId,
+                optionAssetId: selectedOptionAssetId,
+                galleryAssetId: selectedGalleryAssetId,
+                shapeAssetId: selectedShapeAssetId,
                 designerLayout,
                 buttonText,
                 productOutputSettings
@@ -409,15 +428,32 @@ export function DesignerOpenCore({
         return currentElements;
     }, [currentElements]);
 
-    const activeColorPalette = useMemo(() => {
-        const asset = userColors.find((a: any) => a.id === selectedColorAssetId);
+    const activeBasePaletteColors = useMemo(() => {
+        const asset = userColors.find((a: any) => a.id === selectedBaseColorAssetId);
         if (!asset) return [];
         return parseAssetColors(asset.value);
-    }, [userColors, selectedColorAssetId]);
+    }, [userColors, selectedBaseColorAssetId]);
 
-    const filteredUserFonts = useMemo(() => userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userFonts, productId]);
-    const filteredUserColors = useMemo(() => userColors.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userColors, productId]);
-    const filteredUserOptions = useMemo(() => userOptions.filter(a => !a.config?.productId || String(a.config.productId) === String(productId)), [userOptions, productId]);
+    const activeElementPaletteColors = useMemo(() => {
+        const asset = userColors.find((a: any) => a.id === selectedElementColorAssetId);
+        if (!asset) return [];
+        return parseAssetColors(asset.value);
+    }, [userColors, selectedElementColorAssetId]);
+
+    const filteredUserFonts = useMemo(() => {
+        if (selectedFontAssetId) return userFonts.filter(a => a.id === selectedFontAssetId);
+        return userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
+    }, [userFonts, selectedFontAssetId, productId]);
+
+    const filteredUserColors = useMemo(() => {
+        if (selectedElementColorAssetId) return userColors.filter(a => a.id === selectedElementColorAssetId);
+        return userColors.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
+    }, [userColors, selectedElementColorAssetId, productId]);
+
+    const filteredUserOptions = useMemo(() => {
+        if (selectedOptionAssetId) return userOptions.filter(a => a.id === selectedOptionAssetId);
+        return userOptions.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
+    }, [userOptions, selectedOptionAssetId, productId]);
 
     const selectedVariant = useMemo(() =>
         (productData?.variants || []).find(v => String(v.id) === String(selectedVariantId)),
@@ -431,11 +467,16 @@ export function DesignerOpenCore({
     }, [productData]);
 
     const handleOptionChange = (optionIndex: number, value: string) => {
-        if (!selectedVariant || !productData?.variants) return;
+        console.log('Handle Option Change:', { optionIndex, value, selectedVariant, allVariants: productData?.variants });
+        if (!productData?.variants || productData.variants.length === 0) return;
+
+        // Fallback to first variant if none selected to ensure we have a baseline for options
+        const baseVariant = selectedVariant || productData.variants[0];
+
         const currentOptions = [
-            selectedVariant.option1,
-            selectedVariant.option2,
-            selectedVariant.option3,
+            baseVariant.option1,
+            baseVariant.option2,
+            baseVariant.option3,
         ];
 
         currentOptions[optionIndex] = value;
@@ -444,8 +485,103 @@ export function DesignerOpenCore({
             (currentOptions[1] === undefined || currentOptions[1] === null || v.option2 === currentOptions[1]) &&
             (currentOptions[2] === undefined || currentOptions[2] === null || v.option3 === currentOptions[2])
         );
-        if (match) setSelectedVariantId(String(match.id));
+
+        if (match) {
+            console.log('Variant Matched:', match.id, match);
+            setSelectedVariantId(String(match.id));
+        } else {
+            console.log('No exact match. Trying fallback for option index:', optionIndex, 'Value:', value);
+            // Fallback: Find first variant that has the NEW option value at the correct position
+            // This handles "Linked Options" behavior where switching one option might require changing others
+            const fallbackMatch = productData.variants.find(v => {
+                const variantOptionValue = optionIndex === 0 ? v.option1 : optionIndex === 1 ? v.option2 : v.option3;
+                return variantOptionValue === value;
+            });
+
+            if (fallbackMatch) {
+                console.log('Fallback Variant Matched:', fallbackMatch.id, fallbackMatch);
+                setSelectedVariantId(String(fallbackMatch.id));
+            } else {
+                console.warn('No variant found even with fallback for value:', value);
+            }
+        }
     };
+
+    const zoomContainerRef = useRef<HTMLDivElement>(null);
+
+    const handleWheel = useCallback((e: WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -5 : 5;
+            setZoom(prev => Math.max(10, Math.min(200, prev + delta)));
+        }
+    }, []);
+
+    useEffect(() => {
+        const container = zoomContainerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+            return () => container.removeEventListener('wheel', handleWheel);
+        }
+    }, [handleWheel]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // If user is typing in an input/textarea, don't trigger shortcuts
+            if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+                return;
+            }
+
+            // Delete
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
+                deleteElement(selectedElement);
+            }
+
+            // Undo/Redo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                if (e.shiftKey) redo();
+                else undo();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                redo();
+            }
+
+            // Duplicate
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                e.preventDefault();
+                if (selectedElement) duplicateElement(selectedElement);
+            }
+
+            // Arrows move
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedElement) {
+                e.preventDefault();
+                const step = e.shiftKey ? 10 : 1;
+                const el = currentElements.find(el => el.id === selectedElement);
+                if (el) {
+                    let dx = 0, dy = 0;
+                    if (e.key === 'ArrowUp') dy = -step;
+                    if (e.key === 'ArrowDown') dy = step;
+                    if (e.key === 'ArrowLeft') dx = -step;
+                    if (e.key === 'ArrowRight') dx = step;
+                    updateElement(selectedElement, { x: el.x + dx, y: el.y + dy });
+                }
+            }
+
+            // Zoom
+            if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+                e.preventDefault();
+                setZoom(prev => Math.min(200, prev + 10));
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+                e.preventDefault();
+                setZoom(prev => Math.max(10, prev - 10));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedElement, deleteElement, undo, redo, duplicateElement, currentElements, updateElement]);
 
     return (
         <div className="fixed inset-0 z-[99999] bg-gray-100 flex flex-col overflow-hidden">
@@ -477,6 +613,7 @@ export function DesignerOpenCore({
                     onSaveAsset={async (_a) => { }}
                     onSelectElement={setSelectedElement} canvasDimensions={getCanvasPx()}
                     customFetch={customFetch}
+                    isPublicMode={isPublicMode}
                 />
                 <div className="flex-1 flex flex-col relative overflow-hidden">
                     <ContextualToolbar
@@ -485,7 +622,7 @@ export function DesignerOpenCore({
                         userFonts={filteredUserFonts} userColors={filteredUserColors} onCrop={() => setIsCropModalOpen(true)}
                         isPublicMode={isPublicModeProp}
                     />
-                    <div className="h-10 bg-white border-b flex items-center px-4 gap-3 z-30 shrink-0">
+                    <div className="h-10 bg-white border-b flex items-center px-4 gap-3 relative shrink-0">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight whitespace-nowrap">Side: {pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
 
                         {isPublicModeProp && hasVariants && (
@@ -614,15 +751,22 @@ export function DesignerOpenCore({
                                         )}
                                         {page.name}
                                     </button>
-                                    <button onClick={(e) => { e.stopPropagation(); const n = prompt('Name:', page.name); if (n) renamePage(page.id, n); }} className="p-1 opacity-0 group-hover:opacity-100"><Pencil className="w-2.5 h-2.5" /></button>
-                                    {pages.length > 1 && <button onClick={(e) => { e.stopPropagation(); deletePage(page.id); }} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500"><X className="w-2 h-2" /></button>}
+                                    {!isPublicMode && (
+                                        <button onClick={(e) => { e.stopPropagation(); const n = prompt('Name:', page.name); if (n) renamePage(page.id, n); }} className="p-1 opacity-0 group-hover:opacity-100"><Pencil className="w-2.5 h-2.5" /></button>
+                                    )}
+                                    {!isPublicMode && pages.length > 1 && <button onClick={(e) => { e.stopPropagation(); deletePage(page.id); }} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500"><X className="w-2 h-2" /></button>}
                                 </div>
                             ))}
-                            <button onClick={addPage} className="h-7 w-7 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-600"><UploadCloud className="w-3.5 h-3.5" /></button>
+                            {!isPublicMode && (
+                                <button onClick={addPage} className="h-7 w-7 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-600"><UploadCloud className="w-3.5 h-3.5" /></button>
+                            )}
                         </div>
                     </div>
 
-                    <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-[#e5e5e5] pattern-bg">
+                    <div
+                        ref={zoomContainerRef}
+                        className="flex-1 relative overflow-hidden flex items-center justify-center bg-[#e5e5e5] pattern-bg"
+                    >
                         <div className="relative" style={{ transform: `scale(${zoom / 100})`, transition: 'transform 0.1s ease-out' }}>
                             <Canvas
                                 elements={processedElements}
@@ -659,7 +803,17 @@ export function DesignerOpenCore({
                                     setPages(updatedPages);
                                     addToHistory(updatedPages);
                                 }}
-                                baseImage={currentPages.baseImage}
+                                baseImage={(() => {
+                                    // 1. Admin configured variant image for this specific variant
+                                    const adminVariantImage = initialConfig?.variantBaseImages?.[String(selectedVariantId)]?.default?.url;
+                                    // 2. Shopify variant image
+                                    const shopifyImage = productData?.variants?.find(v => String(v.id) === String(selectedVariantId))?.image;
+                                    // 3. Page default base image
+                                    const defaultImage = currentPages.baseImage;
+
+                                    console.log('Base Image Calculation:', { selectedVariantId, adminVariantImage, shopifyImage, defaultImage });
+                                    return adminVariantImage || shopifyImage || defaultImage;
+                                })()}
                                 baseImageProperties={currentPages.baseImageProperties as any}
                                 baseImageColor={currentPages.baseImageColor}
                                 baseImageColorEnabled={currentPages.baseImageColorEnabled}
@@ -680,7 +834,7 @@ export function DesignerOpenCore({
                     </div>
                 </div>
 
-                <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-80 opacity-100' : 'w-0 opacity-0'}`}>
+                <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-[350px] opacity-100' : 'w-0 opacity-0'}`}>
                     <Summary
                         elements={processedElements as any} selectedElement={selectedElement} onSelectElement={setSelectedElement} onDeleteElement={deleteElement}
                         onUpdateElement={updateElement}
@@ -691,7 +845,23 @@ export function DesignerOpenCore({
                         safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => { }}
                         onToggleRulers={() => { }} showRulers={showRulers} unit={unit} onUnitChange={() => { }} paperSize={paperSize} onPaperSizeChange={() => { }}
                         customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={() => { }} onReset={() => { setPages(history[0] || [{ id: 'default', name: 'Side 1', elements: [] }]); }}
-                        userColors={filteredUserColors} selectedColorAssetId={selectedColorAssetId} onSelectedColorAssetIdChange={setSelectedColorAssetId}
+                        userColors={userColors}
+                        userFonts={userFonts}
+                        userOptions={userOptions}
+                        selectedBaseColorAssetId={selectedBaseColorAssetId}
+                        onSelectedBaseColorAssetIdChange={setSelectedBaseColorAssetId}
+                        selectedElementColorAssetId={selectedElementColorAssetId}
+                        onSelectedElementColorAssetIdChange={setSelectedElementColorAssetId}
+                        selectedFontAssetId={selectedFontAssetId}
+                        onSelectedFontAssetIdChange={setSelectedFontAssetId}
+                        selectedOptionAssetId={selectedOptionAssetId}
+                        onSelectedOptionAssetIdChange={setSelectedOptionAssetId}
+                        selectedGalleryAssetId={selectedGalleryAssetId}
+                        onSelectedGalleryAssetIdChange={setSelectedGalleryAssetId}
+                        selectedShapeAssetId={selectedShapeAssetId}
+                        onSelectedShapeAssetIdChange={setSelectedShapeAssetId}
+                        activeBasePaletteColors={activeBasePaletteColors}
+                        activeElementPaletteColors={activeElementPaletteColors}
                         onToggleSummary={() => setShowSummary(false)}
                         baseImageColorEnabled={currentPages.baseImageColorEnabled || false}
                         onBaseImageColorEnabledChange={(enabled) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p))}
@@ -713,8 +883,8 @@ export function DesignerOpenCore({
                                 return updated;
                             });
                         }}
-                        activePaletteColors={activeColorPalette}
                         shopifyOptions={productData?.options || []} shopifyVariants={productData?.variants || []} selectedVariantId={selectedVariantId} onVariantChange={setSelectedVariantId}
+                        onOptionChange={handleOptionChange}
                         productOutputSettings={productOutputSettings}
                         onProductOutputSettingsChange={() => { }}
                         isPublicMode={isPublicModeProp}
