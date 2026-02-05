@@ -61,7 +61,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
             setNumberSuffix('');
             // Keep style persistence if desired, or reset
         }
-    }, [selectedElement?.id]);
+    }, [selectedElement?.id, selectedElement?.maxChars]);
 
     const handleAddNumber = () => {
         const numVal = defaultValue;
@@ -105,28 +105,70 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
             {/* Main Input Section */}
             <div className="px-1 space-y-4">
                 <div className="space-y-1.5">
-                    <Label className="text-sm font-bold text-gray-700">Title</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Title</Label>
                     <Input
                         value={label}
                         onChange={(e) => {
                             setLabel(e.target.value);
-                            handleUpdate({ label: e.target.value });
+                            if (selectedElement) onUpdateElement(selectedElement.id, { label: e.target.value });
                         }}
                         placeholder="e.g. Quantity"
-                        className="h-9 font-bold bg-white"
+                        className="h-10 rounded-xl border-gray-200 bg-white"
                     />
                 </div>
 
+                {selectedElement && (
+                    <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+                        <div className="flex flex-col">
+                            <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                            <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                        </div>
+                        <Switch
+                            checked={selectedElement.showLabel !== false}
+                            onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showLabel: checked })}
+                            className="scale-75"
+                        />
+                    </div>
+                )}
+
+                {selectedElement && (
+                    <div className="flex items-center justify-between p-3 bg-teal-50/50 rounded-xl border border-teal-100/50">
+                        <div className="flex flex-col">
+                            <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                            <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                        </div>
+                        <Switch
+                            checked={selectedElement.showLabel !== false}
+                            onCheckedChange={(checked) => handleUpdate({ showLabel: checked })}
+                            className="scale-75"
+                        />
+                    </div>
+                )}
+
                 <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Preview Number</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Preview Number</Label>
                     <div className="flex gap-2">
                         <Input
                             type="number"
                             value={defaultValue}
+                            onInput={(e) => {
+                                const target = e.currentTarget;
+                                const limit = selectedElement?.maxChars || 0;
+                                if (limit > 0 && target.value.length > limit) {
+                                    target.value = target.value.slice(0, limit);
+                                }
+                            }}
                             onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setDefaultValue(val);
-                                handleUpdate({ defaultValue: val, text: String(val) });
+                                const valStr = e.target.value;
+                                const limit = selectedElement?.maxChars || 0;
+                                let finalVal = Number(valStr);
+
+                                if (limit > 0 && valStr.length > limit) {
+                                    finalVal = Number(valStr.slice(0, limit));
+                                }
+
+                                setDefaultValue(finalVal);
+                                handleUpdate({ defaultValue: finalVal, text: String(finalVal) });
                             }}
                             className="h-10 font-bold text-lg text-center bg-white"
                         />
@@ -150,7 +192,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                     <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-2 h-8 hover:bg-teal-50 text-gray-500 hover:text-teal-600 rounded-lg group">
                         <div className="flex items-center gap-2">
                             <Settings2 className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Configuration</span>
+                            <span className="text-[10px] font-bold tracking-wider">Configuration</span>
                         </div>
                         <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </Button>
@@ -158,7 +200,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                 <CollapsibleContent className="pt-3 space-y-4 px-1">
                     {/* Constraints */}
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Constraints</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Constraints</Label>
                         <div className="grid grid-cols-3 gap-2">
                             <div className="space-y-1">
                                 <Label className="text-[9px] text-gray-400">Min</Label>
@@ -202,12 +244,26 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                                     placeholder="1"
                                 />
                             </div>
+                            <div className="space-y-1">
+                                <Label className="text-[9px] text-gray-400">Max Digits</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={selectedElement?.maxChars ?? 0}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        handleUpdate({ maxChars: val });
+                                    }}
+                                    className="h-8 text-xs px-2"
+                                    placeholder="∞"
+                                />
+                            </div>
                         </div>
                     </div>
 
                     {/* Styling */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Visual Style</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
                         <Select
                             value={fontFamily}
                             onValueChange={(val) => {
@@ -228,7 +284,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                         </Select>
 
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                             <Select
                                 value={selectedElement?.fontAssetId || "none"}
                                 onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
@@ -302,7 +358,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
 
                     {/* Color Palette Selector */}
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Color Palette</Label>
                         <Select
                             value={selectedElement?.colorAssetId || "none"}
                             onValueChange={(val) => {

@@ -26,7 +26,7 @@ export default function DesignerPublic({
     const [shopifyProduct, setShopifyProduct] = useState<any>(null);
     const [initialDesign, setInitialDesign] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [assets, setAssets] = useState<{ fonts: any[], colors: any[], options: any[] }>({ fonts: [], colors: [], options: [] });
+    const [assets, setAssets] = useState<{ fonts: any[], colors: any[], options: any[], galleries: any[] }>({ fonts: [], colors: [], options: [], galleries: [] });
 
     // Load Data
     useEffect(() => {
@@ -50,16 +50,18 @@ export default function DesignerPublic({
                 }
 
                 // 2. Fetch Assets
-                const [fontsRes, colorsRes, optionsRes] = await Promise.all([
+                const [fontsRes, colorsRes, optionsRes, galleriesRes] = await Promise.all([
                     fetch(`${baseUrl}/imcst_api/public/assets?shop=${shop}&type=font`),
                     fetch(`${baseUrl}/imcst_api/public/assets?shop=${shop}&type=color`),
-                    fetch(`${baseUrl}/imcst_api/public/assets?shop=${shop}&type=option`)
+                    fetch(`${baseUrl}/imcst_api/public/assets?shop=${shop}&type=option`),
+                    fetch(`${baseUrl}/imcst_api/public/assets?shop=${shop}&type=gallery`)
                 ]);
 
                 setAssets({
                     fonts: fontsRes.ok ? await fontsRes.json() : [],
                     colors: colorsRes.ok ? await colorsRes.json() : [],
-                    options: optionsRes.ok ? await optionsRes.json() : []
+                    options: optionsRes.ok ? await optionsRes.json() : [],
+                    galleries: galleriesRes.ok ? await galleriesRes.json() : []
                 });
 
             } catch (err) {
@@ -85,6 +87,7 @@ export default function DesignerPublic({
                 userFonts={assets.fonts}
                 userColors={assets.colors}
                 userOptions={assets.options}
+                userGalleries={assets.galleries}
                 onSave={async (data) => {
                     const baseUrl = (window as any).IMCST_BASE_URL || '';
                     try {
@@ -172,6 +175,8 @@ export default function DesignerPublic({
                     }
                 }}
                 customFetch={window.fetch}
+                shop={shop}
+                baseUrl={(window as any).IMCST_BASE_URL || ''}
             />
         </>
     );

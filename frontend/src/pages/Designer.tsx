@@ -60,6 +60,45 @@ export default function DesignerAdmin() {
     }
   }, [productId, fetch]);
 
+  const deleteDesign = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`/imcst_api/design/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSavedDesigns(prev => prev.filter(d => d.id !== id));
+        let toast = (await import('sonner')).toast;
+        toast.success(`Design "${name}" deleted`);
+      } else {
+        let toast = (await import('sonner')).toast;
+        toast.error("Failed to delete design");
+      }
+    } catch (err) {
+      console.error(err);
+      let toast = (await import('sonner')).toast;
+      toast.error("Deletion error");
+    }
+  };
+
+  const clearAllDesigns = async () => {
+    try {
+      if (savedDesigns.length === 0) return;
+
+      // Delete all concurrently
+      const deletePromises = savedDesigns.map(d =>
+        fetch(`/imcst_api/design/${d.id}`, { method: 'DELETE' })
+      );
+
+      await Promise.all(deletePromises);
+
+      setSavedDesigns([]);
+      let toast = (await import('sonner')).toast;
+      toast.success("All designs cleared");
+    } catch (err) {
+      console.error(err);
+      let toast = (await import('sonner')).toast;
+      toast.error("Failed to clear all designs");
+    }
+  };
+
   useEffect(() => { loadData(); }, [loadData]);
 
   if (loading) {
@@ -105,6 +144,8 @@ export default function DesignerAdmin() {
         userOptions={assets.options}
         userGalleries={assets.galleries}
         savedDesigns={savedDesigns}
+        onDeleteDesign={deleteDesign}
+        onClearAllDesigns={clearAllDesigns}
         pricingConfigComponent={productId ? <PricingTab productId={productId} customFetch={fetch} /> : null}
         customFetch={fetch}
         onSave={async (data) => {
@@ -143,6 +184,8 @@ export default function DesignerAdmin() {
           return null;
         }}
         onBack={() => window.history.back()}
+        width={1000}
+        height={1000}
       />
     </>
   );

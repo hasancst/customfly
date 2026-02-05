@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, memo, useEffect, useCallback } from 'react';
+import { useRef, useState, useMemo, memo, useEffect } from 'react';
 import { CanvasElement } from '../types';
 import { Input } from './ui/input';
 import {
@@ -57,10 +57,6 @@ const BridgeText = ({
 
     const fontSizeRaw = fontSize * 2; // Render at 2x for better quality
     tempCtx.font = `${element.fontWeight || 400} ${fontSizeRaw}px ${element.fontFamily || 'Inter'}`;
-    // @ts-ignore - letterSpacing is a standard but sometimes missing from types
-    if ('letterSpacing' in tempCtx) {
-      tempCtx.letterSpacing = `${(element.letterSpacing || 0) * 2}px`;
-    }
     const text = element.text || '';
     const metrics = tempCtx.measureText(text);
 
@@ -99,7 +95,7 @@ const BridgeText = ({
     // 2. Apply bridge logic
     const ops = element.bridge;
     const w = tempCanvas.width;
-    const h = tempCanvas.height * 8; // Increased to 8 to be very safe against clipping
+    const h = fontSize * 8; // Use fontSize * 8 for safe warping space (prevents clipping)
 
     canvas.width = w;
     canvas.height = h;
@@ -167,9 +163,6 @@ export const DraggableElement = memo(({
   const elementRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [textScale, setTextScale] = useState({ x: 1, y: 1 });
-  const [isEditing, setIsEditing] = useState(false);
-  const canInteract = !isPublicMode || element.isEditableByCustomer;
-  const [editValue, setEditValue] = useState(element.text || '');
 
   // Local state for smooth interactions
   const [localState, setLocalState] = useState({
@@ -196,48 +189,91 @@ export const DraggableElement = memo(({
   }, [element, isDragging, isResizing, isRotating]);
 
   useEffect(() => {
-    if ((element.type !== 'text' && element.type !== 'textarea') || !contentRef.current || !elementRef.current) {
+    // Determine target mode or shape type
+    const isCurvedOrBridge = element.isCurved || element.bridge;
+
+    // Condition to run this effect: Must be Text element, and either shrink mode OR curved/bridge
+    if (element.type !== 'text' || (!isCurvedOrBridge && element.textMode !== 'shrink') || !elementRef.current) {
       if (!isResizing && !isDragging) setTextScale({ x: 1, y: 1 });
       return;
     }
 
     const measure = () => {
-      requestAnimationFrame(() => {
-        const container = elementRef.current;
-        const content = contentRef.current;
-        if (!container || !content) return;
+      const container = elementRef.current;
+      if (!container) return;
 
-        const mode = element.textMode || 'shrink';
+      // --- LOGIKA SHAPE TEXT (Auto Height & Scale 1:1) ---
+      if (isCurvedOrBridge) {
+        if (element.isCurved && element.curve && element.curve !== 0) {
+          // Calculate curved height requirements using absolute coordinates
+          const fontSize = localState.fontSize || 32;
+          const containerWidth = Math.max(localState.width, 100);
 
-        if (mode === 'wrap') {
-          // --- LOGIKA WRAP: Kotak mengikuti tinggi teks ---
-          const contentHeight = content.scrollHeight / (zoom / 100);
-          if (Math.abs(localState.height - contentHeight) > 1) {
-            setLocalState(prev => ({ ...prev, height: contentHeight }));
-            onUpdate({ height: contentHeight }, true);
-            setTextScale({ x: 1, y: 1 });
+          const curveIntensity = element.curve;
+          const baseRadius = containerWidth * 0.4;
+          const radius = Math.abs(baseRadius / (curveIntensity / 20));
+          const chordHalf = containerWidth / 2;
+
+          let dy = 0;
+          if (radius > chordHalf) {
+            dy = radius - Math.sqrt(radius * radius - chordHalf * chordHalf);
+          } else {
+            dy = chordHalf;
           }
-        } else {
-          // --- LOGIKA SHRINK: Teks mengecil/membesar masuk ke kotak ---
-          const originalTransform = content.style.transform;
-          content.style.transform = 'none';
 
-          // Force layout recalculation for fit-content
-          const containerWidth = localState.width * (zoom / 100);
-          const containerHeight = localState.height * (zoom / 100);
+          // Height needed = curve depth + font height + padding
+          const neededHeight = Math.max(Math.abs(dy) + fontSize * 2, fontSize * 3);
 
-          const contentWidth = content.offsetWidth || content.scrollWidth;
-          const contentHeight = content.offsetHeight || content.scrollHeight;
-
-          content.style.transform = originalTransform;
-
-          if (containerWidth > 0 && containerHeight > 0 && contentWidth > 0 && contentHeight > 0) {
-            // Kita ingin teks memenuhi kotak, jadi kita gunakan rasio terkecil agar tidak terpotong
-            const uniformScale = Math.min(containerWidth / contentWidth, containerHeight / contentHeight);
-            setTextScale({ x: uniformScale, y: uniformScale });
+          // Apply auto-height with threshold to prevent jitter
+          if (Math.abs(localState.height - neededHeight) > 3) {
+            setLocalState(prev => ({ ...prev, height: neededHeight }));
+            onUpdate({ height: neededHeight }, true);
           }
         }
-      });
+        else if (element.bridge) {
+          // Bridge text
+          const idealHeight = Math.max(localState.width * 0.6, (localState.fontSize || 32) * 4);
+          if (Math.abs(localState.height - idealHeight) > 3) {
+            setLocalState(prev => ({ ...prev, height: idealHeight }));
+            onUpdate({ height: idealHeight }, true);
+          }
+        }
+
+        setTextScale({ x: 1, y: 1 });
+        return;
+      }
+
+      // --- LOGIKA REGULAR TEXT (Shrink / Wrap) ---
+      const content = contentRef.current;
+      if (!content) return;
+
+      const mode = element.textMode || 'shrink';
+
+      if (mode === 'wrap') {
+        const contentHeight = content.scrollHeight / (zoom / 100);
+        if (Math.abs(localState.height - contentHeight) > 1) {
+          setLocalState(prev => ({ ...prev, height: contentHeight }));
+          onUpdate({ height: contentHeight }, true);
+          setTextScale({ x: 1, y: 1 });
+        }
+      } else {
+        // SHRINK MODE
+        const originalTransform = content.style.transform;
+        content.style.transform = 'none';
+
+        const containerWidth = localState.width * (zoom / 100);
+        const containerHeight = localState.height * (zoom / 100);
+
+        const contentWidth = content.offsetWidth || content.scrollWidth;
+        const contentHeight = content.offsetHeight || content.scrollHeight;
+
+        content.style.transform = originalTransform;
+
+        if (containerWidth > 0 && containerHeight > 0 && contentWidth > 0 && contentHeight > 0) {
+          const uniformScale = Math.min(containerWidth / contentWidth, containerHeight / contentHeight);
+          setTextScale({ x: uniformScale, y: uniformScale });
+        }
+      }
     };
 
     measure();
@@ -246,45 +282,17 @@ export const DraggableElement = memo(({
     if (contentRef.current) observer.observe(contentRef.current);
 
     return () => observer.disconnect();
-  }, [element.text, localState.width, localState.height, localState.fontSize, element.textMode, element.type, zoom]);
-
-  useEffect(() => {
-    setEditValue(element.text || '');
-  }, [element.text]);
-
-  const handleClickOutside = useCallback((e: MouseEvent) => {
-    if (!isEditing) return;
-    const target = e.target as HTMLElement;
-    if (elementRef.current && !elementRef.current.contains(target)) {
-      setIsEditing(false);
-      onUpdate({ text: editValue }, false);
-    }
-  }, [isEditing, editValue, onUpdate]);
-
-  useEffect(() => {
-    window.addEventListener('mousedown', handleClickOutside);
-    return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [handleClickOutside]);
-
-  useEffect(() => {
-    setEditValue(element.text || '');
-  }, [element.text]);
-
-  // Handle outside click to save editing
-  useEffect(() => {
-    if (!isEditing) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (elementRef.current && !elementRef.current.contains(target)) {
-        setIsEditing(false);
-        onUpdate({ text: editValue }, false);
-      }
-    };
-
-    window.addEventListener('mousedown', handleClickOutside);
-    return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [isEditing, editValue, onUpdate]);
+  }, [
+    element.text,
+    localState.width,
+    localState.fontSize,
+    element.textMode,
+    element.type,
+    element.isCurved,
+    element.curve,
+    element.bridge,
+    zoom
+  ]);
 
   // State to track initial interaction data
   const interactionRef = useRef<{
@@ -323,6 +331,7 @@ export const DraggableElement = memo(({
     if (!isRotating) return;
 
     const handlePointerMove = (e: PointerEvent) => {
+      if (element.lockRotate) return; // Enforce lock
       if (interactionRef.current.rafId) return;
 
       interactionRef.current.rafId = requestAnimationFrame(() => {
@@ -340,6 +349,10 @@ export const DraggableElement = memo(({
     };
 
     const handlePointerUp = (e: PointerEvent) => {
+      if (element.lockRotate) {
+        setIsRotating(false);
+        return;
+      }
       if (interactionRef.current.rafId) {
         cancelAnimationFrame(interactionRef.current.rafId);
         interactionRef.current.rafId = null;
@@ -369,6 +382,7 @@ export const DraggableElement = memo(({
     if (!isResizing) return;
 
     const handlePointerMove = (e: PointerEvent) => {
+      if (element.lockResize) return; // Enforce lock
       if (interactionRef.current.rafId) return;
 
       interactionRef.current.rafId = requestAnimationFrame(() => {
@@ -389,9 +403,7 @@ export const DraggableElement = memo(({
         let localOffsetY = 0;
 
         const isFieldType = ['field', 'phone', 'date'].includes(element.type);
-        const maintainAspect = element.type === 'image'
-          ? (element.lockAspectRatio !== false)
-          : (element.type === 'monogram' || (element.type === 'text' && element.textMode === 'shrink'));
+        const maintainAspect = element.type === 'image' || element.type === 'monogram' || element.type === 'text';
 
         // handle logic
         switch (resizeHandle) {
@@ -446,24 +458,11 @@ export const DraggableElement = memo(({
         const newY = startY_orig + globalOffsetY;
 
         let newFontSize = startFontSize;
-        if (element.type === 'text' || element.type === 'monogram') {
-          const isEdgeHandle = ['n', 's', 'e', 'w'].includes(resizeHandle || '');
-
-          if (element.textMode === 'shrink' || element.type === 'monogram') {
-            // MODE SHRINK (or Monogram): Selalu proposional dari handle mana pun
-            const scale = newWidth / startWidth;
-            newFontSize = startFontSize * scale;
-            newHeight = startHeight * scale;
-          } else {
-            // MODE WRAP:
-            // 1. Tarik Garis (Side): Hanya ganti lebar/tinggi, font tetap.
-            // 2. Tarik Pojok (Corner): Proposional + Ganti Font.
-            if (!isEdgeHandle) {
-              const scale = newWidth / startWidth;
-              newFontSize = startFontSize * scale;
-              newHeight = startHeight * scale;
-            }
-          }
+        if (element.type === 'text') {
+          // Selalu proposional untuk teks dari handle mana pun
+          const scale = newWidth / startWidth;
+          newFontSize = startFontSize * scale;
+          newHeight = startHeight * scale;
         }
 
         setLocalState(prev => ({
@@ -475,16 +474,6 @@ export const DraggableElement = memo(({
           fontSize: newFontSize
         }));
 
-        // Optimisasi Performa: Gunakan localState saja selama resizing.
-        // Sync ke parent hanya dilakukan saat PointerUp agar tidak sluggish.
-        // onUpdate({
-        //   x: newX,
-        //   y: newY,
-        //   width: newWidth,
-        //   height: newHeight,
-        //   fontSize: newFontSize
-        // }, true);
-
         interactionRef.current.rafId = null;
       });
     };
@@ -495,8 +484,6 @@ export const DraggableElement = memo(({
         interactionRef.current.rafId = null;
       }
 
-      // Commit local state to parent
-      // We take the values from local state directly for consistency
       setLocalState(prev => {
         onUpdate({
           x: prev.x,
@@ -509,7 +496,6 @@ export const DraggableElement = memo(({
       });
 
       setIsResizing(false);
-      // Clear the immediate flag and global cursor
       if (interactionRef.current) {
         interactionRef.current.isResizingFlag = false;
         document.body.style.cursor = '';
@@ -523,7 +509,7 @@ export const DraggableElement = memo(({
       window.removeEventListener('pointerup', handlePointerUp);
       if (interactionRef.current.rafId) cancelAnimationFrame(interactionRef.current.rafId);
     };
-  }, [isResizing, onUpdate, zoom, element.type, element.rotation]);
+  }, [isResizing, onUpdate, zoom, element.type, element.rotation, element.lockResize]);
 
   const startRotating = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -544,7 +530,6 @@ export const DraggableElement = memo(({
     e.preventDefault();
     if (!elementRef.current) return;
 
-    // Set flag immediately to prevent any drag
     interactionRef.current = {
       ...interactionRef.current,
       startX: e.clientX,
@@ -555,11 +540,10 @@ export const DraggableElement = memo(({
       startY_orig: localState.y,
       startFontSize: localState.fontSize,
       resizeHandle: handle,
-      isResizingFlag: true, // Set immediate flag
+      isResizingFlag: true,
     };
     setIsResizing(true);
 
-    // Explicitly set cursor on body to prevent flickering during fast resize
     document.body.style.cursor = (interactionRef.current as any).resizeHandle?.includes('nw') || (interactionRef.current as any).resizeHandle?.includes('se') ? 'nwse-resize' : 'nesw-resize';
   };
 
@@ -590,7 +574,6 @@ export const DraggableElement = memo(({
 
     let baseFilter = '';
 
-    // Apply Preset first if exists
     if (element.imageFilters?.preset) {
       const preset = IMAGE_PRESETS.find(p => p.id === element.imageFilters?.preset);
       if (preset && preset.filter !== 'none') {
@@ -598,7 +581,6 @@ export const DraggableElement = memo(({
       }
     }
 
-    // Add Adjustments
     const adj = element.imageFilters;
     if (adj) {
       const parts = [];
@@ -610,12 +592,57 @@ export const DraggableElement = memo(({
       if (adj.grayscale !== undefined && adj.grayscale !== 0) parts.push(`grayscale(${adj.grayscale}%)`);
 
       if (parts.length > 0) {
-        baseFilter = (baseFilter === 'none' ? '' : baseFilter) + ' ' + parts.join(' ');
+        baseFilter = (baseFilter === 'none' || !baseFilter ? '' : baseFilter) + ' ' + parts.join(' ');
       }
     }
 
-    return baseFilter || 'none';
-  }, [element.imageFilters]);
+    return baseFilter.trim() || 'none';
+  }, [element.imageFilters, element.type]);
+
+  const curveGeometry = useMemo(() => {
+    if (element.type !== 'text' || !element.isCurved || !element.curve) return null;
+
+    const containerWidth = localState.width;
+    const containerHeight = localState.height;
+    const curveIntensity = element.curve;
+    const isSmile = curveIntensity > 0;
+
+    const baseRadius = containerWidth * 0.4;
+    const radius = Math.abs(baseRadius / (curveIntensity / 20));
+    const chordHalf = containerWidth / 2;
+
+    let dy = 0;
+    if (radius > chordHalf) {
+      dy = radius - Math.sqrt(radius * radius - chordHalf * chordHalf);
+    } else {
+      dy = chordHalf;
+    }
+
+    const centerX = containerWidth / 2;
+    const centerY = containerHeight / 2;
+    const startX = centerX - chordHalf;
+    const endX = centerX + chordHalf;
+    const curveY = isSmile ? (centerY + dy / 2) : (centerY - dy / 2);
+
+    const pathId = `curve-path-${element.id}`;
+    const d = `M ${startX},${curveY} A ${radius} ${radius} 0 0 ${isSmile ? 1 : 0} ${endX},${curveY}`;
+
+    return {
+      radius,
+      chordHalf,
+      dy,
+      centerX,
+      centerY,
+      startX,
+      endX,
+      curveY,
+      isSmile,
+      pathId,
+      d,
+      containerWidth,
+      containerHeight
+    };
+  }, [element.type, element.isCurved, element.curve, localState.width, localState.height, element.id]);
 
   const content = useMemo(() => {
     switch (element.type) {
@@ -631,25 +658,10 @@ export const DraggableElement = memo(({
           />;
         }
 
-        if (element.type === 'text' && element.isCurved && element.curve && element.curve !== 0) {
+        if (element.type === 'text' && element.isCurved && element.curve && element.curve !== 0 && curveGeometry) {
           const fontSize = (localState.fontSize || 32);
           const text = element.text || '';
-
-          const CURVE_SCALE = 3000;
-          const radius = Math.abs(CURVE_SCALE / element.curve);
-          const isSmile = element.curve > 0;
-          const pathId = `curve-path-${element.id}`;
-
-          // Create a full circle path so text can wrap around completely
-          // For Smile (text at bottom), start path at top (0, -radius)
-          // For Frown (text at top), start path at bottom (0, radius)
-          const startY = isSmile ? -radius : radius;
-          // Reverse sweep flags (0 vs 1) to ensure text is upright at the target position
-          const sweepFlag = isSmile ? 0 : 1;
-          const d = `M 0,${startY} a ${radius},${radius} 0 1,${sweepFlag} 0,${isSmile ? radius * 2 : -radius * 2} a ${radius},${radius} 0 1,${sweepFlag} 0,${isSmile ? -radius * 2 : radius * 2}`;
-
-          const padding = fontSize;
-          const viewBoxRadius = radius + padding;
+          const { pathId, d, containerWidth, containerHeight } = curveGeometry;
 
           return (
             <div style={{
@@ -658,13 +670,16 @@ export const DraggableElement = memo(({
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              pointerEvents: 'none'
+              pointerEvents: 'none',
+              overflow: 'visible'
             }}>
               <svg
-                overflow="visible"
-                width="100%"
-                height="100%"
-                viewBox={`${-viewBoxRadius} ${-viewBoxRadius} ${viewBoxRadius * 2} ${viewBoxRadius * 2}`}
+                width={containerWidth}
+                height={containerHeight}
+                style={{
+                  overflow: 'visible',
+                  pointerEvents: 'none'
+                }}
               >
                 <defs>
                   <path id={pathId} d={d} />
@@ -679,6 +694,15 @@ export const DraggableElement = memo(({
                   )}
                 </defs>
 
+                {/* Invisible Hit Area for Curve Path - makes clicking the 'line' easy */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={Math.max(fontSize, 40)}
+                  style={{ pointerEvents: 'auto', cursor: 'move' }}
+                />
+
                 <text
                   fontSize={fontSize}
                   fontFamily={element.fontFamily || 'Inter'}
@@ -689,7 +713,9 @@ export const DraggableElement = memo(({
                   strokeLinejoin="round"
                   paintOrder="stroke fill"
                   textAnchor="middle"
-                  letterSpacing={element.letterSpacing}
+                  dominantBaseline="middle"
+                  letterSpacing={element.letterSpacing || 0}
+                  style={{ pointerEvents: 'auto', cursor: 'move' }}
                 >
                   <textPath
                     href={`#${pathId}`}
@@ -714,7 +740,7 @@ export const DraggableElement = memo(({
               fontWeight: element.fontWeight || 400,
               fontStyle: element.italic ? 'italic' : 'normal',
               textDecoration: element.underline ? 'underline' : 'none',
-              textAlign: (element.textAlign || 'center') as any,
+              textAlign: 'center',
               whiteSpace: isWrap ? 'pre-wrap' : 'nowrap',
               wordBreak: isWrap ? 'break-word' : 'normal',
               userSelect: 'none',
@@ -723,14 +749,9 @@ export const DraggableElement = memo(({
               height: isWrap ? 'auto' : '100%',
               display: 'flex',
               alignItems: 'center',
-              justifyContent:
-                element.textAlign === 'left' ? 'flex-start' :
-                  element.textAlign === 'right' ? 'flex-end' :
-                    'center',
+              justifyContent: 'center',
               overflow: 'visible',
               padding: 0,
-              visibility: isEditing ? 'hidden' : 'visible',
-              letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
             }}
           >
             <div
@@ -740,7 +761,6 @@ export const DraggableElement = memo(({
                 transformOrigin: 'center center',
                 width: isWrap ? '100%' : 'fit-content',
                 whiteSpace: isWrap ? 'pre-wrap' : 'nowrap',
-                textAlign: (element.textAlign || 'center') as any,
                 ...getGradientStyle(),
                 ...getStrokeStyle(),
                 color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
@@ -752,11 +772,26 @@ export const DraggableElement = memo(({
         );
 
       case 'image':
+        if (!element.src) {
+          return (
+            <div className={`w-full h-full flex flex-col items-center justify-center bg-indigo-50/20 border-2 border-dashed border-indigo-200/50 rounded-2xl gap-2 p-4 animate-pulse`}>
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100/50 flex items-center justify-center">
+                <UploadCloud className="w-6 h-6 text-indigo-500" />
+              </div>
+              <div className="flex flex-col items-center">
+                <p className="text-[10px] font-bold text-indigo-900 uppercase tracking-tight text-center truncate max-w-full">
+                  {element.label || 'Image Area'}
+                </p>
+                <p className="text-[8px] text-indigo-500/60 font-medium text-center">Click to upload image</p>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="relative w-full h-full">
             <ProcessedImage
               id={element.id}
-              src={element.src || ''}
+              src={element.src}
               removeBg={!!element.removeBg}
               removeBgType={(element.removeBgType as any) || 'js'}
               deep={element.removeBgDeep || 0}
@@ -776,165 +811,43 @@ export const DraggableElement = memo(({
           </div>
         );
 
-      case 'shape':
-        return (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-              color: element.color || '#000000',
-            }}
-            className="[&_svg]:w-full [&_svg]:h-full [&_svg]:fill-current"
-            dangerouslySetInnerHTML={{ __html: element.svgCode || '' }}
-          />
-        );
-
       case 'field':
         return (
-          <div
-            style={{
-              width: '100%',
-              userSelect: 'none',
-            }}
-          >
-            {element.label && (
-              <label className="text-xs font-medium text-gray-700 mb-1 block">
-                {element.label}
-              </label>
-            )}
-            <Input
-              placeholder={element.placeholder || 'Enter text...'}
-              className="rounded-lg pointer-events-none"
-              style={{
-                height: 40 * (zoom / 100),
-                fontSize: (element.fontSize || 14) * (zoom / 100),
-                fontFamily: element.fontFamily || 'Inter',
-              }}
-            />
+          <div style={{ width: '100%', userSelect: 'none' }}>
+            {element.showLabel !== false && element.label && <label className="text-xs font-medium text-gray-500 mb-1 block">{element.label}</label>}
+            <Input placeholder={element.placeholder || 'Type here...'} className="rounded-lg pointer-events-none" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }} />
           </div>
         );
 
       case 'swatch':
-      case 'product_color':
-        const getSwatchRadius = () => {
-          const shape = element.swatchShape || 'circle';
-          if (shape === 'square') return '0px';
-          if (shape === 'rounded') return '8px';
-          return '50%';
-        };
-
         return (
-          <div
-            className="flex flex-col gap-2"
-            style={{
-              width: '100%',
-              userSelect: 'none',
-            }}
-          >
-            {element.label && (
-              <label className="text-xs font-bold text-gray-500 uppercase">
-                {element.label}
-              </label>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {element.swatchColors?.map((color: string, index: number) => {
-                const parts = color.split('|');
-                const name = parts.length > 1 ? parts[0] : '';
-                const value = parts.length > 1 ? parts[1] : parts[0];
-                const isImage = value.startsWith('http') || value.startsWith('data:image');
-
-                return (
-                  <button
-                    key={index}
-                    title={name || value}
-                    className={`border-2 transition-all pointer-events-none overflow-hidden ${element.selectedColor === color
-                      ? 'border-indigo-600 scale-110 shadow-md ring-2 ring-indigo-100'
-                      : 'border-white shadow-sm hover:border-gray-200'
-                      }`}
-                    style={{
-                      width: 36 * (zoom / 100),
-                      height: 36 * (zoom / 100),
-                      borderRadius: getSwatchRadius(),
-                      backgroundColor: isImage ? 'transparent' : value,
-                      padding: 0,
-                    }}
-                  >
-                    {isImage && (
-                      <img
-                        src={value}
-                        alt={name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {element.swatchColors?.map((color, i) => (
+              <div key={i} className="w-8 h-8 rounded-full border border-gray-200" style={{ backgroundColor: color }} />
+            ))}
           </div>
         );
 
       case 'phone':
         return (
-          <div
-            style={{
-              width: '100%',
-              userSelect: 'none',
-            }}
-          >
-            {element.label && (
-              <label className="text-xs font-medium text-gray-700 mb-1 block">
-                {element.label}
-              </label>
-            )}
+          <div style={{ width: '100%', userSelect: 'none' }}>
+            {element.label && <label className="text-xs font-medium text-gray-700 mb-1 block">{element.label}</label>}
             <div className="flex gap-2">
-              <div
-                className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 border border-gray-300"
-                style={{
-                  height: 40 * (zoom / 100),
-                  fontSize: (element.fontSize || 14) * (zoom / 100),
-                }}
-              >
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 border border-gray-300" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }}>
                 <Phone className="w-3 h-3" />
                 <span className="font-medium">{element.countryCode}</span>
               </div>
-              <Input
-                placeholder="(555) 123-4567"
-                className="rounded-lg flex-1 pointer-events-none"
-                style={{
-                  height: 40 * (zoom / 100),
-                  fontSize: (element.fontSize || 14) * (zoom / 100),
-                }}
-              />
+              <Input placeholder="(555) 123-4567" className="rounded-lg flex-1 pointer-events-none" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }} />
             </div>
           </div>
         );
 
       case 'date':
         return (
-          <div
-            style={{
-              width: '100%',
-              userSelect: 'none',
-            }}
-          >
-            {element.label && (
-              <label className="text-xs font-medium text-gray-700 mb-1 block">
-                {element.label}
-              </label>
-            )}
+          <div style={{ width: '100%', userSelect: 'none' }}>
+            {element.label && <label className="text-xs font-medium text-gray-700 mb-1 block">{element.label}</label>}
             <div className="relative">
-              <Input
-                placeholder="MM/DD/YYYY"
-                className="rounded-lg pr-10 pointer-events-none"
-                style={{
-                  height: 40 * (zoom / 100),
-                  fontSize: (element.fontSize || 14) * (zoom / 100),
-                }}
-              />
+              <Input placeholder="MM/DD/YYYY" className="rounded-lg pr-10 pointer-events-none" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }} />
               <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             </div>
           </div>
@@ -942,428 +855,61 @@ export const DraggableElement = memo(({
 
       case 'map':
         return (
-          <div
-            style={{
-              width: '100%',
-              userSelect: 'none',
-            }}
-          >
-            {element.label && (
-              <label className="text-xs font-medium text-gray-700 mb-2 block">
-                {element.label}
-              </label>
-            )}
-            <div
-              className="bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl border-2 border-blue-300 flex items-center justify-center relative overflow-hidden"
-              style={{
-                width: '100%',
-                height: '100%',
-              }}
-            >
-              <div className="absolute inset-0 opacity-20">
-                <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
-                  {Array.from({ length: 16 }).map((_, i) => (
-                    <div key={i} className="border border-blue-300" />
-                  ))}
-                </div>
-              </div>
-              <div className="relative z-10 text-center">
-                <MapPin className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                <p className="text-xs font-medium text-blue-900">{element.mapLocation}</p>
-              </div>
+          <div style={{ width: '100%', userSelect: 'none' }}>
+            {element.label && <label className="text-xs font-medium text-gray-700 mb-2 block">{element.label}</label>}
+            <div className="w-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-300 relative overflow-hidden" style={{ height: 120 * (zoom / 100) }}>
+              <MapPin className="w-6 h-6 text-gray-400 z-10" />
+              <div className="absolute inset-0 opacity-20 bg-[url('https://maps.googleapis.com/maps/api/staticmap?center=-6.2,106.8&zoom=13&size=400x400')] bg-cover" />
             </div>
           </div>
         );
 
       case 'monogram':
-        const letters = (element.text || 'ABC').split('');
-        const l1 = letters[0] || '';
-        const l2 = letters[1] || '';
-        const l3 = letters[2] || '';
-        const type = element.monogramType || 'Vine';
-        const color = element.color || '#000000';
-        const size = (element.fontSize || 100) * (zoom / 100);
-        const gradientStyle = getGradientStyle();
-
-        if (type === 'Vine') {
-          return (
-            <div style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <span style={{
-                fontFamily: 'Vine',
-                fontSize: size,
-                lineHeight: 1,
-                whiteSpace: 'nowrap',
-                ...gradientStyle,
-                ...getStrokeStyle(),
-                color: element.fillType === 'gradient' ? 'transparent' : color,
-                letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
-              }}>
-                {l2}
-              </span>
-            </div>
-          );
-        }
-
-        if (type === 'Stacked') {
-          return (
-            <div style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: size * 0.05 }}>
-                <div style={{
-                  fontFamily: 'Stacked-Top-Left',
-                  fontSize: size * 0.4,
-                  ...gradientStyle,
-                  ...getStrokeStyle(),
-                  color: element.fillType === 'gradient' ? 'transparent' : color
-                }}>{l1}</div>
-                <div style={{
-                  fontFamily: 'Stacked-Bottom-Left',
-                  fontSize: size * 0.4,
-                  ...gradientStyle,
-                  ...getStrokeStyle(),
-                  color: element.fillType === 'gradient' ? 'transparent' : color
-                }}>{l2}</div>
-              </div>
-              <div style={{
-                fontFamily: 'Stacked-Tall-Right',
-                fontSize: size,
-                ...gradientStyle,
-                ...getStrokeStyle(),
-                color: element.fillType === 'gradient' ? 'transparent' : color,
-                letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
-              }}>{l3}</div>
-            </div>
-          );
-        }
-
-        // 3-part fonts (Diamond, Circle, Round, Scallop)
-        const fontPrefix = type; // Diamond, Circle, Round, Scallop
         return (
-          <div style={{
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            lineHeight: 1,
-            letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
-          }}>
-            <span style={{
-              fontFamily: `${fontPrefix}-Left`,
-              fontSize: size,
-              ...gradientStyle,
-              ...getStrokeStyle(),
-              color: element.fillType === 'gradient' ? 'transparent' : color
-            }}>{l1}</span>
-            <span style={{
-              fontFamily: `${fontPrefix}-Mid`,
-              fontSize: size,
-              ...gradientStyle,
-              ...getStrokeStyle(),
-              color: element.fillType === 'gradient' ? 'transparent' : color
-            }}>{l2}</span>
-            <span style={{
-              fontFamily: `${fontPrefix}-Right`,
-              fontSize: size,
-              ...gradientStyle,
-              ...getStrokeStyle(),
-              color: element.fillType === 'gradient' ? 'transparent' : color
-            }}>{l3}</span>
+          <div className="w-full h-full flex items-center justify-center">
+            <svg width="100%" height="100%" viewBox="0 0 100 100">
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="60" fontFamily={element.fontFamily || 'Vine'} fill={element.color || '#000000'}>
+                {element.text || 'ABC'}
+              </text>
+            </svg>
           </div>
         );
 
-      case 'file_upload':
+      case 'product_color':
         return (
-          <div className="flex flex-col gap-1.5" style={{ width: '100%' }}>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-gray-400 uppercase truncate">
-                {element.label || 'File Upload'}
-              </span>
-              {element.isRequired && <span className="text-red-500 font-bold -mt-0.5">*</span>}
-            </div>
-
-            <div className="bg-emerald-50 border-2 border-emerald-100 border-dashed rounded-xl p-3 flex flex-col items-center justify-center gap-1 group transition-all hover:bg-emerald-100/50 hover:border-emerald-200">
-              <UploadCloud className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
-              <p className="text-[10px] font-bold text-emerald-600">Select File</p>
-            </div>
-
-            {element.helpText && (
-              <p className="text-[9px] text-gray-400 italic px-1 truncate">{element.helpText}</p>
-            )}
-
-            {element.maxFileSize && (
-              <div className="flex items-center gap-1 px-1 mt-0.5">
-                <Info className="w-2.5 h-2.5 text-gray-300" />
-                <span className="text-[8px] text-gray-400 font-medium">Max {element.maxFileSize}MB</span>
-              </div>
-            )}
+          <div className="flex flex-wrap gap-2">
+            {element.swatchColors?.map((c, i) => (
+              <div key={i} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: c.split('|')[1] || c }} />
+            ))}
           </div>
         );
 
-      case 'button':
-        const displayOptions = element.enabledOptions && element.enabledOptions.length > 0
-          ? element.enabledOptions
-          : (element.buttonOptions || []);
-
-        const getButtonStyle = () => {
-          const style = element.buttonStyle || 'solid';
-          const shape = element.buttonShape || 'rounded';
-
-          let baseClasses = "text-[10px] font-bold px-3 py-1.5 shadow-sm truncate max-w-full transition-all ";
-
-          // Shape
-          if (shape === 'square') baseClasses += "rounded-none ";
-          else if (shape === 'pill') baseClasses += "rounded-full ";
-          else baseClasses += "rounded-lg ";
-
-          // Style
-          if (style === 'outline') return baseClasses + "bg-white border border-gray-300 text-gray-700 hover:border-indigo-400";
-          if (style === 'soft') return baseClasses + "bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100";
-          return baseClasses + "bg-indigo-600 border border-indigo-700 text-white shadow-indigo-100";
-        };
-
+      case 'dropdown':
         return (
-          <div className="flex flex-col gap-1.5" style={{ width: '100%' }}>
-            {element.label && (
-              <span className="text-[10px] font-bold text-gray-400 uppercase truncate flex items-center gap-1">
-                {element.label}
-                {element.isRequired && <span className="text-red-500 font-bold">*</span>}
-              </span>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {displayOptions.length > 0 ? (
-                displayOptions.slice(0, 4).map((opt, idx) => (
-                  <div key={idx} className={getButtonStyle()}>
-                    {opt.includes('|') ? opt.split('|')[0] : opt}
-                  </div>
-                ))
-              ) : (
-                <div className={getButtonStyle() + " w-full text-center py-3"}>
-                  <span className="text-xs uppercase tracking-widest">{element.label || 'Click Here'}</span>
-                </div>
-              )}
-              {displayOptions.length > 4 && (
-                <div className="text-[9px] text-gray-400 font-bold self-end pb-1">
-                  +{displayOptions.length - 4} more
-                </div>
-              )}
+          <div className="w-full">
+            {element.label && <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">{element.label}</label>}
+            <div className="border border-gray-200 rounded-lg px-3 py-2 flex justify-between items-center bg-white shadow-sm">
+              <span className="text-xs text-gray-400">{element.placeholder || 'Select...'}</span>
+              <ChevronDown className="w-3 h-3 text-gray-400" />
             </div>
           </div>
         );
-
-      case 'checkbox':
-        const checkboxList = element.enabledCheckboxOptions && element.enabledCheckboxOptions.length > 0
-          ? element.enabledCheckboxOptions
-          : (element.checkboxOptions || []);
-
-        return (
-          <div className="flex flex-col gap-2" style={{ width: '100%' }}>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
-                {element.label && (
-                  <span className="text-[10px] font-bold text-gray-400 uppercase truncate">
-                    {element.label}
-                  </span>
-                )}
-                {element.isRequired && <span className="text-red-500 font-bold -mt-1">*</span>}
-              </div>
-
-              {element.isMultiple && (element.minSelection || element.maxSelection) && (
-                <div className="text-[8px] text-gray-400 font-medium">
-                  {element.minSelection ? `Min: ${element.minSelection}` : ''}
-                  {element.minSelection && element.maxSelection ? ' • ' : ''}
-                  {element.maxSelection ? `Max: ${element.maxSelection}` : ''}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              {checkboxList.length > 0 ? (
-                <>
-                  {checkboxList.slice(0, 4).map((opt, idx) => (
-                    <div key={idx} className="flex items-center gap-2 px-1">
-                      {element.isMultiple ? (
-                        <div className="w-3.5 h-3.5 rounded border border-gray-300 bg-white" />
-                      ) : (
-                        <div className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-white" />
-                      )}
-                      <span className="text-[11px] text-gray-600 truncate">
-                        {opt.includes('|') ? opt.split('|')[0] : opt}
-                      </span>
-                    </div>
-                  ))}
-                  {element.showOtherOption && (
-                    <div className="flex flex-col gap-1 px-1">
-                      <div className="flex items-center gap-2">
-                        {element.isMultiple ? (
-                          <div className="w-3.5 h-3.5 rounded border border-gray-300 bg-white" />
-                        ) : (
-                          <div className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-white" />
-                        )}
-                        <span className="text-[11px] text-gray-600">Other</span>
-                      </div>
-                      <div className="h-4 border-b border-gray-200 w-full ml-5" />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center gap-3 bg-white border-2 border-amber-100 rounded-xl p-3 shadow-sm">
-                  <div className="w-6 h-6 rounded-md border-2 border-amber-200 bg-amber-50 flex items-center justify-center">
-                    <CheckCircle2 className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <span className="text-xs font-bold text-gray-700">{element.label || 'Agree to terms'}</span>
-                </div>
-              )}
-              {checkboxList.length > 4 && (
-                <span className="text-[9px] text-gray-400 font-bold px-1">+{checkboxList.length - 4} more items</span>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'number':
-        const displayValue = element.text || String(element.defaultValue ?? '0');
-        const fullDisplayNum = `${element.numberPrefix || ''}${displayValue}${element.numberSuffix || ''}`;
-
-        return (
-          <div className="flex flex-col gap-1.5" style={{ width: '100%' }}>
-
-
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: element.textAlign === 'left' ? 'flex-start' : element.textAlign === 'right' ? 'flex-end' : 'center',
-                fontSize: localState.fontSize * (zoom / 100),
-                fontFamily: element.fontFamily || 'Inter',
-                fontWeight: element.fontWeight || 400,
-                fontStyle: element.italic ? 'italic' : 'normal',
-                color: element.color || '#000000',
-                lineHeight: 1,
-                overflow: 'visible'
-              }}
-            >
-              <div style={{
-                ...getGradientStyle(),
-                ...getStrokeStyle(),
-                color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
-                whiteSpace: 'nowrap'
-              }}>
-                {fullDisplayNum}
-              </div>
-            </div>
-
-            {element.helpText && (
-              <p className="text-[9px] text-gray-400 italic px-1 truncate">{element.helpText}</p>
-            )}
-          </div>
-        );
-
-
-
-
 
       case 'time':
         return (
-          <div className="flex flex-col gap-1.5" style={{ width: '100%' }}>
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: element.textAlign === 'left' ? 'flex-start' : element.textAlign === 'right' ? 'flex-end' : 'center',
-                fontSize: localState.fontSize * (zoom / 100),
-                fontFamily: element.fontFamily || 'Inter',
-                fontWeight: element.fontWeight || 400,
-                fontStyle: element.italic ? 'italic' : 'normal',
-                color: element.color || '#000000',
-                lineHeight: 1,
-                overflow: 'visible'
-              }}
-            >
-              <div style={{
-                color: element.color || '#000000',
-                whiteSpace: 'nowrap'
-              }}>
-                {element.text || '12:00'}
-              </div>
+          <div style={{ width: '100%', userSelect: 'none' }}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: localState.fontSize * (zoom / 100), color: element.color || '#000000' }}>
+              {element.text || '12:00'}
             </div>
-
-            {element.helpText && (
-              <p className="text-[9px] text-gray-400 italic px-1 truncate">{element.helpText}</p>
-            )}
-          </div>
-        );
-
-
-
-      case 'dropdown':
-        const getDropdownContainerStyle = () => {
-          const style = element.dropdownStyle || 'classic';
-          if (style === 'outline') return "bg-white border-2 border-cyan-400 shadow-sm shadow-cyan-50";
-          if (style === 'soft') return "bg-cyan-50/50 border border-cyan-100 text-cyan-900";
-          return "bg-white border border-gray-200 shadow-sm";
-        };
-
-        return (
-          <div
-            className="flex flex-col gap-1"
-            style={{ width: '100%' }}
-          >
-            {element.label && (
-              <span className="text-[10px] font-bold text-gray-400 uppercase truncate flex items-center gap-1">
-                {element.label}
-                {element.isRequired && <span className="text-red-500 font-bold">*</span>}
-              </span>
-            )}
-
-            <div className={`flex items-center justify-between px-3 py-1.5 rounded-lg pointer-events-none ${getDropdownContainerStyle()}`}>
-              <div className="flex items-center gap-2 truncate">
-                {element.isSearchable && <div className="w-3 h-3 border border-gray-300 rounded-full flex-shrink-0" title="Searchable enabled" />}
-                <span className={`text-xs truncate ${element.dropdownStyle === 'soft' ? 'text-cyan-700' : 'text-gray-400'}`}>
-                  {element.placeholder || 'Select option...'}
-                </span>
-              </div>
-              <ChevronDown className={`w-3.5 h-3.5 ${element.dropdownStyle === 'soft' ? 'text-cyan-400' : 'text-gray-400'}`} />
-            </div>
-
-            {element.helpText && (
-              <p className="text-[9px] text-gray-400 italic px-1 truncate">{element.helpText}</p>
-            )}
           </div>
         );
 
       default:
         return null;
     }
-  }, [
-    element,
-    zoom,
-    textScale,
-    filterString,
-    localState.width,
-    localState.height,
-    localState.fontSize,
-    isEditing
-  ]);
+  }, [element, zoom, textScale, filterString, localState.width, localState.height, localState.fontSize, curveGeometry]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!canInteract) return;
-    // Prevent dragging if already resizing or rotating
     if (isResizing || isRotating || (interactionRef.current as any).isResizingFlag) {
       e.stopPropagation();
       e.preventDefault();
@@ -1371,68 +917,34 @@ export const DraggableElement = memo(({
     }
 
     e.stopPropagation();
-    onSelect();
-
-    // Allow selection but prevent dragging if locked
-    if (element.lockMove) return;
-
     setIsDragging(true);
+    onSelect();
 
     const startX = e.clientX;
     const startY = e.clientY;
     const startElementX = element.x;
     const startElementY = element.y;
 
-    interactionRef.current = {
-      ...interactionRef.current,
-      startX,
-      startY,
-    };
-
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      if (interactionRef.current.rafId) return;
+      if (element.lockMove) return; // Enforce lock
+      const dx = (moveEvent.clientX - startX) / (zoom / 100);
+      const dy = (moveEvent.clientY - startY) / (zoom / 100);
 
-      interactionRef.current.rafId = requestAnimationFrame(() => {
-        const dx = (moveEvent.clientX - startX) / (zoom / 100);
-        const dy = (moveEvent.clientY - startY) / (zoom / 100);
+      const newX = startElementX + dx;
+      const newY = startElementY + dy;
 
-        const newX = startElementX + dx;
-        const newY = startElementY + dy;
-
-        setLocalState(prev => ({
-          ...prev,
-          x: newX,
-          y: newY
-        }));
-
-        // Optimisasi Performa: Gunakan localState saja selama dragging.
-        // Sync ke parent hanya dilakukan saat PointerUp agar tidak sluggish.
-        // onUpdate({ x: newX, y: newY }, true);
-
-        interactionRef.current.rafId = null;
-      });
+      setLocalState(prev => ({ ...prev, x: newX, y: newY }));
+      onUpdate({ x: newX, y: newY }, true);
     };
 
     const handlePointerUp = (upEvent: PointerEvent) => {
-      if (interactionRef.current.rafId) {
-        cancelAnimationFrame(interactionRef.current.rafId);
-        interactionRef.current.rafId = null;
+      if (!element.lockMove) {
+        const dx = (upEvent.clientX - startX) / (zoom / 100);
+        const dy = (upEvent.clientY - startY) / (zoom / 100);
+        const finalX = startElementX + dx;
+        const finalY = startElementY + dy;
+        onUpdate({ x: finalX, y: finalY }, false);
       }
-
-      const dx = (upEvent.clientX - startX) / (zoom / 100);
-      const dy = (upEvent.clientY - startY) / (zoom / 100);
-
-      const finalX = startElementX + dx;
-      const finalY = startElementY + dy;
-
-      setLocalState(prev => ({
-        ...prev,
-        x: finalX,
-        y: finalY
-      }));
-
-      onUpdate({ x: finalX, y: finalY }, false); // Commit to history
-
       setIsDragging(false);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
@@ -1446,13 +958,8 @@ export const DraggableElement = memo(({
     <div
       ref={elementRef}
       onPointerDown={handlePointerDown}
-      onDoubleClick={() => {
-        if (canInteract && (element.type === 'text' || element.type === 'textarea' || element.type === 'monogram')) {
-          setIsEditing(true);
-        }
-      }}
       onClick={(e) => e.stopPropagation()}
-      className={`draggable-element ${element.type === 'text' ? 'draggable-text' : element.type === 'image' ? 'draggable-image' : element.type === 'shape' ? 'draggable-shape' : ''} absolute ${(isResizing || isRotating || !canInteract || element.lockMove) ? 'cursor-default' : 'cursor-move'}`}
+      className={`absolute draggable-element ${isResizing || isRotating ? 'cursor-not-allowed' : (element.lockMove ? 'cursor-default' : 'cursor-move')}`}
       style={{
         left: localState.x * (zoom / 100),
         top: localState.y * (zoom / 100),
@@ -1462,129 +969,55 @@ export const DraggableElement = memo(({
         opacity: element.opacity / 100,
         zIndex: (element.zIndex || 0) + (isSelected ? 1000 : 0),
         willChange: 'transform, left, top, width, height',
+        pointerEvents: element.isCurved ? 'none' : 'auto'
       }}
     >
       {content}
 
-      {/* Inline Text Editing Overlay */}
-      {isEditing && (
-        <textarea
-          autoFocus
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              setIsEditing(false);
-              onUpdate({ text: editValue }, false);
-            }
-            if (e.key === 'Escape') {
-              setIsEditing(false);
-              setEditValue(element.text || '');
-            }
-          }}
-          className="absolute inset-0 bg-white/90 focus:outline-none z-[2000] p-0 border-none resize-none"
-          style={{
-            fontSize: element.fontSize || 32,
-            fontFamily: element.fontFamily || 'Inter',
-            fontWeight: element.fontWeight || 400,
-            fontStyle: element.italic ? 'italic' : 'normal',
-            lineHeight: 1.1,
-            textAlign: (element.textAlign || 'center') as any,
-            color: element.color || '#000000',
-            overflow: 'hidden',
-            letterSpacing: element.letterSpacing ? `${element.letterSpacing * (zoom / 100)}px` : 'normal'
-          }}
-        />
-      )}
-
-      {/* Selection Bounding Box & Handles */}
-      {isSelected && canInteract && (
+      {isSelected && (
         <>
-          {/* Solid Outline Bounding Box - No transitions for maximum performance */}
           <div
-            className="absolute -inset-[3px] border-[2.5px] border-indigo-600 pointer-events-none rounded-sm z-[999]"
+            className={`absolute -inset-[3px] border-[2.5px] border-indigo-600 pointer-events-none z-[999] ${element.isCurved ? 'rounded-xl opacity-40' : 'rounded-sm'}`}
             style={{ display: 'block' }}
           />
 
-          {/* Four Corner Action Handles */}
+          {element.isCurved && curveGeometry && (
+            <div className="absolute inset-0 pointer-events-none z-[999] flex items-center justify-center">
+              <svg width={curveGeometry.containerWidth} height={curveGeometry.containerHeight} style={{ overflow: 'visible' }}>
+                <path d={curveGeometry.d} fill="none" stroke="#4f46e5" strokeWidth={2} strokeDasharray="5 3" opacity={0.8} />
+              </svg>
+            </div>
+          )}
+
           {!isDragging && (
             <div className="absolute inset-0 pointer-events-none">
-              {/* NW: Delete */}
               {!element.lockDelete && (
-                <div
-                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onDelete(); }}
-                  className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] top-0 left-0 -translate-x-[80%] -translate-y-[80%] cursor-pointer group"
-                  title="Delete"
-                >
-                  <div className="w-7 h-7 bg-white border-2 border-red-500 text-red-500 shadow-md rounded-full flex items-center justify-center hover:bg-red-50 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </div>
+                <div onPointerDown={(e) => { e.stopPropagation(); onDelete(); }} className="absolute w-8 h-8 bg-white border-2 border-red-500 text-red-500 rounded-full flex items-center justify-center top-0 left-0 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer shadow-md">
+                  <Trash2 className="w-4 h-4" />
                 </div>
               )}
-
-              {/* NE: Rotate */}
               {!element.lockRotate && (
-                <div
-                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startRotating(e); }}
-                  className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] top-0 right-0 translate-x-[80%] -translate-y-[80%] cursor-alias group"
-                  title="Rotate"
-                >
-                  <div className={`w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-full flex items-center justify-center transition-all ${isRotating ? 'scale-110 bg-indigo-50' : 'hover:bg-indigo-50'}`}>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </div>
+                <div onPointerDown={(e) => { e.stopPropagation(); startRotating(e); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full flex items-center justify-center top-0 right-0 translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-alias shadow-md">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 </div>
               )}
-
-              {/* SW: Duplicate */}
               {!element.lockDuplicate && (
-                <div
-                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onDuplicate(); }}
-                  className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] bottom-0 left-0 -translate-x-[80%] translate-y-[80%] cursor-pointer group"
-                  title="Duplicate"
-                >
-                  <div className="w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-full flex items-center justify-center hover:bg-indigo-50 transition-colors">
-                    <Copy className="w-3.5 h-3.5" />
-                  </div>
+                <div onPointerDown={(e) => { e.stopPropagation(); onDuplicate(); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full flex items-center justify-center bottom-0 left-0 -translate-x-1/2 translate-y-1/2 pointer-events-auto cursor-pointer shadow-md">
+                  <Copy className="w-4 h-4" />
+                </div>
+              )}
+              {!element.lockResize && (
+                <div onPointerDown={(e) => { e.stopPropagation(); startResizing(e, 'se'); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-sm flex items-center justify-center bottom-0 right-0 translate-x-1/2 translate-y-1/2 pointer-events-auto cursor-nwse-resize shadow-md">
+                  <div className="w-3 h-3 border-r-2 border-b-2 border-current" />
                 </div>
               )}
 
-              {/* SE: Resize */}
               {!element.lockResize && (
                 <>
-                  <div
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'se'); }}
-                    className="absolute w-12 h-12 flex items-center justify-center pointer-events-auto z-[1000] bottom-0 right-0 translate-x-[80%] translate-y-[80%] cursor-nwse-resize group"
-                    title="Resize"
-                  >
-                    <div className={`w-7 h-7 bg-white border-2 border-indigo-600 text-indigo-600 shadow-md rounded-sm flex items-center justify-center transition-all ${isResizing ? 'scale-110 bg-indigo-50 border-indigo-700' : 'hover:bg-indigo-50'}`}>
-                      <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-current" />
-                    </div>
-                  </div>
-
-                  {/* Edge Handles for smooth line resizing */}
-                  {/* Top Handle */}
-                  <div
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'n'); }}
-                    className="absolute h-4 left-4 right-4 top-0 -translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]"
-                  />
-                  {/* Bottom Handle */}
-                  <div
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 's'); }}
-                    className="absolute h-4 left-4 right-4 bottom-0 translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]"
-                  />
-                  {/* Left Handle */}
-                  <div
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'w'); }}
-                    className="absolute w-4 top-4 bottom-4 left-0 -translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]"
-                  />
-                  {/* Right Handle */}
-                  <div
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); startResizing(e, 'e'); }}
-                    className="absolute w-4 top-4 bottom-4 right-0 translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]"
-                  />
+                  <div onPointerDown={(e) => startResizing(e, 'n')} className="absolute h-4 left-4 right-4 top-0 -translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]" />
+                  <div onPointerDown={(e) => startResizing(e, 's')} className="absolute h-4 left-4 right-4 bottom-0 translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]" />
+                  <div onPointerDown={(e) => startResizing(e, 'w')} className="absolute w-4 top-4 bottom-4 left-0 -translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]" />
+                  <div onPointerDown={(e) => startResizing(e, 'e')} className="absolute w-4 top-4 bottom-4 right-0 translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]" />
                 </>
               )}
             </div>

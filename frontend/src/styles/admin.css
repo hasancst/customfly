@@ -2,3 +2,80 @@
 @import './tailwind.css';
 @import './theme.css';
 @import '@shopify/polaris/build/esm/styles.css';
+
+/* Override Polaris and standardize font sizes across admin and public */
+:root {
+  --p-font-size-75: 12px;
+  --p-font-size-100: 14px;
+  --p-font-size-200: 14px;
+  --p-font-size-300: 16px;
+  --p-font-size-400: 16px;
+  --p-font-size-500: 18px;
+  --p-font-size-600: 20px;
+}
+
+/* Standardize base font across the app */
+body, .Polaris-Frame {
+  font-size: 16px !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Standardize button text */
+.Polaris-Button__Text {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+/* Standardize labels */
+.Polaris-Label__Text, .Polaris-Labelled__LabelWrapper {
+  font-size: 16px !important;
+  font-weight: 500 !important;
+}
+
+/* Standardize form inputs */
+.Polaris-TextField__Input, .Polaris-Select__Input {
+  font-size: 16px !important;
+}
+
+/* Standardize headings in admin */
+.Polaris-Text--headingMd {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.Polaris-Text--headingLg {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+
+.Polaris-Text--headingSm {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Standardize body text */
+.Polaris-Text--bodyMd {
+  font-size: 16px !important;
+}
+
+.Polaris-Text--bodySm {
+  font-size: 14px !important;
+}
+
+/* Icon sizes standardization */
+.Polaris-Icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.Polaris-Icon svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Larger icons for primary actions */
+.Polaris-Button--primary .Polaris-Icon,
+.Polaris-Button--primary .Polaris-Icon svg {
+  width: 20px !important;
+  height: 20px !important;
+}

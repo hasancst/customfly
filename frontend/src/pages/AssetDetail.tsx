@@ -54,8 +54,9 @@ export default function AssetDetail() {
     const [selectedLibraryPattern, setSelectedLibraryPattern] = useState<string | null>(null);
     const [newColorName, setNewColorName] = useState('');
     const [newColorHex, setNewColorHex] = useState('#000000');
-    const [patternFile, setPatternFile] = useState<File | null>(null);
+    const [patternFiles, setPatternFiles] = useState<File[]>([]);
     const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+    const [fontFiles, setFontFiles] = useState<File[]>([]);
     const [newName, setNewName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -65,7 +66,7 @@ export default function AssetDetail() {
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
     const [optionItemType, setOptionItemType] = useState<'text' | 'image' | 'color'>('text');
-    const [optionImageFile, setOptionImageFile] = useState<File | null>(null);
+    const [optionImageFiles, setOptionImageFiles] = useState<File[]>([]);
     const [queuedOptions, setQueuedOptions] = useState<{ name: string, value: string, type: string }[]>([]);
     const [localItems, setLocalItems] = useState<ListItem[]>([]);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
@@ -80,6 +81,7 @@ export default function AssetDetail() {
     }, []);
     const [inputValue, setInputValue] = useState('');
     const [selectedGoogleFonts, setSelectedGoogleFonts] = useState<string[]>([]);
+    const [isClearing, setIsClearing] = useState(false);
 
     // Search & Pagination states
     const [searchQuery, setSearchQuery] = useState('');
@@ -90,7 +92,7 @@ export default function AssetDetail() {
     const fetchDetail = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/imcst_api/assets`);
+            const response = await fetch(`/imcst_api/assets?t=${Date.now()}`);
             if (response.ok) {
                 const data = await response.json();
                 console.log("Fetching asset detail for ID:", id, "Total assets:", data.length);
@@ -111,6 +113,34 @@ export default function AssetDetail() {
         fetchDetail();
     }, [fetchDetail]);
 
+
+    const uploadToS3Internal = async (file: File | string, folder: string, filename?: string): Promise<string> => {
+        // Extract shop from URL params
+        const shop = new URLSearchParams(window.location.search).get('shop') || '';
+
+        if (typeof file === 'string' && file.startsWith('data:')) {
+            const resp = await fetch('/imcst_api/public/upload/base64', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ base64: file, folder, filename, shop })
+            });
+            if (!resp.ok) throw new Error("Upload failed");
+            const data = await resp.json();
+            return data.url;
+        } else if (file instanceof File) {
+            const formData = new FormData();
+            formData.append('image', file);
+            const resp = await fetch(`/imcst_api/public/upload/image?folder=${folder}&shop=${encodeURIComponent(shop)}&webp=true`, {
+                method: 'POST',
+                body: formData
+            });
+            if (!resp.ok) throw new Error("Upload failed");
+            const data = await resp.json();
+            return data.url;
+        }
+        return file as string;
+    };
+
     const safeSplit = (val: string) => {
         if (!val) return [];
         const lines = val.split('\n').map(l => l.trim()).filter(Boolean);
@@ -128,7 +158,14 @@ export default function AssetDetail() {
             if (asset.config?.fontType === 'google' && asset.config?.googleConfig === 'all') {
                 return POPULAR_GOOGLE_FONTS.map(n => ({ name: n, id: n }));
             }
-            return safeSplit(asset.value).map(n => ({ name: n, id: n }));
+            const parsed = safeSplit(asset.value);
+            return parsed.map(pair => {
+                if (pair.includes('|')) {
+                    const [name, val] = pair.split('|');
+                    return { name: name.trim(), id: pair, url: val.trim() };
+                }
+                return { name: pair, id: pair };
+            });
         }
 
         if (asset.type === 'color') {
@@ -240,9 +277,12 @@ export default function AssetDetail() {
     // Load fonts for preview
     useEffect(() => {
         if (asset?.type === 'font' && items.length > 0) {
+            // Google Fonts
             const googleFamilies = items
-                .filter(() => asset?.config?.fontType === 'google')
-                .map(f => f.name.replace(/ /g, '+'))
+                .filter(f => asset?.config?.fontType === 'google' && !f.url)
+                .map(f => f.name.trim())
+                .filter(name => name && !name.includes('|') && !name.includes('data:') && !name.includes('://'))
+                .map(name => name.replace(/ /g, '+'))
                 .join('|');
 
             if (googleFamilies) {
@@ -257,16 +297,28 @@ export default function AssetDetail() {
                 link.href = `https://fonts.googleapis.com/css?family=${googleFamilies}&display=swap`;
             }
 
-            if (asset?.config?.fontType === 'custom' && asset.value) {
-                const styleId = 'detail-custom-font';
-                let style = document.getElementById(styleId) as HTMLStyleElement;
-                if (!style) {
-                    style = document.createElement('style');
-                    style.id = styleId;
-                    document.head.appendChild(style);
-                }
-                style.textContent = `@font-face { font-family: "${asset.name}"; src: url("${asset.value}"); font-display: swap; }`;
+            // Custom Fonts from either the main asset value or items list
+            const customStyleId = 'detail-custom-fonts';
+            let style = document.getElementById(customStyleId) as HTMLStyleElement;
+            if (!style) {
+                style = document.createElement('style');
+                style.id = customStyleId;
+                document.head.appendChild(style);
             }
+
+            let css = '';
+            // 1. Check if the asset itself is a single custom font
+            if (asset?.config?.fontType === 'custom' && asset.value && !asset.value.includes('|')) {
+                css += `@font-face { font-family: "${asset.name}"; src: url("${asset.value}"); font-display: swap; }\n`;
+            }
+
+            // 2. Check items in the list (format Name|Data or Name|URL)
+            items.forEach(it => {
+                if (it.url && (it.url.startsWith('data:') || it.url.startsWith('http'))) {
+                    css += `@font-face { font-family: "${it.name}"; src: url("${it.url}"); font-display: swap; }\n`;
+                }
+            });
+            style.textContent = css;
         }
     }, [items, asset]);
 
@@ -388,6 +440,34 @@ export default function AssetDetail() {
         const updatedPrices = { ...fontPrices, [fontName]: price };
         handleUpdateConfig('fontPrices', updatedPrices);
     };
+    const handleClearAll = async () => {
+        if (!asset) return;
+        if (!confirm("Are you sure you want to delete ALL items in this group? This cannot be undone.")) return;
+
+        setIsClearing(true);
+        try {
+            const response = await fetch(`/imcst_api/assets/${asset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: asset.name,
+                    value: '',
+                    config: asset.config
+                })
+            });
+
+            if (response.ok) {
+                showToast("All items cleared");
+                fetchDetail();
+            } else {
+                alert("Failed to clear items");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsClearing(false);
+        }
+    };
 
     const handleBulkDelete = async () => {
         if (!asset || selectedItems.length === 0) return;
@@ -458,34 +538,6 @@ export default function AssetDetail() {
         setSelectedGoogleFonts((prev) => prev.filter((p) => p !== tag));
     };
 
-    const compressImage = (file: File, maxWidth: number = 1200): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image();
-                img.src = event.target?.result as string;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > maxWidth) {
-                        height = (maxWidth / width) * height;
-                        width = maxWidth;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx?.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.8));
-                };
-                img.onerror = reject;
-            };
-            reader.onerror = reject;
-        });
-    };
 
     const handleAddToQueue = async () => {
         if (!newColorName || !asset) return;
@@ -501,21 +553,33 @@ export default function AssetDetail() {
         } else if (optionItemType === 'color') {
             val = newColorHex;
         } else if (optionItemType === 'image') {
-            if (!optionImageFile) {
-                alert("Please select an image first.");
+            if (optionImageFiles.length === 0) {
+                alert("Please select at least one image first.");
                 return;
             }
             try {
-                val = await compressImage(optionImageFile);
+                const newItemsToAdd: { name: string, value: string, type: string }[] = [];
+                for (let i = 0; i < optionImageFiles.length; i++) {
+                    const file = optionImageFiles[i];
+                    const fname = file.name.split('.')[0];
+                    const oName = optionImageFiles.length === 1 && newColorName ? newColorName : (fname.charAt(0).toUpperCase() + fname.slice(1));
+                    const s3Url = await uploadToS3Internal(file, 'options-queued');
+                    newItemsToAdd.push({ name: oName, value: s3Url, type: 'image' });
+                }
+                setQueuedOptions([...queuedOptions, ...newItemsToAdd]);
+                setNewColorName('');
+                setOptionImageFiles([]);
+                setNewColorHex('#000000');
+                return;
             } catch (err) {
-                alert("Failed to process image.");
+                alert("Failed to upload image to S3.");
                 return;
             }
         }
 
         setQueuedOptions([...queuedOptions, { name: newColorName, value: val, type: optionItemType }]);
         setNewColorName('');
-        setOptionImageFile(null);
+        setOptionImageFiles([]);
         setNewColorHex('#000000');
     };
 
@@ -531,36 +595,79 @@ export default function AssetDetail() {
             if (asset.type === 'font') {
                 let fontsToAdd: string[] = [];
                 if (newFontType === 'google') {
-                    fontsToAdd = selectedGoogleFonts.length > 0 ? selectedGoogleFonts : [newName];
+                    fontsToAdd = selectedGoogleFonts.length > 0 ? selectedGoogleFonts : [];
                 } else {
-                    fontsToAdd = [newName];
-                }
-                const uniqueToAdd = fontsToAdd.filter(f => !currentList.some(c => c.toLowerCase() === f.toLowerCase()));
-                newListStr = [...currentList, ...uniqueToAdd].join('\n');
-            } else if (asset.type === 'color') {
-                if (!newColorName) return;
-
-                let valToStore = '';
-                if (colorItemType === 'color') {
-                    if (!newColorHex) return;
-                    valToStore = `${newColorName}|${newColorHex}`;
-                } else {
-                    if (patternSource === 'upload') {
-                        if (!patternFile) return;
-                        const compressedBase64 = await compressImage(patternFile);
-                        valToStore = `${newColorName}|pattern:${compressedBase64}`;
-                    } else {
-                        if (!selectedLibraryPattern) return;
-                        valToStore = `${newColorName}|pattern:${selectedLibraryPattern}`;
+                    // Add manual font name if provided
+                    if (newName.trim()) {
+                        fontsToAdd.push(newName.trim());
+                    }
+                    // Add font names and data from uploaded files
+                    if (fontFiles.length > 0) {
+                        for (let i = 0; i < fontFiles.length; i++) {
+                            const file = fontFiles[i];
+                            const fontName = file.name.replace(/\.(ttf|otf|woff|woff2)$/i, '');
+                            // Custom fonts are uploaded to S3
+                            const s3Url = await uploadToS3Internal(file, 'fonts');
+                            fontsToAdd.push(`${fontName}|${s3Url}`);
+                            setUploadProgress(Math.round(((i + 1) / fontFiles.length) * 100));
+                        }
                     }
                 }
 
-                if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
-                    alert("Name already exists in this group");
-                    setIsSubmitting(false);
-                    return;
+                const uniqueToAdd = fontsToAdd.filter(f => {
+                    const nameToAdd = f.includes('|') ? f.split('|')[0].toLowerCase() : f.toLowerCase();
+                    return !currentList.some(c => {
+                        const currentName = c.includes('|') ? c.split('|')[0].toLowerCase() : c.toLowerCase();
+                        return currentName === nameToAdd;
+                    });
+                });
+                newListStr = [...currentList, ...uniqueToAdd].join('\n');
+                console.log('New list string:', newListStr);
+            } else if (asset.type === 'color') {
+                if (colorItemType === 'color') {
+                    if (!newColorName || !newColorHex) return;
+                    if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
+                        alert("Name already exists in this group");
+                        setIsSubmitting(false);
+                        return;
+                    }
+                    newListStr = [...currentList, `${newColorName}|${newColorHex}`].join('\n');
+                } else {
+                    // Pattern upload
+                    if (patternSource === 'upload') {
+                        if (patternFiles.length === 0) return;
+                        const newPatterns: string[] = [];
+                        for (let i = 0; i < patternFiles.length; i++) {
+                            const file = patternFiles[i];
+                            const fname = file.name.split('.')[0];
+                            const pName = patternFiles.length === 1 && newColorName ? newColorName : (fname.charAt(0).toUpperCase() + fname.slice(1));
+
+                            // Check for duplicates in current list and what we just added
+                            const isDup = currentList.some(p => p.split('|')[0].toLowerCase() === pName.toLowerCase()) ||
+                                newPatterns.some(p => p.split('|')[0].toLowerCase() === pName.toLowerCase());
+
+                            if (isDup && patternFiles.length === 1) {
+                                alert("Name already exists");
+                                setIsSubmitting(false);
+                                return;
+                            }
+
+                            const finalPName = isDup ? `${pName} (${Date.now() % 1000})` : pName;
+                            const s3Url = await uploadToS3Internal(file, 'patterns');
+                            newPatterns.push(`${finalPName}|pattern:${s3Url}`);
+                            setUploadProgress(Math.round(((i + 1) / patternFiles.length) * 100));
+                        }
+                        newListStr = [...currentList, ...newPatterns].join('\n');
+                    } else {
+                        if (!newColorName || !selectedLibraryPattern) return;
+                        if (currentList.some(p => p.split('|')[0].toLowerCase() === newColorName.toLowerCase())) {
+                            alert("Name already exists");
+                            setIsSubmitting(false);
+                            return;
+                        }
+                        newListStr = [...currentList, `${newColorName}|pattern:${selectedLibraryPattern}`].join('\n');
+                    }
                 }
-                newListStr = [...currentList, valToStore].join('\n');
             } else if (asset.type === 'gallery') {
                 const newItems: string[] = [];
                 if (galleryFiles.length === 0) return;
@@ -569,8 +676,8 @@ export default function AssetDetail() {
                     const file = galleryFiles[i];
                     try {
                         const name = file.name.split('.')[0];
-                        const compressedBase64 = await compressImage(file);
-                        newItems.push(`${name}|${compressedBase64}`);
+                        const s3Url = await uploadToS3Internal(file, 'gallery');
+                        newItems.push(`${name}|${s3Url}`);
                         setUploadProgress(Math.round(((i + 1) / galleryFiles.length) * 100));
                     } catch (err) {
                         console.error(`Failed to process ${file.name}:`, err);
@@ -591,15 +698,25 @@ export default function AssetDetail() {
                     } else if (optionItemType === 'color') {
                         val = newColorHex;
                     } else if (optionItemType === 'image') {
-                        if (!optionImageFile) {
-                            alert("Please select an image for the current item");
+                        if (optionImageFiles.length === 0) {
+                            alert("Please select at least one image");
                             setIsSubmitting(false);
                             shouldAdd = false;
                         } else {
                             try {
-                                val = await compressImage(optionImageFile);
+                                const newOpts: any[] = [];
+                                for (let i = 0; i < optionImageFiles.length; i++) {
+                                    const file = optionImageFiles[i];
+                                    const fname = file.name.split('.')[0];
+                                    const oName = optionImageFiles.length === 1 && newColorName ? newColorName : (fname.charAt(0).toUpperCase() + fname.slice(1));
+                                    const s3Url = await uploadToS3Internal(file, 'options');
+                                    newOpts.push({ name: oName, value: s3Url, type: 'image' });
+                                    setUploadProgress(Math.round(((i + 1) / optionImageFiles.length) * 100));
+                                }
+                                itemsToSave = [...itemsToSave, ...newOpts];
+                                shouldAdd = false; // already added in newOpts
                             } catch (e) {
-                                alert("Failed to process image");
+                                alert("Failed to process images");
                                 setIsSubmitting(false);
                                 shouldAdd = false;
                             }
@@ -653,10 +770,11 @@ export default function AssetDetail() {
                 setNewColorName('');
                 setNewColorHex('#000000');
                 setSvgCode('');
-                setPatternFile(null);
+                setPatternFiles([]);
                 setSelectedGoogleFonts([]);
                 setGalleryFiles([]);
-                setOptionImageFile(null);
+                setFontFiles([]);
+                setOptionImageFiles([]);
                 setQueuedOptions([]);
             }
         } catch (err) {
@@ -726,11 +844,26 @@ export default function AssetDetail() {
                     <Card padding="0">
                         <Box padding="400">
                             <BlockStack gap="400">
-                                <Text variant="headingMd" as="h2">{
-                                    asset.type === 'font' ? 'Fonts' :
-                                        asset.type === 'gallery' ? 'Images' :
-                                            asset.type === 'option' ? 'Options' : 'Colors'
-                                } in this Group ({items.length})</Text>
+                                <InlineStack align="space-between">
+                                    <Text variant="headingMd" as="h2">
+                                        {asset.type === 'font' ? 'Fonts' :
+                                            asset.type === 'gallery' ? 'Images' :
+                                                asset.type === 'option' ? 'Options' : 'Colors'} in this Group ({items.length})
+                                    </Text>
+                                    <div className="flex gap-2">
+                                        {items.length > 0 && (
+                                            <Button
+                                                tone="critical"
+                                                variant="secondary"
+                                                size="slim"
+                                                onClick={handleClearAll}
+                                                loading={isClearing}
+                                            >
+                                                Clear All
+                                            </Button>
+                                        )}
+                                    </div>
+                                </InlineStack>
 
                                 {selectedItems.length > 0 && sortOrder === 'custom' && (
                                     <div className="flex items-center gap-4 bg-indigo-50 p-2 rounded-lg border border-indigo-100 animate-in fade-in slide-in-from-top-2">
@@ -789,6 +922,20 @@ export default function AssetDetail() {
 
                         {sortOrder === 'custom' ? (
                             <div className="p-2">
+                                {localItems.length > 0 && (
+                                    <Box padding="300" background="bg-surface-secondary-active" borderBlockEndWidth="025" borderColor="border-subdued">
+                                        <InlineStack gap="300" align="start">
+                                            <Checkbox
+                                                label={`Select all ${localItems.length} items`}
+                                                checked={selectedItems.length === localItems.length && localItems.length > 0}
+                                                onChange={(val) => {
+                                                    if (val) setSelectedItems(localItems.map(i => i.id));
+                                                    else setSelectedItems([]);
+                                                }}
+                                            />
+                                        </InlineStack>
+                                    </Box>
+                                )}
                                 <Reorder.Group axis="y" values={localItems} onReorder={handleReorder} className="flex flex-col gap-2">
                                     {localItems.map((item) => (
                                         <Reorder.Item
@@ -851,7 +998,21 @@ export default function AssetDetail() {
                                                     )}
                                                     {asset.type === 'font' && (
                                                         <div className="mr-8">
-                                                            <span style={{ fontFamily: item.name, fontSize: '14px' }}>Customfly</span>
+                                                            <span style={{ fontFamily: item.name, fontSize: '18px' }}>{item.name}</span>
+                                                        </div>
+                                                    )}
+                                                    {asset.config?.enablePricing && (asset.config?.pricingType === 'single' || asset.config?.pricingType === 'individual') && (
+                                                        <div className="w-24 shrink-0 mr-2">
+                                                            <TextField
+                                                                label="Price"
+                                                                labelHidden
+                                                                type="number"
+                                                                value={asset.config?.fontPrices?.[item.name] || '0'}
+                                                                onChange={(val) => handleUpdateFontPrice(item.name, val)}
+                                                                autoComplete="off"
+                                                                prefix="$"
+                                                                size="slim"
+                                                            />
                                                         </div>
                                                     )}
                                                     <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
@@ -883,131 +1044,152 @@ export default function AssetDetail() {
                                 </Reorder.Group>
                             </div>
                         ) : (
-                            <ResourceList
-                                resourceName={{
-                                    singular: asset.type === 'gallery' ? 'image' : asset.type,
-                                    plural: asset.type === 'gallery' ? 'images' : `${asset.type}s`
-                                }}
-                                items={paginatedItems}
-                                selectedItems={selectedItems}
-                                onSelectionChange={(selected) => setSelectedItems(selected as string[])}
-                                bulkActions={[
-                                    {
-                                        content: 'Delete',
-                                        onAction: handleBulkDelete,
+                            <div className="p-2">
+                                {filteredItems.length > 0 && (
+                                    <Box padding="300" background="bg-surface-secondary-active" borderBlockEndWidth="025" borderColor="border-subdued">
+                                        <InlineStack gap="300" align="start">
+                                            <Checkbox
+                                                label={`Select all ${filteredItems.length} items`}
+                                                checked={selectedItems.length === filteredItems.length && filteredItems.length > 0}
+                                                onChange={(val) => {
+                                                    if (val) setSelectedItems(filteredItems.map(i => i.id));
+                                                    else setSelectedItems([]);
+                                                }}
+                                            />
+                                        </InlineStack>
+                                    </Box>
+                                )}
+                                <ResourceList
+                                    resourceName={{
+                                        singular: asset.type === 'gallery' ? 'image' : asset.type,
+                                        plural: asset.type === 'gallery' ? 'images' : `${asset.type}s`
+                                    }}
+                                    items={paginatedItems}
+                                    selectedItems={selectedItems}
+                                    onSelectionChange={(selected) => setSelectedItems(selected as string[])}
+                                    bulkActions={[
+                                        {
+                                            content: 'Delete',
+                                            onAction: handleBulkDelete,
+                                        }
+                                    ]}
+                                    emptyState={
+                                        <div className="p-12 text-center text-gray-400 italic">
+                                            No matching items found in this group.
+                                        </div>
                                     }
-                                ]}
-                                emptyState={
-                                    <div className="p-12 text-center text-gray-400 italic">
-                                        No matching items found in this group.
-                                    </div>
-                                }
-                                renderItem={(item) => (
-                                    <ResourceItem
-                                        id={item.id}
-                                        onClick={() => { }}
-                                    >
-                                        <div className="flex items-center justify-between w-full">
-                                            <div className="flex items-center gap-3 flex-1">
-                                                {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
-                                                    <div
-                                                        className="w-12 h-12 rounded border border-gray-200 shadow-sm"
-                                                        style={{
-                                                            backgroundColor: item.hex || 'transparent',
-                                                            backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
-                                                            backgroundSize: 'cover'
-                                                        }}
-                                                    />
-                                                )}
-                                                {asset.type === 'shape' && item.url && (
-                                                    <div
-                                                        className="w-12 h-12 rounded border border-gray-100 bg-gray-50 p-1 flex items-center justify-center shrink-0 overflow-hidden"
-                                                        dangerouslySetInnerHTML={{ __html: item.url }}
-                                                    />
-                                                )}
-                                                <div className="flex flex-col gap-1">
-                                                    <Text variant="bodyMd" fontWeight="bold" as="span">
-                                                        {item.name}
-                                                    </Text>
+                                    renderItem={(item) => (
+                                        <ResourceItem
+                                            id={item.id}
+                                            onClick={() => { }}
+                                        >
+                                            <div className="flex items-center justify-between w-full">
+                                                <div className="flex items-center gap-3 flex-1">
                                                     {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
-                                                        <Text variant="bodySm" tone="subdued" as="span">
-                                                            {item.isPattern ? 'Image/Pattern' : item.hex}
-                                                        </Text>
+                                                        <div
+                                                            className="w-12 h-12 rounded border border-gray-200 shadow-sm"
+                                                            style={{
+                                                                backgroundColor: item.hex || 'transparent',
+                                                                backgroundImage: item.isPattern ? `url(${item.patternUrl})` : 'none',
+                                                                backgroundSize: 'cover'
+                                                            }}
+                                                        />
                                                     )}
-                                                </div>
-                                            </div>
-
-                                            {asset.type === 'gallery' && (
-                                                <div className="flex-1 px-8">
-                                                    <div className="flex items-center gap-4 justify-end">
-                                                        <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                        <div className="w-24 h-24 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
-                                                            <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
-                                                        </div>
+                                                    {asset.type === 'shape' && item.url && (
+                                                        <div
+                                                            className="w-12 h-12 rounded border border-gray-100 bg-gray-50 p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                                                            dangerouslySetInnerHTML={{ __html: item.url }}
+                                                        />
+                                                    )}
+                                                    <div className="flex flex-col gap-1">
+                                                        {asset.type === 'font' ? (
+                                                            <span style={{ fontFamily: item.name, fontSize: '18px', fontWeight: 'bold' }}>
+                                                                {item.name}
+                                                            </span>
+                                                        ) : (
+                                                            <Text variant="bodyMd" fontWeight="bold" as="span">
+                                                                {item.name}
+                                                            </Text>
+                                                        )}
+                                                        {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
+                                                            <Text variant="bodySm" tone="subdued" as="span">
+                                                                {item.isPattern ? 'Image/Pattern' : item.hex}
+                                                            </Text>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            )}
 
-                                            {asset.type === 'font' && (
-                                                <div className="flex-1 px-8 text-right">
-                                                    <span style={{ fontFamily: item.name, fontSize: '16px' }}>
-                                                        Customfly 123
-                                                    </span>
-                                                </div>
-                                            )}
+                                                {asset.type === 'gallery' && (
+                                                    <div className="flex-1 px-8">
+                                                        <div className="flex items-center gap-4 justify-end">
+                                                            <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
+                                                            <div className="w-24 h-24 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
+                                                                <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
 
-                                            {asset.type === 'option' && (
-                                                <div className="flex-1 px-8 text-right">
-                                                    <Text variant="bodySm" tone="subdued" as="span">
-                                                        {item.hex || (item.isPattern ? 'Image' : 'Text Option')}
-                                                    </Text>
-                                                </div>
-                                            )}
+                                                {asset.type === 'font' && (
+                                                    <div className="flex-1 px-8 text-right">
+                                                        <span style={{ fontFamily: item.name, fontSize: '16px' }}>
+                                                            Customfly 123
+                                                        </span>
+                                                    </div>
+                                                )}
 
-                                            {asset.config?.enablePricing && asset.config?.pricingType === 'single' && (
-                                                <div className="w-24 mr-4">
-                                                    <TextField
-                                                        label="Price"
-                                                        labelHidden
-                                                        type="number"
-                                                        value={asset.config?.fontPrices?.[item.name] || '0'}
-                                                        onChange={(val) => handleUpdateFontPrice(item.name, val)}
-                                                        autoComplete="off"
-                                                        prefix="$"
-                                                        size="slim"
-                                                    />
-                                                </div>
-                                            )}
+                                                {asset.type === 'option' && (
+                                                    <div className="flex-1 px-8 text-right">
+                                                        <Text variant="bodySm" tone="subdued" as="span">
+                                                            {item.hex || (item.isPattern ? 'Image' : 'Text Option')}
+                                                        </Text>
+                                                    </div>
+                                                )}
 
-                                            <div className="shrink-0 ml-4 flex gap-1">
-                                                <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
-                                                    <Button
-                                                        icon={EditIcon}
-                                                        variant="plain"
-                                                        onClick={(e?: any) => {
-                                                            e?.stopPropagation();
-                                                            setItemToRename(item);
-                                                            setNewItemName(item.name);
-                                                            setIsRenameModalOpen(true);
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-red-50 transition-colors">
-                                                    <Button
-                                                        icon={DeleteIcon}
-                                                        variant="plain"
-                                                        tone="critical"
-                                                        onClick={(e?: any) => {
-                                                            e?.stopPropagation();
-                                                            handleDeleteItem(item.name);
-                                                        }}
-                                                    />
+                                                <div className="shrink-0 ml-4 flex items-center gap-2">
+                                                    {asset.config?.enablePricing && (asset.config?.pricingType === 'single' || asset.config?.pricingType === 'individual') && (
+                                                        <div className="w-24 shrink-0">
+                                                            <TextField
+                                                                label="Price"
+                                                                labelHidden
+                                                                type="number"
+                                                                value={asset.config?.fontPrices?.[item.name] || '0'}
+                                                                onChange={(val) => handleUpdateFontPrice(item.name, val)}
+                                                                autoComplete="off"
+                                                                prefix="$"
+                                                                size="slim"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                                        <Button
+                                                            icon={EditIcon}
+                                                            variant="plain"
+                                                            onClick={(e?: any) => {
+                                                                e?.stopPropagation();
+                                                                setItemToRename(item);
+                                                                setNewItemName(item.name);
+                                                                setIsRenameModalOpen(true);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="border border-gray-200 rounded-md flex items-center justify-center hover:bg-red-50 transition-colors">
+                                                        <Button
+                                                            icon={DeleteIcon}
+                                                            variant="plain"
+                                                            tone="critical"
+                                                            onClick={(e?: any) => {
+                                                                e?.stopPropagation();
+                                                                handleDeleteItem(item.name);
+                                                            }}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </ResourceItem>
-                                )}
-                            />
+                                        </ResourceItem>
+                                    )}
+                                />
+                            </div>
                         )}
 
                         {totalPages > 1 && (
@@ -1056,7 +1238,7 @@ export default function AssetDetail() {
                                     label="Source"
                                     options={[
                                         { label: 'Google Fonts Library', value: 'google' },
-                                        { label: 'System / Custom Font Name', value: 'custom' },
+                                        { label: 'Your Font', value: 'custom' },
                                     ]}
                                     value={newFontType}
                                     onChange={(val: any) => setNewFontType(val)}
@@ -1100,14 +1282,49 @@ export default function AssetDetail() {
                                         </InlineStack>
                                     </BlockStack>
                                 ) : (
-                                    <TextField
-                                        label="Font Family Name"
-                                        value={newName}
-                                        onChange={setNewName}
-                                        autoComplete="off"
-                                        placeholder="e.g. Arial, MyCustomFont"
-                                        helpText="Enter the exact CSS font-family name."
-                                    />
+                                    <BlockStack gap="400">
+                                        <TextField
+                                            label="Font Family Name"
+                                            value={newName}
+                                            onChange={setNewName}
+                                            autoComplete="off"
+                                            placeholder="e.g. Arial, MyCustomFont"
+                                            helpText="Enter the exact CSS font-family name."
+                                        />
+                                        <BlockStack gap="200">
+                                            <label className="block text-sm font-medium text-gray-700">Upload Font Files (Bulk Upload Supported)</label>
+                                            <input
+                                                type="file"
+                                                accept=".ttf,.otf,.woff,.woff2"
+                                                multiple
+                                                onChange={(e) => {
+                                                    if (e.target.files) {
+                                                        setFontFiles(Array.from(e.target.files));
+                                                    }
+                                                }}
+                                                className="block w-full text-sm text-gray-500
+                                                  file:mr-4 file:py-2 file:px-4
+                                                  file:rounded-full file:border-0
+                                                  file:text-sm file:font-semibold
+                                                  file:bg-indigo-50 file:text-indigo-700
+                                                  hover:file:bg-indigo-100
+                                                "
+                                            />
+                                            {fontFiles.length > 0 && (
+                                                <div className="p-2 bg-gray-50 rounded border border-gray-100">
+                                                    <Text variant="bodySm" fontWeight="bold" as="p">Selected files ({fontFiles.length}):</Text>
+                                                    <ul className="list-disc list-inside text-xs text-gray-600 mt-1">
+                                                        {fontFiles.map((file, i) => (
+                                                            <li key={i}>{file.name}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            <Text variant="bodySm" tone="subdued" as="p">
+                                                Upload multiple .ttf, .otf, .woff, or .woff2 font files at once. If using a system font, you can skip this.
+                                            </Text>
+                                        </BlockStack>
+                                    </BlockStack>
                                 )}
                             </BlockStack>
                         )}
@@ -1180,14 +1397,15 @@ export default function AssetDetail() {
                                             </div>
                                         ) : (
                                             <BlockStack gap="200">
-                                                <label className="block text-sm font-medium text-gray-700">Pattern File</label>
+                                                <label className="block text-sm font-medium text-gray-700">Pattern Image (.jpg, .png) - (Bulk Upload Supported)</label>
                                                 <input
                                                     type="file"
                                                     accept="image/*"
+                                                    multiple
                                                     onChange={(e) => {
-                                                        if (e.target.files && e.target.files[0]) {
-                                                            setPatternFile(e.target.files[0]);
-                                                            if (!newColorName) {
+                                                        if (e.target.files) {
+                                                            setPatternFiles(Array.from(e.target.files));
+                                                            if (e.target.files.length === 1 && !newColorName) {
                                                                 const fname = e.target.files[0].name.split('.')[0];
                                                                 setNewColorName(fname.charAt(0).toUpperCase() + fname.slice(1));
                                                             }
@@ -1201,14 +1419,23 @@ export default function AssetDetail() {
                                                       hover:file:bg-indigo-100
                                                     "
                                                 />
-                                                {patternFile && (
-                                                    <div className="mt-2 text-center rounded border border-dashed border-gray-300 p-2">
-                                                        <img
-                                                            src={URL.createObjectURL(patternFile)}
-                                                            alt="Preview"
-                                                            className="max-h-24 mx-auto rounded"
-                                                        />
+                                                {patternFiles.length > 0 && (
+                                                    <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                                                        {patternFiles.map((file, i) => (
+                                                            <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
+                                                                <img
+                                                                    src={URL.createObjectURL(file)}
+                                                                    alt="upload-preview"
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            </div>
+                                                        ))}
                                                     </div>
+                                                )}
+                                                {isSubmitting && uploadProgress > 0 && asset.type === 'color' && colorItemType === 'pattern' && patternSource === 'upload' && (
+                                                    <BlockStack gap="200">
+                                                        <ProgressBar progress={uploadProgress} size="small" tone="primary" />
+                                                    </BlockStack>
                                                 )}
                                             </BlockStack>
                                         )}
@@ -1320,10 +1547,11 @@ export default function AssetDetail() {
                                         <input
                                             type="file"
                                             accept="image/*"
+                                            multiple
                                             onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    setOptionImageFile(e.target.files[0]);
-                                                    if (!newColorName) {
+                                                if (e.target.files) {
+                                                    setOptionImageFiles(Array.from(e.target.files));
+                                                    if (e.target.files.length === 1 && !newColorName) {
                                                         const fname = e.target.files[0].name.split('.')[0];
                                                         setNewColorName(fname.charAt(0).toUpperCase() + fname.slice(1));
                                                     }
@@ -1337,14 +1565,23 @@ export default function AssetDetail() {
                                               hover:file:bg-indigo-100
                                             "
                                         />
-                                        {optionImageFile && (
-                                            <div className="mt-2 text-center rounded border border-dashed border-gray-300 p-2 bg-white">
-                                                <img
-                                                    src={URL.createObjectURL(optionImageFile)}
-                                                    alt="Preview"
-                                                    className="max-h-32 mx-auto rounded"
-                                                />
+                                        {optionImageFiles.length > 0 && (
+                                            <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                                                {optionImageFiles.map((file, i) => (
+                                                    <div key={i} className="aspect-square relative rounded overflow-hidden border border-gray-200">
+                                                        <img
+                                                            src={URL.createObjectURL(file)}
+                                                            alt="upload-preview"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    </div>
+                                                ))}
                                             </div>
+                                        )}
+                                        {isSubmitting && uploadProgress > 0 && asset.type === 'option' && optionItemType === 'image' && (
+                                            <BlockStack gap="200">
+                                                <ProgressBar progress={uploadProgress} size="small" tone="primary" />
+                                            </BlockStack>
                                         )}
                                     </BlockStack>
                                 )}

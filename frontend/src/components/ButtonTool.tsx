@@ -79,7 +79,7 @@ export function ButtonTool({
                 {/* General Settings */}
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Field Label</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Field Label</Label>
                         <Input
                             value={selectedElement.label || ''}
                             onChange={(e) => onUpdateElement(selectedElement.id, { label: e.target.value })}
@@ -103,7 +103,7 @@ export function ButtonTool({
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Button Style</Label>
+                            <Label className="text-[10px] font-bold text-gray-400">Button Style</Label>
                             <Select
                                 value={selectedElement.buttonStyle || 'solid'}
                                 onValueChange={(val: any) => onUpdateElement(selectedElement.id, { buttonStyle: val })}
@@ -123,7 +123,7 @@ export function ButtonTool({
 
                 {/* Font Configuration */}
                 <div className="space-y-3 pt-2 border-t border-gray-100">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Typography</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Typography</Label>
                     <Select
                         value={selectedElement.fontFamily || 'Inter'}
                         onValueChange={(val) => onUpdateElement(selectedElement.id, { fontFamily: val })}
@@ -141,7 +141,7 @@ export function ButtonTool({
                     </Select>
 
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                         <Select
                             value={selectedElement.fontAssetId || "none"}
                             onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
@@ -186,7 +186,7 @@ export function ButtonTool({
 
                 {/* Visual Preview Box */}
                 <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-2">
-                    <Label className="text-[9px] font-bold text-gray-400 uppercase">Style Preview</Label>
+                    <Label className="text-[9px] font-bold text-gray-400">Style Preview</Label>
                     <div className="flex flex-wrap gap-2 justify-center py-2">
                         {(selectedElement.enabledOptions && selectedElement.enabledOptions.length > 0 ? selectedElement.enabledOptions.slice(0, 3) : ['Option 1', 'Option 2']).map((opt, i) => (
                             <div key={i} className={`${(selectedElement.buttonStyle || 'solid') === 'outline' ? 'bg-white border border-gray-300 text-gray-700' :
@@ -208,7 +208,7 @@ export function ButtonTool({
 
                     {/* Source Selection */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
+                        <Label className="text-[10px] font-bold text-gray-400 flex items-center gap-2">
                             <Link2 className="w-3 h-3" />
                             Group Options
                         </Label>
@@ -223,7 +223,7 @@ export function ButtonTool({
                                 <SelectItem value="none">No Source (Static)</SelectItem>
                                 {userOptions && userOptions.length > 0 && (
                                     <>
-                                        <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50 mt-1">Saved Asset Groups</div>
+                                        <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 bg-gray-50/50 mt-1">Saved Asset Groups</div>
                                         {userOptions.map((asset) => (
                                             <SelectItem key={asset.id} value={`asset:${asset.id}`}>
                                                 {asset.name}
@@ -239,7 +239,7 @@ export function ButtonTool({
                     {selectedElement.buttonOptions && selectedElement.buttonOptions.length > 0 && (
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-bold text-gray-400 uppercase">Enable/Disable Options</Label>
+                                <Label className="text-[10px] font-bold text-gray-400">Enable/Disable Options</Label>
                                 <span className="text-[10px] text-gray-400 italic">Select which to show</span>
                             </div>
                             <ScrollArea className="h-[200px] w-full rounded-xl border border-gray-100 bg-gray-50/50 p-2">

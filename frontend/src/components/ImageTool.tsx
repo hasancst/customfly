@@ -31,9 +31,11 @@ interface ImageToolProps {
   canvasDimensions?: { width: number; height: number };
   userImages?: any[];
   customFetch?: any;
+  isPublicMode?: boolean;
+  shop?: string;
 }
 
-export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions, userImages: propUserImages, customFetch }: ImageToolProps) {
+export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCrop, canvasDimensions, userImages: propUserImages, customFetch, isPublicMode, shop }: ImageToolProps) {
   const [removeBgType, setRemoveBgType] = useState<'js' | 'rembg'>(selectedElement?.removeBgType || 'js');
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [userImages, setUserImages] = useState<any[]>(propUserImages || []);
@@ -42,14 +44,28 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
   const [availableShapes, setAvailableShapes] = useState<any[]>([]);
   const [imageLabel, setImageLabel] = useState<string>(selectedElement?.label || '');
   const [showLabel, setShowLabel] = useState<boolean>(selectedElement?.showLabel !== false);
-  const fetch = customFetch || window.fetch;
+  const [isVisible, setIsVisible] = useState<boolean>(selectedElement?.isVisible !== false);
+  const fetchFn = customFetch || window.fetch;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function fetchImages() {
       try {
-        const response = await fetch('/imcst_api/assets?type=image');
-        if (response.ok) setUserImages(await response.json());
+        const baseUrl = isPublicMode ? '/imcst_api/public/assets' : '/imcst_api/assets';
+        const query = new URLSearchParams();
+        query.append('type', 'image');
+        if (isPublicMode && shop) query.append('shop', shop);
+
+        const response = await fetchFn(`${baseUrl}?${query.toString()}`);
+        if (response.ok) {
+          setUserImages(await response.json());
+        } else {
+          console.error(`Failed to fetch images: ${response.status} ${response.statusText}`);
+          if (response.status === 400 || response.status === 401) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Auth error details:', errorData);
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch image gallery:", err);
       }
@@ -57,7 +73,12 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
 
     async function fetchShapes() {
       try {
-        const response = await fetch('/imcst_api/assets?type=shape');
+        const baseUrl = isPublicMode ? '/imcst_api/public/assets' : '/imcst_api/assets';
+        const query = new URLSearchParams();
+        query.append('type', 'shape');
+        if (isPublicMode && shop) query.append('shop', shop);
+
+        const response = await fetchFn(`${baseUrl}?${query.toString()}`);
         if (response.ok) {
           const assets = await response.json();
           setShapeGroups(assets);
@@ -80,6 +101,12 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             });
           });
           setAvailableShapes(allShapes);
+        } else {
+          console.error(`Failed to fetch shapes: ${response.status} ${response.statusText}`);
+          if (response.status === 400 || response.status === 401) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Auth error details:', errorData);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch shapes:", err);
@@ -90,15 +117,16 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       fetchImages();
     }
     fetchShapes();
-  }, [fetch, propUserImages]);
+  }, [fetchFn, propUserImages, isPublicMode, shop]);
 
   // Sync label state when selected element changes
   useEffect(() => {
     if (selectedElement) {
       setImageLabel(selectedElement.label || '');
       setShowLabel(selectedElement.showLabel !== false);
+      setIsVisible(selectedElement.isVisible !== false);
     }
-  }, [selectedElement?.id]);
+  }, [selectedElement?.id, selectedElement?.isVisible]);
 
   const parseMaskFromSvg = (svgString: string) => {
     try {
@@ -144,7 +172,9 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
   const availableGroups = shapeGroups; // All groups available
 
   const handleAddFromGallery = (url: string) => {
-    if (selectedElement?.type === 'image') {
+    // If we have a REAL image element selected, replace it.
+    // If we have a "draft" element (placeholder) OR no element, add it as a new element.
+    if (selectedElement?.type === 'image' && selectedElement.id !== 'draft') {
       onUpdateElement(selectedElement.id, { src: url });
       toast.success("Image replaced");
       return;
@@ -215,7 +245,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       }
 
       if (url) {
-        if (index === 0 && selectedElement?.type === 'image') {
+        if (index === 0 && selectedElement?.type === 'image' && selectedElement.id !== 'draft') {
           onUpdateElement(selectedElement.id, { src: url });
           toast.success("Image replaced");
         } else {
@@ -323,7 +353,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
         {/* Label Input - Above Upload */}
         <div className="space-y-3 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100">
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-indigo-900 uppercase tracking-wide">Title</Label>
+            <Label className="text-xs font-bold text-indigo-900 tracking-wide">Title</Label>
             <Input
               value={imageLabel}
               onChange={(e) => {
@@ -339,8 +369,8 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
 
           <div className="flex items-center justify-between p-3 bg-white/60 rounded-xl border border-indigo-100/50">
             <div className="flex flex-col">
-              <Label className="text-xs font-bold text-gray-700 uppercase">Show label</Label>
-              <p className="text-[9px] text-gray-500">Display this label to customers on the storefront</p>
+              <Label className="text-xs font-bold text-gray-700">Show label</Label>
+              <p className="text-[9px] text-gray-500">Display this label to customers</p>
             </div>
             <Switch
               checked={showLabel}
@@ -352,10 +382,26 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               }}
             />
           </div>
+
+          <div className="flex items-center justify-between p-3 bg-white/60 rounded-xl border border-indigo-100/50">
+            <div className="flex flex-col">
+              <Label className="text-xs font-bold text-gray-700">Visible on Public</Label>
+              <p className="text-[9px] text-gray-500">Show this image on the public frontend</p>
+            </div>
+            <Switch
+              checked={isVisible}
+              onCheckedChange={(checked) => {
+                setIsVisible(checked);
+                if (selectedElement) {
+                  handleUpdate({ isVisible: checked });
+                }
+              }}
+            />
+          </div>
         </div>
 
         <div>
-          <Label className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-tight flex items-center gap-2">
+          <Label className="text-sm font-bold text-gray-900 mb-3 tracking-tight flex items-center gap-2">
             <Upload className="w-4 h-4 text-indigo-600" />
             Upload Asset
           </Label>
@@ -383,7 +429,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       {/* 2. Your Assets Section */}
       {allImages.length > 0 && (
         <div className="space-y-3">
-          <Label className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2 uppercase tracking-tight">
+          <Label className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2 tracking-tight">
             <ImageIcon className="w-4 h-4 text-indigo-600" />
             Your Assets
           </Label>
@@ -419,34 +465,10 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
       {/* 2. Selection Specific Settings */}
       {selectedElement?.type === 'image' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
-            <div className="flex flex-col">
-              <Label className="text-xs font-bold text-gray-700 uppercase">Show on Canvas</Label>
-              <p className="text-[9px] text-gray-500">Toggle visibility of this placeholder</p>
-            </div>
-            <Switch
-              checked={selectedElement.opacity !== 0}
-              onCheckedChange={(checked) => handleUpdate({ opacity: checked ? 100 : 0 })}
-            />
-          </div>
 
           <div className="flex items-center justify-between pb-2">
-            <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Image Style</Label>
+            <Label className="text-xs font-bold text-gray-900 mb-3 tracking-tight">Image Style</Label>
             <div className="flex gap-2">
-              {onCrop && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-[10px] text-indigo-600 hover:bg-indigo-50 gap-1 px-2 border border-indigo-100/50"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCrop();
-                  }}
-                >
-                  <Crop className="w-3 h-3" />
-                  Crop
-                </Button>
-              )}
               {selectedElement.crop && (
                 <Button
                   variant="ghost"
@@ -455,7 +477,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                   onClick={() => handleUpdate({ crop: undefined, width: 200, height: 200 })}
                 >
                   <RotateCw className="w-3 h-3" />
-                  Reset
+                  Reset Crop
                 </Button>
               )}
             </div>
@@ -465,7 +487,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
           <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/50 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Maintain Aspect Ratio</Label>
+                <Label className="text-[10px] font-bold text-gray-500 tracking-wider">Maintain Aspect Ratio</Label>
                 <p className="text-[9px] text-gray-400">Turn off to stretch or squash the image freely</p>
               </div>
               <Switch
@@ -480,7 +502,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-bold text-gray-500 uppercase">Width (W)</Label>
+                  <Label className="text-[10px] font-bold text-gray-500">Width (W)</Label>
                   <span className="text-[9px] font-bold text-indigo-400">PX</span>
                 </div>
                 <Input
@@ -502,7 +524,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-bold text-gray-500 uppercase">Height (H)</Label>
+                  <Label className="text-[10px] font-bold text-gray-500">Height (H)</Label>
                   <span className="text-[9px] font-bold text-indigo-400">PX</span>
                 </div>
                 <Input
@@ -526,7 +548,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
 
             <div className="space-y-2">
               <div className="flex justify-between">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase">Quick Resize</Label>
+                <Label className="text-[10px] font-bold text-gray-500">Quick Resize</Label>
                 <span className="text-[9px] font-bold text-indigo-500">{Math.round(selectedElement.width || 0)}px</span>
               </div>
               <Slider
@@ -544,6 +566,48 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 step={1}
               />
             </div>
+
+            <Separator className="bg-indigo-100/50" />
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-[10px] font-bold text-gray-500">Opacity</Label>
+                  <span className="text-[9px] font-bold text-indigo-500">{selectedElement.opacity || 100}%</span>
+                </div>
+                <Slider
+                  value={[selectedElement.opacity || 100]}
+                  onValueChange={([val]) => handleUpdate({ opacity: val })}
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-[10px] font-bold text-gray-500">Rotation</Label>
+                  <span className="text-[9px] font-bold text-indigo-500">{selectedElement.rotation || 0}°</span>
+                </div>
+                <Slider
+                  value={[selectedElement.rotation || 0]}
+                  onValueChange={([val]) => handleUpdate({ rotation: val })}
+                  min={-180}
+                  max={180}
+                  step={1}
+                />
+              </div>
+            </div>
+
+            {onCrop && (
+              <Button
+                onClick={(e) => { e.stopPropagation(); onCrop(); }}
+                className="w-full h-9 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-bold gap-2 mt-2"
+              >
+                <Crop className="w-4 h-4" />
+                Crop Image
+              </Button>
+            )}
           </div>
 
 
@@ -553,7 +617,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-orange-50 border border-orange-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <Shapes className="w-4 h-4 text-orange-600" />
-                  <span className="text-sm font-bold text-orange-900 uppercase">Image Shapes</span>
+                  <span className="text-sm font-bold text-orange-900">Image Shapes</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-orange-400 group-data-[state=open]:rotate-180 transition-transform" />
               </div>
@@ -562,13 +626,13 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="space-y-3 p-2 bg-gray-50 rounded-xl border border-gray-100">
                 {availableGroups.length > 1 && (
                   <Select value={selectedShapeGroupId} onValueChange={setSelectedShapeGroupId}>
-                    <SelectTrigger className="w-full h-8 text-[10px] uppercase font-bold border-orange-100">
+                    <SelectTrigger className="w-full h-8 text-[10px] font-bold border-orange-100">
                       <SelectValue placeholder="Select Group" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all" className="text-[10px] uppercase font-bold text-gray-500">All Shapes</SelectItem>
+                      <SelectItem value="all" className="text-[10px] font-bold text-gray-500">All Shapes</SelectItem>
                       {availableGroups.map(g => (
-                        <SelectItem key={g.id} value={g.id} className="text-[10px] uppercase font-bold">{g.name}</SelectItem>
+                        <SelectItem key={g.id} value={g.id} className="text-[10px] font-bold">{g.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -634,7 +698,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-indigo-50 border border-indigo-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <Wand2 className="w-4 h-4 text-indigo-600" />
-                  <span className="text-sm font-bold text-indigo-900 uppercase">Artistic Filters</span>
+                  <span className="text-sm font-bold text-indigo-900">Artistic Filters</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-indigo-400 group-data-[state=open]:rotate-180 transition-transform" />
               </div>
@@ -676,7 +740,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-emerald-50 border border-emerald-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <Sliders className="w-4 h-4 text-emerald-600" />
-                  <span className="text-sm font-bold text-emerald-900 uppercase">Adjustments</span>
+                  <span className="text-sm font-bold text-emerald-900">Adjustments</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-emerald-400 group-data-[state=open]:rotate-180 transition-transform" />
               </div>
@@ -685,7 +749,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <Label className="text-[10px] font-bold text-gray-500 uppercase">Brightness</Label>
+                    <Label className="text-[10px] font-bold text-gray-500">Brightness</Label>
                     <span className="text-[10px] font-bold text-emerald-600">{selectedElement.imageFilters?.brightness ?? 100}%</span>
                   </div>
                   <Slider
@@ -696,7 +760,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <Label className="text-[10px] font-bold text-gray-500 uppercase">Contrast</Label>
+                    <Label className="text-[10px] font-bold text-gray-500">Contrast</Label>
                     <span className="text-[10px] font-bold text-emerald-600">{selectedElement.imageFilters?.contrast ?? 100}%</span>
                   </div>
                   <Slider
@@ -707,7 +771,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <Label className="text-[10px] font-bold text-gray-500 uppercase">Saturation</Label>
+                    <Label className="text-[10px] font-bold text-gray-500">Saturation</Label>
                     <span className="text-[10px] font-bold text-emerald-600">{selectedElement.imageFilters?.saturate ?? 100}%</span>
                   </div>
                   <Slider
@@ -718,7 +782,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <Label className="text-[10px] font-bold text-gray-500 uppercase">Hue Rotate</Label>
+                    <Label className="text-[10px] font-bold text-gray-500">Hue Rotate</Label>
                     <span className="text-[10px] font-bold text-emerald-600">{selectedElement.imageFilters?.hueRotate ?? 0}°</span>
                   </div>
                   <Slider
@@ -748,7 +812,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="flex items-center justify-between p-3 w-full rounded-xl bg-violet-50 border border-violet-100 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <Zap className="w-4 h-4 text-violet-600" />
-                  <span className="text-sm font-bold text-violet-900 uppercase">Engraving Effect</span>
+                  <span className="text-sm font-bold text-violet-900">Engraving Effect</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-violet-400 group-data-[state=open]:rotate-180 transition-transform" />
               </div>
@@ -757,7 +821,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
               <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
-                    <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Enable Engraving</Label>
+                    <Label className="text-xs font-bold text-gray-700 tracking-wider">Enable Engraving</Label>
                     <p className="text-[9px] text-gray-400">Convert image to etched style</p>
                   </div>
                   <Switch
@@ -770,7 +834,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
 
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
-                    <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Invert Etching</Label>
+                    <Label className="text-xs font-bold text-gray-700 tracking-wider">Invert Etching</Label>
                     <p className="text-[9px] text-gray-400">Flip dark/light areas</p>
                   </div>
                   <Switch
@@ -790,7 +854,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
 
                     <div className="space-y-1.5">
                       <div className="flex justify-between">
-                        <Label className="text-[10px] font-bold text-gray-500 uppercase">Detail Threshold</Label>
+                        <Label className="text-[10px] font-bold text-gray-500">Detail Threshold</Label>
                         <span className="text-[10px] font-bold text-violet-600">{selectedElement.engraveThreshold ?? 128}</span>
                       </div>
                       <Slider
@@ -801,7 +865,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold text-gray-500 uppercase">Simulated Material Color</Label>
+                      <Label className="text-[10px] font-bold text-gray-500">Simulated Material Color</Label>
                       <div className="flex flex-wrap gap-2">
                         {['#000000', '#4A3728', '#2C1E12', '#5C4033', '#1A1110'].map((color) => (
                           <button
@@ -847,7 +911,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
           <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
-                <Label className="text-sm font-bold text-gray-700 uppercase tracking-tight">Background Removal</Label>
+                <Label className="text-sm font-bold text-gray-700 tracking-tight">Background Removal</Label>
                 <p className="text-[10px] text-gray-500">Apply magic filters or AI</p>
               </div>
             </div>
@@ -862,7 +926,7 @@ export function ImageTool({ onAddElement, selectedElement, onUpdateElement, onCr
             >
               <TabsList className="grid w-full grid-cols-2 h-8 p-1 bg-white border border-gray-100 rounded-lg">
                 <TabsTrigger value="js" className="text-[10px] py-1">Live Filter</TabsTrigger>
-                <TabsTrigger value="rembg" className="text-[10px] py-1">AI Scan</TabsTrigger>
+                <TabsTrigger value="rembg" className="text-[10px] py-1">AI Rem</TabsTrigger>
               </TabsList>
 
               <TabsContent value="js" className="space-y-4 mt-3">

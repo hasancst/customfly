@@ -6,11 +6,11 @@ Sistem pengetesan ini mencakup seluruh fungsionalitas aplikasi, dipisahkan menja
 - [**Unit Testing**](#-unit-tests-detail): Logika komponen dan fungsi matematika.
 - [**Regression Testing**](file:///www/wwwroot/custom.local/doc/regression.md): Ketahanan sistem dan persistensi data.
 
-## 📊 Status Terakhir (Update: 31 Jan 2026)
+## 📊 Status Terakhir (Update: 1 Feb 2026)
 | Bagian | Status | Detail | Tests |
 | :--- | :--- | :--- | :--- |
 | **Admin & Backend** | ✅ PASSED | Normalisasi, Pricing, Security, API | 12/12 |
-| **Public & Frontend** | ✅ PASSED | UX, Variant Selection, Text features, Monogram | 22/22 |
+| **Public & Frontend** | ✅ PASSED | UX, Variant, Text, Monogram, Character Limits | 31/31 |
 
 ---
 
@@ -40,6 +40,7 @@ Bagian ini mencatat protokol pengetesan untuk antarmuka desainer yang digunakan 
 - [**VariantSelection.test.tsx**](file:///www/wwwroot/custom.local/frontend/src/components/VariantSelection.test.tsx) (Logic & Fallback)
 - [**ContextualToolbar.test.tsx**](file:///www/wwwroot/custom.local/frontend/src/components/ContextualToolbar.test.tsx) (Filtering & UI)
 - [**TextRegression.test.tsx**](file:///www/wwwroot/custom.local/frontend/src/components/TextRegression.test.tsx) (Format & Spacing)
+- [**CharacterLimitEnforcement.test.tsx**](file:///www/wwwroot/custom.local/frontend/src/components/__tests__/CharacterLimitEnforcement.test.tsx) (Input Limits & Validation)
 
 ### ✅ Skenario Unit Test
 1. **Seleksi Varian & Sinkronisasi Gambar**
@@ -55,6 +56,14 @@ Bagian ini mencatat protokol pengetesan untuk antarmuka desainer yang digunakan 
 4. **Monogram Separation**
    - **Tool Isolation**: Pastikan tool "Add Text" tidak menampilkan opsi Monogram, dan tool "Monogram" tidak menampilkan "Text Shapes".
    - **Font Locking**: Monogram terkunci pada font khusus dan mengubah teks menjadi uppercase (max 3 chars).
+5. **Character Limit Enforcement**
+   - **Hard-Stop Typing**: Memastikan keyboard input diblokir setelah mencapai `maxChars` limit.
+   - **Paste Protection**: Verifikasi text yang di-paste otomatis dipotong sesuai limit.
+   - **Limit Synchronization**: Memastikan perubahan `maxChars` di Advanced Settings langsung diterapkan ke input.
+   - **Uppercase Enforcement**: Validasi monogram memaksa semua input menjadi uppercase.
+   - **Canvas Consistency**: Pastikan limit yang sama diterapkan saat edit inline di canvas.
+   - **File**: [CharacterLimitEnforcement.test.tsx](file:///www/wwwroot/custom.local/frontend/src/components/__tests__/CharacterLimitEnforcement.test.tsx)
+   - **Dokumentasi**: [character-limit-enforcement.md](file:///www/wwwroot/custom.local/doc/character-limit-enforcement.md)
 
 ---
 

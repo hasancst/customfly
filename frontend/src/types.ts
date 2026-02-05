@@ -115,10 +115,13 @@ export interface CanvasElement {
   galleryMode?: 'all' | 'categorized';
   galleryMaxImages?: number;
   gallerySourceIds?: string[]; // IDs of selected gallery assets
+  showCanvasPreview?: boolean;
 
   // File Upload specific
   allowedFileTypes?: string[]; // ['.jpg', '.png', '.pdf', '.ai', etc]
   maxFileSize?: number; // Size in MB
+  fileName?: string;
+  fileSize?: number;
   // Dropdown specific
   dropdownOptions?: string[];
   linkedAssetId?: string;
@@ -160,6 +163,7 @@ export interface CanvasElement {
   disableFontFamily?: boolean;
   disableTextDecoration?: boolean;
   disableColorPickerUI?: boolean;
+  isVisible?: boolean;
 }
 
 export interface OutputSettings {
@@ -235,5 +239,5 @@ export interface PageData {
   useVariantImage?: boolean;
   baseImageAsMask?: boolean;
   baseImageMaskInvert?: boolean;
-  variantBaseImages?: Record<string, string>; // Mapping of Variant ID -> Mockup URL
+  variantBaseImages?: Record<string, string | undefined>; // Mapping of Variant ID -> Mockup URL
 }

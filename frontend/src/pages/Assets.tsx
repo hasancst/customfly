@@ -252,7 +252,12 @@ export default function Assets() {
             fontsToLoad.forEach(f => {
                 if (f.config?.fontType === 'google') {
                     if (f.config?.googleConfig === 'specific' && f.config?.specificFonts) {
-                        f.config.specificFonts.split(/[,\n]/).forEach((n: string) => googleFamilies.add(n.trim()));
+                        f.config.specificFonts.split(/[,\n]/).forEach((n: string) => {
+                            const trimmed = n.trim();
+                            if (trimmed && !trimmed.includes('|') && !trimmed.includes('data:') && !trimmed.includes('://')) {
+                                googleFamilies.add(trimmed);
+                            }
+                        });
                     } else {
                         POPULAR_GOOGLE_FONTS.forEach(n => googleFamilies.add(n));
                     }
@@ -281,8 +286,22 @@ export default function Assets() {
             }
             let css = '';
             fontsToLoad.forEach(f => {
-                if (f.config?.fontType === 'custom' && f.value) {
+                // 1. Single custom font asset
+                if (f.config?.fontType === 'custom' && f.value && !f.value.includes('|')) {
                     css += `@font-face { font-family: "${f.name}"; src: url("${f.value}"); font-display: swap; }\n`;
+                }
+
+                // 2. Font group with multiple custom fonts (Name|Data or Name|URL)
+                if (f.value) {
+                    const lines = f.value.split('\n');
+                    lines.forEach(line => {
+                        if (line.includes('|')) {
+                            const [name, data] = line.split('|');
+                            if (name && data && (data.trim().startsWith('data:') || data.trim().startsWith('http'))) {
+                                css += `@font-face { font-family: "${name.trim()}"; src: url("${data.trim()}"); font-display: swap; }\n`;
+                            }
+                        }
+                    });
                 }
             });
             style.textContent = css;

@@ -1,0 +1,57 @@
+import { shopifyApp } from "@shopify/shopify-app-express";
+import { restResources } from "@shopify/shopify-api/rest/admin/2026-01";
+import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
+import prisma from "./database.js";
+
+// Session storage with logging
+const baseStorage = new PrismaSessionStorage(prisma);
+const loggingStorage = {
+    async storeSession(session) {
+        // console.log(`[SESSION] Storing session: ${session.id} for shop: ${session.shop}`);
+        return await baseStorage.storeSession(session);
+    },
+    async loadSession(id) {
+        // console.log(`[SESSION] Loading session: ${id}`);
+        const session = await baseStorage.loadSession(id);
+        if (session && session.shop) {
+            // console.log(`[SESSION] Loaded session for shop: ${session.shop}`);
+        }
+        return session;
+    },
+    async deleteSession(id) {
+        // console.log(`[SESSION] Deleting session: ${id}`);
+        return await baseStorage.deleteSession(id);
+    },
+    async deleteSessions(ids) {
+        // console.log(`[SESSION] Deleting sessions: ${ids.join(', ')}`);
+        return await baseStorage.deleteSessions(ids);
+    },
+    async findSessionsByShop(shop) {
+        // console.log(`[SESSION] Finding sessions for shop: ${shop}`);
+        return await baseStorage.findSessionsByShop(shop);
+    }
+};
+
+export const shopify = shopifyApp({
+    api: {
+        apiVersion: "2026-01",
+        apiKey: process.env.SHOPIFY_API_KEY,
+        apiSecretKey: process.env.SHOPIFY_API_SECRET,
+        scopes: process.env.SCOPES?.split(",") || [],
+        hostName: process.env.SHOPIFY_APP_URL?.replace(/https?:\/\//, "") || "",
+        restResources,
+    },
+    auth: {
+        path: "/api/auth",
+        callbackPath: "/api/auth/callback",
+    },
+    webhooks: {
+        path: "/api/webhooks",
+    },
+    sessionStorage: loggingStorage,
+    isEmbeddedApp: true,
+    useOnlineTokens: false,
+    exitIframePath: "/exitiframe",
+});
+
+export default shopify;

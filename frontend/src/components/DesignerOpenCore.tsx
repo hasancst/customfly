@@ -5,13 +5,15 @@ import { Summary } from './Summary';
 import { ContextualToolbar } from './ContextualToolbar';
 import { ImageCropModal } from './ImageCropModal';
 import { BaseImageModal } from './BaseImageModal';
+import { PublicCustomizationPanel } from './PublicCustomizationPanel';
 import { Header } from './Header';
 import { CanvasElement, ShopifyProduct, PageData } from '../types';
-import { Minus, Plus, X, Image as ImageIcon, Pencil, UploadCloud } from 'lucide-react';
+import { X, Image as ImageIcon, Pencil, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
+import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 
 const parseAssetColors = (value: string) => {
     if (!value) return [];
@@ -49,10 +51,15 @@ export interface DesignerOpenCoreProps {
     userFonts?: any[];
     userColors?: any[];
     userOptions?: any[];
+    userGalleries?: any[];
     savedDesigns?: any[];
     allDesigns?: any[];
     pricingConfigComponent?: React.ReactNode;
     customFetch?: any;
+    shop?: string;
+    baseUrl?: string;
+    onDeleteDesign?: (id: string, name: string) => void;
+    onClearAllDesigns?: () => void;
 }
 
 // DesignerOpenCore.tsx - Optimized for Public Use
@@ -71,9 +78,14 @@ export function DesignerOpenCore({
     userFonts = [],
     userColors = [],
     userOptions = [],
+    userGalleries = [],
     savedDesigns = [],
     allDesigns = [],
     customFetch,
+    shop,
+    baseUrl = '',
+    onDeleteDesign,
+    onClearAllDesigns,
 }: DesignerOpenCoreProps) {
     const isPublicModeProp = isPublicMode;
 
@@ -85,23 +97,22 @@ export function DesignerOpenCore({
     const [zoom, setZoom] = useState(80);
     const [showSummary, setShowSummary] = useState(true);
 
-    // Simplified Config - Consumers don't control Safe Area or Output Settings
-    // We keep default values solely for rendering consistency if needed
-    const showSafeArea = initialConfig.showSafeArea ?? true;
-    const showRulers = false;   // Hidden for customers
-    const unit = 'cm';
-    const paperSize = initialConfig.paperSize || 'Custom';
-    const customPaperDimensions = initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 };
-    const safeAreaPadding = initialConfig.safeAreaPadding ?? 10;
-    const safeAreaRadius = initialConfig.safeAreaRadius ?? 0;
-    const safeAreaWidth = initialConfig.safeAreaWidth;
-    const safeAreaHeight = initialConfig.safeAreaHeight;
-    const safeAreaOffset = initialConfig.safeAreaOffset || { x: 0, y: 0 };
+    // Configuration State - Editable by Admin, Read-only for customers
+    const [showSafeArea, setShowSafeArea] = useState(initialConfig.showSafeArea ?? true);
+    const [showRulers, setShowRulers] = useState(initialConfig.showRulers ?? false);
+    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>(initialConfig.unit || 'cm');
+    const [paperSize, setPaperSize] = useState(initialConfig.paperSize || 'Custom');
+    const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
+    const [safeAreaPadding] = useState(initialConfig.safeAreaPadding ?? 10);
+    const [safeAreaRadius, setSafeAreaRadius] = useState(initialConfig.safeAreaRadius ?? 0);
+    const [safeAreaWidth] = useState(initialConfig.safeAreaWidth);
+    const [safeAreaHeight] = useState(initialConfig.safeAreaHeight);
+    const [safeAreaOffset, setSafeAreaOffset] = useState(initialConfig.safeAreaOffset || { x: 0, y: 0 });
 
     // Fixed Admin Settings
-    const designerLayout = 'redirect';
-    const buttonText = initialConfig.buttonText || 'Design It';
-    const productOutputSettings = initialConfig.productOutputSettings || null;
+    const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
+    const [buttonText, setButtonText] = useState(initialConfig.buttonText || 'Design It');
+    const [productOutputSettings, setProductOutputSettings] = useState(initialConfig.productOutputSettings || null);
 
     const [designName, setDesignName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -302,10 +313,12 @@ export function DesignerOpenCore({
         addToHistory(updated);
     };
 
-    const handleSave = async (_isTemplate = false, isSilent = false) => {
+    const handleSave = async (_isTemplate = false, isSilent = false, outputSettingsOverride?: any) => {
         if (!onSave) return;
         if (!isSilent) setIsSaving(true);
         else setIsAutoSaving(true);
+
+        const currentSettings = outputSettingsOverride || productOutputSettings;
 
         let previewUrl = '';
         let productionFileUrl = '';
@@ -341,15 +354,20 @@ export function DesignerOpenCore({
                 previewUrl = previewCanvas.toDataURL('image/png', 0.8);
 
                 // 2. Production Capture (High res based on settings)
-                const dpi = productOutputSettings?.dpi || 300;
+                const dpi = currentSettings?.dpi || 300;
                 const scale = Math.max(2, Math.min(8, dpi / 72)); // Scale factor for DPI
 
                 const prodCanvas = await html2canvas(canvasElement, {
                     useCORS: true,
                     scale: scale,
-                    backgroundColor: productOutputSettings?.includeBaseMockup ? undefined : null,
+                    backgroundColor: currentSettings?.includeBaseMockup ? undefined : null,
                     ignoreElements: (element: Element) => {
                         if (element.classList.contains('imcst-preview-hide')) return true;
+
+                        // Exclude base image if not enabled in settings
+                        if (!currentSettings?.includeBaseMockup && element.classList.contains('imcst-base-image')) {
+                            return true;
+                        }
 
                         const tagName = element.tagName.toLowerCase();
                         if (tagName.includes('-') ||
@@ -399,7 +417,7 @@ export function DesignerOpenCore({
                 shapeAssetId: selectedShapeAssetId,
                 designerLayout,
                 buttonText,
-                productOutputSettings
+                productOutputSettings: currentSettings
             }
         };
 
@@ -429,31 +447,97 @@ export function DesignerOpenCore({
     }, [currentElements]);
 
     const activeBasePaletteColors = useMemo(() => {
-        const asset = userColors.find((a: any) => a.id === selectedBaseColorAssetId);
+        const asset = userColors.find((a: any) => String(a.id) === String(selectedBaseColorAssetId));
         if (!asset) return [];
         return parseAssetColors(asset.value);
     }, [userColors, selectedBaseColorAssetId]);
 
-    const activeElementPaletteColors = useMemo(() => {
-        const asset = userColors.find((a: any) => a.id === selectedElementColorAssetId);
-        if (!asset) return [];
-        return parseAssetColors(asset.value);
-    }, [userColors, selectedElementColorAssetId]);
 
     const filteredUserFonts = useMemo(() => {
-        if (selectedFontAssetId) return userFonts.filter(a => a.id === selectedFontAssetId);
+        if (selectedFontAssetId) return userFonts.filter(a => String(a.id) === String(selectedFontAssetId));
         return userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
     }, [userFonts, selectedFontAssetId, productId]);
 
     const filteredUserColors = useMemo(() => {
-        if (selectedElementColorAssetId) return userColors.filter(a => a.id === selectedElementColorAssetId);
+        if (selectedElementColorAssetId) return userColors.filter(a => String(a.id) === String(selectedElementColorAssetId));
         return userColors.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
     }, [userColors, selectedElementColorAssetId, productId]);
 
     const filteredUserOptions = useMemo(() => {
-        if (selectedOptionAssetId) return userOptions.filter(a => a.id === selectedOptionAssetId);
+        if (selectedOptionAssetId) return userOptions.filter(a => String(a.id) === String(selectedOptionAssetId));
         return userOptions.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
     }, [userOptions, selectedOptionAssetId, productId]);
+
+    const filteredUserGalleries = useMemo(() => {
+        if (selectedGalleryAssetId) return userGalleries.filter(a => String(a.id) === String(selectedGalleryAssetId));
+        return userGalleries.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
+    }, [userGalleries, selectedGalleryAssetId, productId]);
+
+    // Dynamic Font Loading
+    useEffect(() => {
+        if (filteredUserFonts.length > 0) {
+            // 1. Google Fonts
+            const googleFamilies = new Set<string>();
+            filteredUserFonts.forEach(f => {
+                if (f.config?.fontType === 'google') {
+                    if (f.config?.googleConfig === 'specific' && f.config?.specificFonts) {
+                        f.config.specificFonts.split(/[,\n]/).forEach((n: string) => {
+                            const trimmed = n.trim();
+                            // Only add if it doesn't look like a custom font (no '|', no data URL, no http)
+                            if (trimmed && !trimmed.includes('|') && !trimmed.includes('data:') && !trimmed.includes('://')) {
+                                googleFamilies.add(trimmed);
+                            }
+                        });
+                    } else if (f.config?.googleConfig === 'all') {
+                        POPULAR_GOOGLE_FONTS.forEach(n => googleFamilies.add(n));
+                    }
+                }
+            });
+
+            if (googleFamilies.size > 0) {
+                const linkId = 'designer-google-fonts';
+                let link = document.getElementById(linkId) as HTMLLinkElement;
+                if (!link) {
+                    link = document.createElement('link');
+                    link.id = linkId;
+                    link.rel = 'stylesheet';
+                    document.head.appendChild(link);
+                }
+                link.href = `https://fonts.googleapis.com/css?family=${Array.from(googleFamilies).map(f => f.replace(/ /g, '+')).join('|')}&display=swap`;
+            }
+
+            // 2. Custom @font-face
+            const styleId = 'designer-custom-fonts';
+            let style = document.getElementById(styleId) as HTMLStyleElement;
+            if (!style) {
+                style = document.createElement('style');
+                style.id = styleId;
+                document.head.appendChild(style);
+            }
+            let css = '';
+            filteredUserFonts.forEach(f => {
+                // Single custom font asset
+                if (f.config?.fontType === 'custom' && f.value && !f.value.includes('|')) {
+                    css += `@font-face { font-family: "${f.name}"; src: url("${f.value}"); font-display: swap; }\n`;
+                }
+
+                // Font group with multiple custom fonts (Name|Data or Name|URL)
+                if (f.value) {
+                    const lines = f.value.split('\n');
+                    lines.forEach((line: string) => {
+                        if (line.includes('|')) {
+                            const [name, data] = line.split('|');
+                            // Support both base64 data URLs and S3 URLs
+                            if (name && data && (data.trim().startsWith('data:') || data.trim().startsWith('http'))) {
+                                css += `@font-face { font-family: "${name.trim()}"; src: url("${data.trim()}"); font-display: swap; }\n`;
+                            }
+                        }
+                    });
+                }
+            });
+            style.textContent = css;
+        }
+    }, [filteredUserFonts]);
 
     const selectedVariant = useMemo(() =>
         (productData?.variants || []).find(v => String(v.id) === String(selectedVariantId)),
@@ -592,6 +676,7 @@ export function DesignerOpenCore({
                 productId={productId}
                 isPublicMode={isPublicModeProp} buttonText={buttonText}
                 savedDesigns={savedDesigns} allDesigns={allDesigns}
+                onDeleteDesign={onDeleteDesign} onClearAllDesigns={onClearAllDesigns}
                 onLoadDesign={(design, _mode) => {
                     if (!design || !design.designJson) return;
                     try {
@@ -605,16 +690,43 @@ export function DesignerOpenCore({
                 showSummary={showSummary} onToggleSummary={() => setShowSummary(!showSummary)} onClose={onBack || (() => { })}
             />
             <div className="flex flex-1 overflow-hidden">
-                <Toolbar
-                    onAddElement={addElement} selectedElement={currentElements.find(el => el.id === selectedElement)}
-                    onUpdateElement={updateElement} onDeleteElement={deleteElement} onCrop={() => setIsCropModalOpen(true)}
-                    elements={currentElements} productData={productData} userColors={filteredUserColors} userOptions={filteredUserOptions}
-                    onRefreshAssets={async () => { if (onFetchAssets) await onFetchAssets('all'); }}
-                    onSaveAsset={async (_a) => { }}
-                    onSelectElement={setSelectedElement} canvasDimensions={getCanvasPx()}
-                    customFetch={customFetch}
-                    isPublicMode={isPublicMode}
-                />
+                {isPublicMode ? (
+                    <div className="w-[420px] shrink-0 h-full relative z-20 shadow-2xl">
+                        <PublicCustomizationPanel
+                            elements={currentElements}
+                            selectedElement={selectedElement}
+                            onSelectElement={setSelectedElement}
+                            onUpdateElement={updateElement}
+                            onReset={() => {
+                                const resetState = JSON.parse(JSON.stringify(initialPages));
+                                setPages(resetState);
+                                setHistory([resetState]);
+                                setHistoryIndex(0);
+                                toast.success("Design reset to original template");
+                            }}
+                            onSave={handleSave}
+                            isSaving={isSaving || isAutoSaving}
+                            buttonText={buttonText}
+                            userGalleries={filteredUserGalleries}
+                        />
+                    </div>
+                ) : (
+                    <div className="w-[420px] shrink-0 h-full border-r border-gray-200">
+                        <Toolbar
+                            onAddElement={addElement} selectedElement={currentElements.find(el => el.id === selectedElement)}
+                            onUpdateElement={updateElement} onDeleteElement={deleteElement} onCrop={() => setIsCropModalOpen(true)}
+                            elements={currentElements} productData={productData} userColors={filteredUserColors} userOptions={filteredUserOptions}
+                            onRefreshAssets={async () => { if (onFetchAssets) await onFetchAssets('all'); }}
+                            onSaveAsset={async (_a) => { }}
+                            onSelectElement={setSelectedElement} canvasDimensions={getCanvasPx()}
+                            customFetch={customFetch}
+                            isPublicMode={isPublicMode}
+                            userGalleries={filteredUserGalleries}
+                            shop={shop}
+                            baseUrl={baseUrl}
+                        />
+                    </div>
+                )}
                 <div className="flex-1 flex flex-col relative overflow-hidden">
                     <ContextualToolbar
                         selectedElement={currentElements.find(el => el.id === selectedElement)} onUpdateElement={updateElement}
@@ -622,24 +734,24 @@ export function DesignerOpenCore({
                         userFonts={filteredUserFonts} userColors={filteredUserColors} onCrop={() => setIsCropModalOpen(true)}
                         isPublicMode={isPublicModeProp}
                     />
-                    <div className="h-10 bg-white border-b flex items-center px-4 gap-3 relative shrink-0">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight whitespace-nowrap">Side: {pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
+                    <div className={`${isPublicModeProp ? 'h-20 border-b-4' : 'h-16 border-b-2'} bg-white border-gray-200 flex items-center px-10 gap-8 relative shrink-0 shadow-xl z-30`}>
+                        <span className={`${isPublicModeProp ? 'text-xl' : 'text-base'} font-black text-indigo-900 uppercase tracking-widest whitespace-nowrap`}>Side: {pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
 
                         {isPublicModeProp && hasVariants && (
                             <div className="flex items-center gap-3 border-l pl-3 ml-1 flex-1 overflow-hidden">
                                 {productData?.options?.map((option, idx) => (
-                                    <div key={option.name} className="flex items-center gap-1.5 shrink-0">
-                                        <Label className="text-[9px] font-bold text-gray-400 uppercase whitespace-nowrap">{option.name}:</Label>
+                                    <div key={option.name} className="flex items-center gap-2 shrink-0">
+                                        <Label className="text-sm font-medium text-gray-400 whitespace-nowrap uppercase tracking-wider">{option.name}:</Label>
                                         <Select
                                             value={(idx === 0 ? selectedVariant?.option1 : idx === 1 ? selectedVariant?.option2 : selectedVariant?.option3) || ""}
                                             onValueChange={(val) => handleOptionChange(idx, val)}
                                         >
-                                            <SelectTrigger className="h-7 px-2 min-w-[70px] text-[10px] bg-gray-50/50 border-gray-100 rounded-md">
+                                            <SelectTrigger className="h-12 px-5 py-2 min-w-[100px] text-lg font-bold bg-white border border-gray-100 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-50 transition-all">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="rounded-xl border shadow-xl">
                                                 {option.values?.map(val => (
-                                                    <SelectItem key={val} value={val} className="text-[10px]">{val}</SelectItem>
+                                                    <SelectItem key={val} value={val} className="text-lg font-medium py-2 px-5">{val}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
@@ -763,11 +875,11 @@ export function DesignerOpenCore({
                         </div>
                     </div>
 
-                    <div
-                        ref={zoomContainerRef}
-                        className="flex-1 relative overflow-hidden flex items-center justify-center bg-[#e5e5e5] pattern-bg"
-                    >
-                        <div className="relative" style={{ transform: `scale(${zoom / 100})`, transition: 'transform 0.1s ease-out' }}>
+                    <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
+                        <div
+                            ref={zoomContainerRef}
+                            className="flex-1 relative"
+                        >
                             <Canvas
                                 elements={processedElements}
                                 selectedElement={selectedElement}
@@ -776,6 +888,7 @@ export function DesignerOpenCore({
                                 onDeleteElement={deleteElement}
                                 onDuplicateElement={duplicateElement}
                                 zoom={zoom}
+                                onZoomChange={setZoom}
                                 showSafeArea={showSafeArea}
                                 productVariant={{ color: 'white' } as any}
                                 showRulers={showRulers}
@@ -804,15 +917,52 @@ export function DesignerOpenCore({
                                     addToHistory(updatedPages);
                                 }}
                                 baseImage={(() => {
-                                    // 1. Admin configured variant image for this specific variant
-                                    const adminVariantImage = initialConfig?.variantBaseImages?.[String(selectedVariantId)]?.default?.url;
-                                    // 2. Shopify variant image
-                                    const shopifyImage = productData?.variants?.find(v => String(v.id) === String(selectedVariantId))?.image;
+                                    // Robust ID parsing (handles GIDs like gid://shopify/ProductVariant/123 -> "123")
+                                    const rawSelectedId = String(selectedVariantId);
+                                    const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+
+                                    // 0. Check current side specific variant mockup
+                                    const pageVariantMockup = currentPages?.variantBaseImages?.[rawSelectedId] || currentPages?.variantBaseImages?.[vKey];
+                                    if (pageVariantMockup && pageVariantMockup !== 'none') return pageVariantMockup;
+
+                                    // 1. Check Admin Configured variant images (Global Config Compatibility)
+                                    // vKey is numeric string, selectedVariantId might be GID string
+                                    const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
+
+                                    // Handle both string URL or object structure { default: { url: '...' } }
+                                    let adminVariantImage = '';
+                                    if (typeof vConfig === 'string') {
+                                        adminVariantImage = vConfig;
+                                    } else if (vConfig) {
+                                        adminVariantImage = vConfig.default?.url || vConfig.url || '';
+                                    }
+
+                                    // 2. Fallback to Shopify variant image from productData
+                                    const sVariant = productData?.variants?.find(v => {
+                                        const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+                                        return vid === vKey;
+                                    });
+                                    const shopifyImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
+
                                     // 3. Page default base image
                                     const defaultImage = currentPages.baseImage;
 
-                                    console.log('Base Image Calculation:', { selectedVariantId, adminVariantImage, shopifyImage, defaultImage });
-                                    return adminVariantImage || shopifyImage || defaultImage;
+                                    // 4. Ultimate Fallback to Shopify Product main image
+                                    const sProductImage = productData?.images?.[0];
+                                    const productFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+
+                                    // Get the final image
+                                    let finalImage = adminVariantImage || shopifyImage || defaultImage || productFallback;
+
+                                    if (!finalImage) return undefined;
+
+                                    // Fix base64 images missing the data URI prefix
+                                    if (typeof finalImage === 'string' && !finalImage.startsWith('http') && !finalImage.startsWith('data:')) {
+                                        // Raw base64 data detected, add proper prefix
+                                        finalImage = `data:image/jpeg;base64,${finalImage}`;
+                                    }
+
+                                    return finalImage;
                                 })()}
                                 baseImageProperties={currentPages.baseImageProperties as any}
                                 baseImageColor={currentPages.baseImageColor}
@@ -826,25 +976,27 @@ export function DesignerOpenCore({
                         </div>
 
 
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-2xl border border-white/20 z-50">
-                            <button onClick={() => setZoom(Math.max(10, zoom - 10))} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors text-gray-600"><Minus className="w-4 h-4" /></button>
-                            <span className="text-sm font-bold w-12 text-center text-gray-700">{zoom}%</span>
-                            <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors text-gray-600"><Plus className="w-4 h-4" /></button>
-                        </div>
                     </div>
                 </div>
 
-                <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-[350px] opacity-100' : 'w-0 opacity-0'}`}>
+                <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-[420px] opacity-100 border-l border-gray-200' : 'w-0 opacity-0'}`}>
                     <Summary
                         elements={processedElements as any} selectedElement={selectedElement} onSelectElement={setSelectedElement} onDeleteElement={deleteElement}
-                        onUpdateElement={updateElement}
-                        zoom={zoom} onZoomChange={setZoom} showSafeArea={showSafeArea}
-                        onToggleSafeArea={() => { }}
-                        safeAreaPadding={safeAreaPadding} onSafeAreaPaddingChange={() => { }}
-                        safeAreaRadius={safeAreaRadius} onSafeAreaRadiusChange={() => { }}
-                        safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => { }}
-                        onToggleRulers={() => { }} showRulers={showRulers} unit={unit} onUnitChange={() => { }} paperSize={paperSize} onPaperSizeChange={() => { }}
-                        customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={() => { }} onReset={() => { setPages(history[0] || [{ id: 'default', name: 'Side 1', elements: [] }]); }}
+                        showSafeArea={showSafeArea}
+                        onToggleSafeArea={() => setShowSafeArea(!showSafeArea)}
+                        safeAreaRadius={safeAreaRadius} onSafeAreaRadiusChange={setSafeAreaRadius}
+                        safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
+                        shop={shop}
+                        onToggleRulers={() => setShowRulers(!showRulers)} showRulers={showRulers} unit={unit} onUnitChange={setUnit} paperSize={paperSize} onPaperSizeChange={setPaperSize}
+                        customPaperDimensions={customPaperDimensions} onCustomPaperDimensionsChange={setCustomPaperDimensions}
+                        onReset={() => {
+                            // Revert to the admin-configured initial state
+                            const resetState = JSON.parse(JSON.stringify(initialPages));
+                            setPages(resetState);
+                            setHistory([resetState]);
+                            setHistoryIndex(0);
+                            toast.success("Design reset to original template");
+                        }}
                         userColors={userColors}
                         userFonts={userFonts}
                         userOptions={userOptions}
@@ -861,7 +1013,7 @@ export function DesignerOpenCore({
                         selectedShapeAssetId={selectedShapeAssetId}
                         onSelectedShapeAssetIdChange={setSelectedShapeAssetId}
                         activeBasePaletteColors={activeBasePaletteColors}
-                        activeElementPaletteColors={activeElementPaletteColors}
+                        userGalleries={filteredUserGalleries}
                         onToggleSummary={() => setShowSummary(false)}
                         baseImageColorEnabled={currentPages.baseImageColorEnabled || false}
                         onBaseImageColorEnabledChange={(enabled) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p))}
@@ -885,14 +1037,42 @@ export function DesignerOpenCore({
                         }}
                         shopifyOptions={productData?.options || []} shopifyVariants={productData?.variants || []} selectedVariantId={selectedVariantId} onVariantChange={setSelectedVariantId}
                         onOptionChange={handleOptionChange}
-                        productOutputSettings={productOutputSettings}
-                        onProductOutputSettingsChange={() => { }}
+                        outputSettings={productOutputSettings}
+                        onProductOutputSettingsChange={(settings) => setProductOutputSettings(settings)}
                         isPublicMode={isPublicModeProp}
-                        designerLayout={designerLayout} onDesignerLayoutChange={() => { }} buttonText={buttonText} onButtonTextChange={() => { }}
-                        onSave={handleSave}
-                        isSaving={isSaving || isAutoSaving}
-                        baseImage={currentPages.baseImage}
+                        baseImage={(() => {
+                            if (currentPages?.baseImage === 'none') return undefined;
+
+                            const rawSelectedId = String(selectedVariantId);
+                            const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+
+                            // 1. Explicit UI Assignment
+                            const variantImage = currentPages?.variantBaseImages?.[rawSelectedId] || currentPages?.variantBaseImages?.[vKey];
+                            if (variantImage && variantImage !== 'none') return variantImage;
+
+                            // 2. Shopify Variant Image (AUTOMATIC)
+                            const sVariant = productData?.variants?.find((v: any) => {
+                                const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+                                return vid === vKey || String(v.id) === rawSelectedId;
+                            });
+                            const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
+                            if (sVariantImage) return sVariantImage;
+
+                            // 3. Global Page Base Image
+                            if (currentPages?.baseImage) return currentPages.baseImage;
+
+                            // 4. Fallback to Shopify Product main image
+                            const sProductImage = productData?.images?.[0];
+                            return (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src) || undefined;
+                        })()}
                         onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+                        designerLayout={designerLayout}
+                        onDesignerLayoutChange={setDesignerLayout}
+                        buttonText={buttonText}
+                        onButtonTextChange={setButtonText}
+                        onUpdateElement={updateElement}
+                        onSave={(isTemp, settings) => handleSave(isTemp, false, settings)}
+                        isSaving={isSaving || isAutoSaving}
                     />
                 </div>
             </div>
@@ -900,12 +1080,18 @@ export function DesignerOpenCore({
             <ImageCropModal
                 isOpen={isCropModalOpen}
                 onClose={() => setIsCropModalOpen(false)}
-                imageUrl={currentPages.baseImage || ''}
+                imageUrl={(currentPages.elements.find(el => el.id === selectedElement) as any)?.src || currentPages.baseImage || ''}
+                initialCrop={(currentPages.elements.find(el => el.id === selectedElement) as any)?.crop || currentPages.baseImageProperties?.crop}
                 onCropComplete={(crop) => {
-                    setPages(prev => prev.map(p => p.id === activePageId ? {
-                        ...p,
-                        baseImageProperties: { ...p.baseImageProperties, crop } as any
-                    } : p));
+                    const activeElement = currentPages.elements.find(el => el.id === selectedElement);
+                    if (activeElement && activeElement.type === 'image') {
+                        updateElement(activeElement.id, { crop });
+                    } else {
+                        setPages(prev => prev.map(p => p.id === activePageId ? {
+                            ...p,
+                            baseImageProperties: { ...p.baseImageProperties, crop } as any
+                        } : p));
+                    }
                 }}
             />
 
@@ -915,12 +1101,33 @@ export function DesignerOpenCore({
                 productData={productData}
                 selectedVariantId={selectedVariantId}
                 currentBaseImage={currentPages.baseImage}
-                onSelectImage={(url, _isVariantImage, _applyToVariant) => {
-                    setPages(prev => {
-                        const updated = prev.map(p => p.id === activePageId ? { ...p, baseImage: url, baseImageAsMask: false, baseImageMaskInvert: false } : p);
+                variantBaseImages={currentPages.variantBaseImages}
+                onSelectImage={(url, _isVariantImage, targetVariantId) => {
+                    const finalUrl = url || 'none';
+                    if (targetVariantId === 'all') {
+                        const updated: PageData[] = pages.map(p => ({
+                            ...p,
+                            baseImage: finalUrl,
+                            baseImageProperties: { x: 0, y: 0, scale: 1 }
+                        }));
+                        setPages(updated);
                         addToHistory(updated);
-                        return updated;
-                    });
+                    } else if (targetVariantId) {
+                        const updated: PageData[] = pages.map(p => p.id === activePageId ? {
+                            ...p,
+                            variantBaseImages: {
+                                ...(p.variantBaseImages || {}),
+                                [targetVariantId]: finalUrl === 'none' ? undefined : finalUrl
+                            }
+                        } : p);
+                        setPages(updated);
+                        addToHistory(updated);
+                    } else {
+                        const updated: PageData[] = pages.map(p => p.id === activePageId ? { ...p, baseImage: finalUrl, baseImageAsMask: false, baseImageMaskInvert: false } : p);
+                        setPages(updated);
+                        addToHistory(updated);
+                    }
+                    setIsBaseImageModalOpen(false);
                 }}
             />
         </div>

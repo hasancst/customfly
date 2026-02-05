@@ -172,9 +172,10 @@ interface TextToolProps {
   canvasDimensions?: { width: number; height: number };
   userFonts?: any[];
   userColors?: any[];
+  isPublicMode?: boolean;
 }
 
-export function TextTool({ onAddElement, selectedElement, onUpdateElement, canvasDimensions, userFonts = [], userColors = [] }: TextToolProps) {
+export function TextTool({ onAddElement, selectedElement, onUpdateElement, canvasDimensions, userFonts = [], userColors = [], isPublicMode }: TextToolProps) {
   const [text, setText] = useState('');
   const [selectedMonogram, setSelectedMonogram] = useState<MonogramShape | null>(null);
   const [fontSize, setFontSize] = useState(selectedElement?.fontSize || 32);
@@ -188,6 +189,8 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
   const [textCase, setTextCase] = useState<'none' | 'uppercase' | 'lowercase'>(selectedElement?.textCase || 'none');
   const [fontAssetId, setFontAssetId] = useState(selectedElement?.fontAssetId || '');
   const [colorAssetId, setColorAssetId] = useState(selectedElement?.colorAssetId || '');
+  const [label, setLabel] = useState(selectedElement?.label || '');
+  const [showLabel, setShowLabel] = useState(selectedElement?.showLabel !== false);
 
   useEffect(() => {
     if (selectedElement) {
@@ -203,8 +206,12 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
       setTextCase(selectedElement.textCase || 'none');
       setFontAssetId(selectedElement.fontAssetId || '');
       setColorAssetId(selectedElement.colorAssetId || '');
+      setLabel(selectedElement.label || '');
+      setShowLabel(selectedElement.showLabel !== false);
     } else {
       setText('');
+      setLabel('');
+      setShowLabel(true);
     }
   }, [
     selectedElement?.id,
@@ -220,6 +227,8 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
     selectedElement?.textAlign,
     selectedElement?.fontAssetId,
     selectedElement?.colorAssetId,
+    selectedElement?.label,
+    selectedElement?.showLabel,
   ]);
 
   const handleUpdate = (updates: Partial<CanvasElement>) => {
@@ -324,7 +333,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
     let finalText = text;
     if (isMonogram) {
-      finalText = text.substring(0, 3).toUpperCase() || 'ABC';
+      finalText = text.substring(0, 3).toUpperCase() || '';
       setText(finalText);
       if (shape) setSelectedMonogram(shape);
 
@@ -339,7 +348,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
       const newElement: CanvasElement = {
         id: `monogram-${Date.now()}`,
-        type: 'monogram',
+        type: (selectedElement?.type as any) || 'monogram',
         monogramType: shape?.id || selectedMonogram?.id || 'Vine',
         text: finalText,
         x: centerX,
@@ -352,6 +361,8 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
         zIndex: Date.now(),
         color,
         colorAssetId: colorAssetId || undefined,
+        label: label || undefined,
+        showLabel: showLabel,
       };
       onAddElement(newElement);
       toast.success('text has been added');
@@ -364,8 +375,8 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
     // We already calculated baseHeight, centerX, centerY above
 
     const newElement: CanvasElement = {
-      id: `text-${Date.now()}`,
-      type: 'text',
+      id: `${selectedElement?.type || 'text'}-${Date.now()}`,
+      type: (selectedElement?.type as any) || 'text',
       text: finalText,
       x: centerX,
       y: centerY,
@@ -388,6 +399,8 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
       zIndex: Date.now(),
       fontAssetId: fontAssetId || undefined,
       colorAssetId: colorAssetId || undefined,
+      label: label || undefined,
+      showLabel: showLabel,
     };
     onAddElement(newElement);
     toast.success('text has been added');
@@ -407,19 +420,43 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
     <div className="space-y-6 pb-4">
       <div className="px-1 space-y-4">
         {!isLockedTo3 && (
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-bold text-gray-400 uppercase">Title</Label>
-            <Input
-              value={selectedElement?.label || ''}
-              onChange={(e) => handleUpdate({ label: e.target.value })}
-              placeholder="e.g. Personalize Your Message"
-              className="h-9 rounded-xl border-gray-200 bg-white"
+          <>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium text-gray-400">Title</Label>
+              <Input
+                value={label}
+                onChange={(e) => {
+                  setLabel(e.target.value);
+                  if (selectedElement) handleUpdate({ label: e.target.value });
+                }}
+                placeholder="e.g. Personalize Your Message"
+                className="h-10 rounded-xl border-gray-200 bg-white"
+              />
+            </div>
+
+
+          </>
+        )}
+
+        {!isLockedTo3 && (
+          <div className="flex items-center justify-between p-3 bg-violet-50/50 rounded-xl border border-violet-100/50">
+            <div className="flex flex-col">
+              <Label className="text-[10px] font-medium text-gray-700">Show label</Label>
+              <p className="text-[9px] text-gray-500">Display this title to customers</p>
+            </div>
+            <Switch
+              checked={showLabel}
+              onCheckedChange={(checked) => {
+                setShowLabel(checked);
+                if (selectedElement) handleUpdate({ showLabel: checked });
+              }}
+              className="scale-75"
             />
           </div>
         )}
 
         <div className="flex items-center justify-between pt-2">
-          <Label className="text-sm font-bold text-gray-700">
+          <Label className={`${isPublicMode ? 'text-[16px]' : 'text-sm'} font-bold text-gray-700`}>
             {isLockedTo3 ? 'Monogram Initials' : (selectedElement?.type === 'textarea' ? 'Note Details' : 'Text Content')}
           </Label>
           <div className="flex items-center gap-2">
@@ -436,6 +473,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
         {selectedElement?.type === 'textarea' ? (
           <textarea
             value={text}
+            maxLength={maxChars > 0 ? maxChars : undefined}
             onChange={(e) => {
               const val = e.target.value;
               const finalVal = formatText(val, textCase, maxChars);
@@ -443,12 +481,12 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               if (selectedElement) handleUpdate({ text: finalVal });
             }}
             placeholder="Type your notes here..."
-            className="w-full min-h-[120px] rounded-xl bg-white border border-gray-200 p-3 font-medium text-sm focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+            className={`w-full min-h-[120px] rounded-xl bg-white border border-gray-200 p-3 font-medium ${isPublicMode ? 'text-[16px]' : 'text-sm'} focus:ring-2 focus:ring-indigo-500 transition-all resize-none`}
           />
         ) : (
           <Input
             value={text}
-            maxLength={isLockedTo3 ? 3 : (maxChars > 0 ? maxChars : 100)}
+            maxLength={isLockedTo3 ? 3 : (maxChars > 0 ? maxChars : undefined)}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               const val = e.target.value;
               let finalVal = val;
@@ -457,14 +495,14 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               setText(finalVal);
               if (selectedElement) handleUpdate({ text: finalVal });
             }}
-            placeholder={isLockedTo3 ? "Initials" : "Enter text here..."}
+            placeholder="Enter text here..."
             className={`rounded-xl h-12 bg-white border-gray-200 font-bold text-center focus:ring-indigo-500 focus:border-indigo-500 transition-all ${isLockedTo3 ? 'text-lg tracking-widest' : 'text-base'}`}
           />
         )}
 
         <Button
           onClick={() => handleAddText()}
-          className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
+          className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
         >
           <Plus className="w-5 h-5" />
           {selectedElement?.opacity !== 0 ? 'Update' : 'Add'}
@@ -472,7 +510,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
         {!isLockedTo3 && (
           <div className="mt-4 space-y-2">
-            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Text Behavior</Label>
+            <Label className="text-[10px] font-medium text-gray-400">Text Behavior</Label>
             <ToggleGroup
               type="single"
               value={textMode}
@@ -488,11 +526,11 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               }}
               className="w-full bg-gray-50 p-1 rounded-xl border border-gray-100"
             >
-              <ToggleGroupItem value="shrink" className="flex-1 gap-2 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
+              <ToggleGroupItem value="shrink" className="flex-1 gap-2 rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
                 <Shrink className="w-3.5 h-3.5" />
                 Shrink
               </ToggleGroupItem>
-              <ToggleGroupItem value="wrap" className="flex-1 gap-2 rounded-lg text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
+              <ToggleGroupItem value="wrap" className="flex-1 gap-2 rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
                 <WrapText className="w-3.5 h-3.5" />
                 Auto Wrap
               </ToggleGroupItem>
@@ -505,7 +543,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
             <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-2 h-8 hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 rounded-lg group">
               <div className="flex items-center gap-2">
                 <Settings2 className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Advanced Settings</span>
+                <span className="text-[10px] font-medium">Advanced Settings</span>
               </div>
               <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </Button>
@@ -515,7 +553,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
             {/* Interaction Settings */}
             <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
                   <Move className="w-3 h-3" /> Lock Position
                 </Label>
                 <Switch
@@ -526,7 +564,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               </div>
               <div className="bg-gray-200 h-px w-full" />
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
                   <ScanLine className="w-3 h-3" /> Lock Resize
                 </Label>
                 <Switch
@@ -537,7 +575,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               </div>
               <div className="bg-gray-200 h-px w-full" />
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
                   <RotateCw className="w-3 h-3" /> Lock Rotate
                 </Label>
                 <Switch
@@ -548,7 +586,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               </div>
               <div className="bg-gray-200 h-px w-full" />
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
                   <Trash2 className="w-3 h-3" /> Lock Delete
                 </Label>
                 <Switch
@@ -559,7 +597,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               </div>
               <div className="bg-gray-200 h-px w-full" />
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
                   <Copy className="w-3 h-3" /> Lock Duplicate
                 </Label>
                 <Switch
@@ -573,7 +611,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
             {!isLockedTo3 && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-bold text-gray-400 uppercase">Max Characters</Label>
+                  <Label className="text-[10px] font-medium text-gray-400">Max Characters</Label>
                   <span className="text-[10px] text-gray-400 italic">0 = Unlimited</span>
                 </div>
                 <Input
@@ -596,7 +634,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
             {/* Text Case */}
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold text-gray-400 uppercase">Text Case</Label>
+              <Label className="text-[10px] font-medium text-gray-400">Text Case</Label>
               <ToggleGroup
                 type="single"
                 value={textCase}
@@ -615,7 +653,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
                 <ToggleGroupItem value="none" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
                   <CaseSensitive className="w-3.5 h-3.5" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="uppercase" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
+                <ToggleGroupItem value="" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
                   <CaseUpper className="w-3.5 h-3.5" />
                 </ToggleGroupItem>
                 <ToggleGroupItem value="lowercase" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
@@ -627,7 +665,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
             {/* Letter Spacing Slider */}
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1.5">
+                <Label className="text-[10px] font-medium text-gray-400 flex items-center gap-1.5">
                   <ArrowRightLeft className="w-3 h-3" /> Letter Spacing
                 </Label>
                 <span className="text-[10px] font-bold text-indigo-500">{(selectedElement?.letterSpacing || 0)}px</span>
@@ -650,7 +688,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               <>
                 {/* Font Group Selector */}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                  <Label className="text-[10px] font-medium text-gray-400">Font Group</Label>
                   <Select
                     value={fontAssetId || "none"}
                     onValueChange={(val) => {
@@ -675,7 +713,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
 
                 {/* Color Palette Selector */}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                  <Label className="text-[10px] font-medium text-gray-400">Color Palette</Label>
                   <Select
                     value={colorAssetId || "none"}
                     onValueChange={(val) => {
@@ -704,76 +742,80 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
       </div>
 
       <div className="h-px bg-gray-100 mx-2" />
-      {!isLockedTo3 && (
-        <Collapsible defaultOpen={false} className="space-y-2">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
-              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
-                <Type className="w-4 h-4 text-indigo-600" />
+      {
+        !isLockedTo3 && (
+          <Collapsible defaultOpen={false} className="space-y-2">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
+                  <Type className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="flex flex-col items-start flex-1">
+                  <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Text Shapes</span>
+                  <span className="text-[10px] text-gray-500 font-medium">Add curved or warped text</span>
+                </div>
+                <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
               </div>
-              <div className="flex flex-col items-start flex-1">
-                <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Text Shapes</span>
-                <span className="text-[10px] text-gray-500 font-medium">Add curved or warped text</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2">
+              <div className="grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
+                {TEXT_SHAPES.map((shape, i) => (
+                  <LazyShapeButton
+                    key={i}
+                    shape={shape}
+                    onSelect={() => handleAddText(shape.bridge, false, shape)}
+                  />
+                ))}
               </div>
-              <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-2">
-            <div className="grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100">
-              {TEXT_SHAPES.map((shape, i) => (
-                <LazyShapeButton
-                  key={i}
-                  shape={shape}
-                  onSelect={() => handleAddText(shape.bridge, false, shape)}
-                />
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+            </CollapsibleContent>
+          </Collapsible>
+        )
+      }
 
-      {isMonogramSelected && (
-        <Collapsible defaultOpen={true} className="space-y-2 mt-4">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
-              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
-                <Layers className="w-4 h-4 text-indigo-600" />
+      {
+        isMonogramSelected && (
+          <Collapsible defaultOpen={true} className="space-y-2 mt-4">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-3 p-2.5 w-full rounded-xl bg-gray-50 hover:bg-indigo-50 transition-all cursor-pointer group border border-gray-100 hover:border-indigo-200">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 group-hover:border-indigo-100">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="flex flex-col items-start flex-1">
+                  <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Monogram Styles</span>
+                  <span className="text-[10px] text-gray-500 font-medium">Classic 3-letter designs</span>
+                </div>
+                <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
               </div>
-              <div className="flex flex-col items-start flex-1">
-                <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-900">Monogram Styles</span>
-                <span className="text-[10px] text-gray-500 font-medium">Classic 3-letter designs</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2 pt-2">
+              <div className="grid grid-cols-3 gap-2">
+                {MONOGRAM_SHAPES.map((shape) => (
+                  <button
+                    key={shape.id}
+                    onClick={() => {
+                      setSelectedMonogram(shape);
+                      const limitedText = text.substring(0, 3).toUpperCase();
+                      setText(limitedText);
+                      handleAddText(shape.bridge, true, shape);
+                    }}
+                    className={`group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border transition-all shadow-sm ${selectedMonogram?.id === shape.id ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-indigo-400'}`}
+                  >
+                    <div className="h-10 w-full flex items-center justify-center mb-1">
+                      {shape.id === 'Circle' && <div className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>}
+                      {shape.id === 'Diamond' && <div className="w-8 h-8 rotate-45 border border-gray-300 flex items-center justify-center text-[7px] font-bold text-gray-600"><span className="-rotate-45">ABC</span></div>}
+                      {shape.id === 'Vine' && <div className="text-[14px] italic font-serif text-gray-600 flex items-center tracking-tighter"><span className="translate-x-1 opacity-60">A</span><span className="text-lg z-10 scale-125">B</span><span className="-translate-x-1 opacity-60">C</span></div>}
+                      {shape.id === 'Scallop' && <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>}
+                      {shape.id === 'Stacked' && <div className="flex items-center gap-1"><div className="flex flex-col text-[6px] gap-0.5"><span>A</span><span>B</span></div><div className="text-sm font-bold">C</div></div>}
+                      {shape.id === 'Round' && <div className="w-8 h-8 rounded-full border-2 border-double border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>}
+                    </div>
+                    <span className="text-[8px] text-gray-500 font-medium truncate w-full text-center">{shape.name}</span>
+                  </button>
+                ))}
               </div>
-              <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-transform duration-300 group-data-[state=open]:rotate-180" />
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-2 pt-2">
-            <div className="grid grid-cols-3 gap-2">
-              {MONOGRAM_SHAPES.map((shape) => (
-                <button
-                  key={shape.id}
-                  onClick={() => {
-                    setSelectedMonogram(shape);
-                    const limitedText = text.substring(0, 3).toUpperCase();
-                    setText(limitedText);
-                    handleAddText(shape.bridge, true, shape);
-                  }}
-                  className={`group relative flex flex-col items-center justify-center p-2 bg-white rounded-lg border transition-all shadow-sm ${selectedMonogram?.id === shape.id ? 'border-indigo-600 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-indigo-400'}`}
-                >
-                  <div className="h-10 w-full flex items-center justify-center mb-1">
-                    {shape.id === 'Circle' && <div className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>}
-                    {shape.id === 'Diamond' && <div className="w-8 h-8 rotate-45 border border-gray-300 flex items-center justify-center text-[7px] font-bold text-gray-600"><span className="-rotate-45">ABC</span></div>}
-                    {shape.id === 'Vine' && <div className="text-[14px] italic font-serif text-gray-600 flex items-center tracking-tighter"><span className="translate-x-1 opacity-60">A</span><span className="text-lg z-10 scale-125">B</span><span className="-translate-x-1 opacity-60">C</span></div>}
-                    {shape.id === 'Scallop' && <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>}
-                    {shape.id === 'Stacked' && <div className="flex items-center gap-1"><div className="flex flex-col text-[6px] gap-0.5"><span>A</span><span>B</span></div><div className="text-sm font-bold">C</div></div>}
-                    {shape.id === 'Round' && <div className="w-8 h-8 rounded-full border-2 border-double border-gray-300 flex items-center justify-center text-[8px] font-bold text-gray-600">ABC</div>}
-                  </div>
-                  <span className="text-[8px] text-gray-500 font-medium truncate w-full text-center">{shape.name}</span>
-                </button>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-    </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )
+      }
+    </div >
   );
 }

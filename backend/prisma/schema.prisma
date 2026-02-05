@@ -33,44 +33,40 @@ model MerchantConfig {
   shopifyProductId      String
   printArea             Json
   baseImage             String?
-  baseImageColor        String?
-  baseImageProperties   Json?
-  baseImageColorEnabled Boolean? @default(false)
-  selectedColorAssetId  String?
-  safeAreaPadding       Float?
-  safeAreaShape         String?
-  safeAreaOffset        Json?
-  paperSize             String?
-  customPaperDimensions Json?
-  unit                  String?
-  showRulers            Boolean? @default(false)
-  showSafeArea          Boolean? @default(false)
-  baseImageAsMask       Boolean? @default(false)
-  safeAreaRadius        Float?   @default(0)
-  safeAreaWidth         Float?
-  safeAreaHeight        Float?
-  variantBaseImages     Json?
   masks                 Json?
-  
-  // NEW: Layout Configuration
-  designerLayout        String   @default("redirect") // "redirect" | "inline" | "modal" | "wizard"
-  inlineSettings        Json?    // { position: "below-description", showPreview: true }
-  modalSettings         Json?    // { width: "800px", height: "600px" }
-  wizardSettings        Json?    // { steps: ["template", "text", "color"] }
-  enabledTools          Json?    // { text: true, image: true, etc }
-  buttonText            String   @default("Design It")
-  buttonStyle           Json?    // { color: "#000", bgColor: "#fff" }
-  outputSettings        Json?    // { fileType: "png", dpi: 300, etc }
-  
-  // NEW: Asset Group Overrides (optional, falls back to defaults)
-  fontAssetId           String?  // Reference to Asset.id where type='font'
-  colorAssetId          String?  // Reference to Asset.id where type='color'
-  optionAssetId         String?  // Reference to Asset.id where type='option'
-  galleryAssetId        String?  // Reference to Asset.id where type='gallery'
-  shapeAssetId          String?  // Reference to Asset.id where type='shape'
-
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  baseImageColor        String?
+  baseImageColorEnabled Boolean? @default(false)
+  baseImageProperties   Json?
+  selectedColorAssetId  String?
+  selectedBaseColorAssetId String?
+  customPaperDimensions Json?
+  paperSize             String?
+  safeAreaOffset        Json?
+  safeAreaPadding       Float?
+  safeAreaShape         String?
+  showRulers            Boolean? @default(false)
+  showSafeArea          Boolean? @default(false)
+  unit                  String?
+  baseImageAsMask       Boolean? @default(false)
+  safeAreaHeight        Float?
+  safeAreaRadius        Float?   @default(0)
+  safeAreaWidth         Float?
+  variantBaseImages     Json?
+  buttonStyle           Json?
+  buttonText            String   @default("Design It")
+  designerLayout        String   @default("redirect")
+  enabledTools          Json?
+  inlineSettings        Json?
+  modalSettings         Json?
+  wizardSettings        Json?
+  outputSettings        Json?
+  colorAssetId          String?
+  fontAssetId           String?
+  galleryAssetId        String?
+  optionAssetId         String?
+  shapeAssetId          String?
 
   @@unique([shop, shopifyProductId])
 }
@@ -83,14 +79,14 @@ model SavedDesign {
   status            String   @default("draft")
   shopifyOrderId    String?
   lineItemId        String?
-  customerId        String?
-  customerEmail     String?
-  productionFileUrl String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   shopifyProductId  String?
   name              String   @default("Untitled Design")
   isTemplate        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  customerEmail     String?
+  customerId        String?
+  productionFileUrl String?
 
   @@index([shop, shopifyProductId])
 }
@@ -100,15 +96,15 @@ model Asset {
   shop      String
   type      String
   name      String
-  label     String?
   value     String
   config    Json?
-  isDefault Boolean  @default(false)  // Mark as default for all products
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  isDefault Boolean  @default(false)
+  label     String?
 
   @@index([shop, type])
-  @@index([shop, type, isDefault])  // Index for faster default lookups
+  @@index([shop, type, isDefault])
 }
 
 model GoogleFont {
@@ -120,34 +116,32 @@ model ProductPricingConfig {
   id               String   @id @default(uuid())
   shop             String
   shopifyProductId String
-  
   globalPricing    Json?
   textPricing      Json?
   imagePricing     Json?
   elementPricing   Json?
   bulkPricing      Json?
   printingMethods  Json?
-  pricingRules     Json?
-  
   currency         String   @default("USD")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  pricingRules     Json?
 
   @@unique([shop, shopifyProductId])
 }
 
 model PromoCode {
-  id              String   @id @default(uuid())
-  shop            String
-  code            String
-  discountType    String   // 'percentage' | 'fixed_amount'
-  discountValue   Float
-  minOrderAmount  Float?
-  usageLimit      Int?
-  usageCount      Int      @default(0)
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(uuid())
+  shop           String
+  code           String
+  discountType   String
+  discountValue  Float
+  minOrderAmount Float?
+  usageLimit     Int?
+  usageCount     Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([shop, code])
   @@index([shop])
@@ -161,6 +155,6 @@ model DesignUpload {
   url       String
   size      Int
   createdAt DateTime @default(now())
-  
+
   @@index([shop, productId])
 }

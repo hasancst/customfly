@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactCrop, { type Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Check, RotateCcw, AlignCenter, AlignVerticalJustifyCenter, Square, Maximize, Crop as CropIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -22,7 +22,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
 
     const initializeCrop = () => {
         const img = imgRef.current;
-        if (!img) return;
+        if (!img || !img.naturalWidth) return;
 
         const { naturalWidth, naturalHeight } = img;
 
@@ -48,15 +48,15 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
         };
 
         if (aspect) {
-            // Adjust for aspect if present
-            const { width, height } = img;
-            const imgAspect = width / height;
+            const imgAspect = naturalWidth / naturalHeight;
             if (imgAspect > aspect) {
-                newCrop.width = (80 * aspect) / imgAspect;
-                newCrop.x = (100 - newCrop.width) / 2;
-            } else {
-                newCrop.height = 80 / (aspect / imgAspect);
+                newCrop.width = 100;
+                newCrop.height = (100 / imgAspect) * aspect;
                 newCrop.y = (100 - newCrop.height) / 2;
+            } else {
+                newCrop.height = 100;
+                newCrop.width = (100 * imgAspect) / aspect;
+                newCrop.x = (100 - newCrop.width) / 2;
             }
         }
 
@@ -64,13 +64,12 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     };
 
     useEffect(() => {
-        if (isOpen) {
-            const timer = setTimeout(() => {
-                if (imgRef.current && imgRef.current.complete) {
-                    initializeCrop();
-                }
-            }, 100);
-            return () => clearTimeout(timer);
+        if (isOpen && imageUrl) {
+            const img = new Image();
+            img.src = imageUrl;
+            img.onload = () => {
+                if (isOpen) initializeCrop();
+            };
         } else {
             setCrop(undefined);
             setCompletedCrop(undefined);
@@ -117,11 +116,16 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
     const handleSave = () => {
         if (completedCrop && imgRef.current) {
             const img = imgRef.current;
-            // Always use natural proportions for the output
-            const x = (completedCrop.x / 100) * img.naturalWidth;
-            const y = (completedCrop.y / 100) * img.naturalHeight;
-            const w = (completedCrop.width / 100) * img.naturalWidth;
-            const h = (completedCrop.height / 100) * img.naturalHeight;
+
+            // completedCrop is in pixels relative to the displayed image size
+            // We need to scale it to the natural image dimensions
+            const scaleX = img.naturalWidth / img.width;
+            const scaleY = img.naturalHeight / img.height;
+
+            const x = completedCrop.x * scaleX;
+            const y = completedCrop.y * scaleY;
+            const w = completedCrop.width * scaleX;
+            const h = completedCrop.height * scaleY;
 
             onCropComplete({ x, y, width: w, height: h });
             onClose();
@@ -142,10 +146,12 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                         <CropIcon className="w-5 h-5 text-indigo-600" />
                         Adjust Crop Area
                     </DialogTitle>
-                    <p className="text-sm text-gray-500">Drag handles to resize. Drag center to move.</p>
+                    <DialogDescription className="text-sm text-gray-500">
+                        Drag handles to resize. Drag center to move.
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="relative flex-1 bg-gray-100/30 p-20 flex justify-center items-center overflow-hidden min-h-0">
+                <div className="relative flex-1 bg-gray-50 p-12 flex justify-center items-center overflow-hidden min-h-[400px]">
                     <div className="relative w-full h-full flex items-center justify-center">
                         <ReactCrop
                             crop={crop}
@@ -158,8 +164,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                 ref={imgRef}
                                 src={imageUrl}
                                 onLoad={initializeCrop}
-                                className="w-[500px] h-auto block select-none"
-                                crossOrigin="anonymous"
+                                className="max-w-full max-h-[60vh] h-auto block select-none"
                                 draggable={false}
                             />
                         </ReactCrop>
@@ -176,7 +181,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="z-[200]">Center Horizontal</TooltipContent>
+                                    <TooltipContent side="top">Center Horizontal</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -184,7 +189,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <AlignVerticalJustifyCenter className="w-4 h-4 text-gray-600" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="z-[200]">Center Vertical</TooltipContent>
+                                    <TooltipContent side="top">Center Vertical</TooltipContent>
                                 </Tooltip>
                                 <div className="w-px h-4 bg-gray-300 mx-1" />
                                 <Tooltip>
@@ -198,7 +203,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Square className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="z-[200]">Square 1:1</TooltipContent>
+                                    <TooltipContent side="top">Square 1:1</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -206,7 +211,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <Maximize className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="z-[200]">Fit to Image</TooltipContent>
+                                    <TooltipContent side="top">Fit to Image</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -214,7 +219,7 @@ export function ImageCropModal({ isOpen, onClose, imageUrl, onCropComplete, init
                                             <RotateCcw className="w-4 h-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="z-[200]">Reset Area</TooltipContent>
+                                    <TooltipContent side="top">Reset Area</TooltipContent>
                                 </Tooltip>
                             </div>
 

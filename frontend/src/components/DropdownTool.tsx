@@ -91,27 +91,33 @@ export function DropdownTool({
                 {/* General Settings */}
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Title</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Title</Label>
                         <Input
                             value={selectedElement.label || ''}
                             onChange={(e) => onUpdateElement(selectedElement.id, { label: e.target.value })}
-                            className="h-9"
+                            className="h-10"
                             placeholder="e.g. Choose Material"
                         />
                     </div>
 
-                    <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Input Placeholder</Label>
-                        <Input
-                            value={selectedElement.placeholder || ''}
-                            onChange={(e) => onUpdateElement(selectedElement.id, { placeholder: e.target.value })}
-                            className="h-9"
-                            placeholder="e.g. Select option..."
-                        />
-                    </div>
+                    {selectedElement && (
+                        <div className="flex items-center justify-between p-3 bg-cyan-50/50 rounded-xl border border-cyan-100/50">
+                            <div className="flex flex-col">
+                                <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                                <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                            </div>
+                            <Switch
+                                checked={selectedElement.showLabel !== false}
+                                onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showLabel: checked })}
+                                className="scale-75"
+                            />
+                        </div>
+                    )}
+
+
 
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Help Text (Sub-label)</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Help Text (Sub-label)</Label>
                         <Input
                             value={selectedElement.helpText || ''}
                             onChange={(e) => onUpdateElement(selectedElement.id, { helpText: e.target.value })}
@@ -122,7 +128,7 @@ export function DropdownTool({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Visual Style</Label>
+                            <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
                             <Select
                                 value={selectedElement.dropdownStyle || 'classic'}
                                 onValueChange={(val: any) => onUpdateElement(selectedElement.id, { dropdownStyle: val })}
@@ -138,7 +144,7 @@ export function DropdownTool({
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                             <Select
                                 value={selectedElement.fontAssetId || "none"}
                                 onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
@@ -171,10 +177,10 @@ export function DropdownTool({
 
                     {/* Visual Preview Box */}
                     <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-3">
-                        <Label className="text-[9px] font-bold text-gray-400 uppercase">Dropdown Preview</Label>
+                        <Label className="text-[9px] font-bold text-gray-400">Dropdown Preview</Label>
                         <div className="space-y-1.5">
                             {selectedElement.label && (
-                                <p className="text-[10px] font-bold text-gray-600 uppercase flex items-center gap-1">
+                                <p className="text-[10px] font-bold text-gray-600 flex items-center gap-1">
                                     {selectedElement.label}
                                     {selectedElement.isRequired && <span className="text-red-500">*</span>}
                                 </p>
@@ -199,7 +205,7 @@ export function DropdownTool({
 
                 {/* Source Selection */}
                 <div className="space-y-3">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
+                    <Label className="text-[10px] font-bold text-gray-400 flex items-center gap-2">
                         <Link2 className="w-3 h-3" />
                         Group Options
                     </Label>
@@ -215,7 +221,7 @@ export function DropdownTool({
 
                             {productOptions.length > 0 && (
                                 <>
-                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50">Shopify Options</div>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 bg-gray-50/50">Shopify Options</div>
                                     {productOptions.map((opt: any) => (
                                         <SelectItem key={opt.name} value={opt.name}>{opt.name}</SelectItem>
                                     ))}
@@ -224,7 +230,7 @@ export function DropdownTool({
 
                             {userOptions && userOptions.length > 0 && (
                                 <>
-                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50 mt-1">Saved Asset Groups</div>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 bg-gray-50/50 mt-1">Saved Asset Groups</div>
                                     {userOptions.map((asset) => (
                                         <SelectItem key={asset.id} value={`asset:${asset.id}`}>
                                             {asset.name}
@@ -238,7 +244,7 @@ export function DropdownTool({
 
                 {/* Current Items List */}
                 <div className="space-y-3">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Current Items</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Current Items</Label>
                     <ScrollArea className="h-[200px] w-full rounded-xl border border-gray-100 bg-gray-50/50 p-2">
                         <div className="space-y-1">
                             {selectedElement.dropdownOptions && selectedElement.dropdownOptions.length > 0 ? (

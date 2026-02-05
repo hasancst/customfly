@@ -155,13 +155,20 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
     };
 
     if (crop) {
+        const imgWidth = imgRef.current?.naturalWidth || width;
+        const imgHeight = imgRef.current?.naturalHeight || height;
+
+        const scaleX = width / crop.width;
+        const scaleY = height / crop.height;
+
         imgStyle = {
             ...imgStyle,
             position: 'absolute',
-            width: 'auto',
-            height: 'auto',
-            transform: `scale(${(width / crop.width) * z}) translate(${-crop.x}px, ${-crop.y}px)`,
-            transformOrigin: '0 0',
+            width: `${imgWidth * scaleX * z}px`,
+            height: `${imgHeight * scaleY * z}px`,
+            left: `${-crop.x * scaleX * z}px`,
+            top: `${-crop.y * scaleY * z}px`,
+            maxWidth: 'none',
         };
     } else {
         imgStyle = {

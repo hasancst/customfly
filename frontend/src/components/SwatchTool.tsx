@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { CanvasElement } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import {
     Dialog,
     DialogContent,
@@ -38,9 +39,10 @@ interface SwatchToolProps {
     userFonts?: any[];
     onRefreshAssets?: () => void;
     onSaveAsset?: (asset: any) => Promise<any>;
+    isPublicMode?: boolean;
 }
 
-export function SwatchTool({ selectedElement, onUpdateElement, productData, userOptions, userFonts, activeElementPaletteColors = [], onRefreshAssets, onSaveAsset }: SwatchToolProps) {
+export function SwatchTool({ selectedElement, onUpdateElement, productData, userOptions, userFonts, activeElementPaletteColors = [], onRefreshAssets, onSaveAsset, isPublicMode }: SwatchToolProps) {
     const [newColor, setNewColor] = React.useState('#000000');
     const [newItemName, setNewItemName] = React.useState('');
 
@@ -84,13 +86,23 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const dataUrl = event.target?.result as string;
-            await handleUpdateItemValue(updatingIndex, dataUrl);
+        const formData = new FormData();
+        formData.append('image', file);
+        const shop = new URLSearchParams(window.location.search).get('shop') || '';
+
+        try {
+            const response = await fetch(`/imcst_api/public/upload/image?folder=swatches&shop=${encodeURIComponent(shop)}&webp=true`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!response.ok) throw new Error('Upload failed');
+            const data = await response.json();
+            await handleUpdateItemValue(updatingIndex, data.url);
+        } catch (err) {
+            console.error('Swatch upload error:', err);
+        } finally {
             setUpdatingIndex(null);
-        };
-        reader.readAsDataURL(file);
+        }
     };
 
     const handleAddItemWithValues = async (newValue: string) => {
@@ -195,14 +207,38 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
             <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-orange-50/50">
                 <div className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-orange-600" />
-                    <span className="font-bold text-sm text-gray-700">Swatch Settings</span>
+                    <span className={`font-bold ${isPublicMode ? 'text-[16px]' : 'text-sm'} text-gray-700`}>Swatch Settings</span>
                 </div>
             </div>
 
             <div className="p-4 space-y-6 flex-1 overflow-y-auto">
+                {/* Title and Visibility */}
+                <div className="space-y-3 p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
+                    <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-gray-400">Title</Label>
+                        <Input
+                            value={selectedElement.label || ''}
+                            onChange={(e) => onUpdateElement(selectedElement.id, { label: e.target.value })}
+                            className="h-10 bg-white"
+                            placeholder="e.g. Choose Color"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-white/60 rounded-xl border border-orange-100/50">
+                        <div className="flex flex-col">
+                            <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                            <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                        </div>
+                        <Switch
+                            checked={selectedElement.showLabel !== false}
+                            onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showLabel: checked })}
+                            className="scale-75"
+                        />
+                    </div>
+                </div>
+
                 {/* Group Options Selector */}
                 <div className="space-y-3">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
+                    <Label className="text-[10px] font-bold text-gray-400 flex items-center gap-2">
                         <Link2 className="w-3 h-3" />
                         Group Options
                     </Label>
@@ -234,7 +270,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                             <SelectItem value="none">None (Manual Setup)</SelectItem>
                             {productOptions.length > 0 && (
                                 <>
-                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50">Shopify Options</div>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 bg-gray-50/50">Shopify Options</div>
                                     {productOptions.map((opt: any) => (
                                         <SelectItem key={opt.name} value={opt.name}>{opt.name}</SelectItem>
                                     ))}
@@ -242,7 +278,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                             )}
                             {userOptions && userOptions.length > 0 && (
                                 <>
-                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50 mt-1">Saved Asset Groups</div>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 bg-gray-50/50 mt-1">Saved Asset Groups</div>
                                     {userOptions.map((asset) => (
                                         <SelectItem key={asset.id} value={`asset:${asset.id}`}>
                                             {asset.name}
@@ -256,7 +292,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Swatch Shape</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Swatch Shape</Label>
                         <Select
                             value={selectedElement.swatchShape || 'circle'}
                             onValueChange={(val: any) => onUpdateElement(selectedElement.id, { swatchShape: val })}
@@ -273,7 +309,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                         <Select
                             value={selectedElement.fontAssetId || "none"}
                             onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
@@ -294,7 +330,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
                     {/* Visual Preview Box */}
                     <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-3">
-                        <Label className="text-[9px] font-bold text-gray-400 uppercase">Swatch Preview</Label>
+                        <Label className="text-[9px] font-bold text-gray-400">Swatch Preview</Label>
                         <div className="space-y-2">
                             <div className="flex gap-2">
                                 {[1, 2, 3].map((_, i) => (
@@ -316,7 +352,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
                 {(selectedElement.swatchColors && selectedElement.swatchColors.length > 0) ? (
                     <div className="space-y-3">
-                        <Label className="text-xs font-bold text-gray-500 uppercase">Current Items</Label>
+                        <Label className="text-xs font-bold text-gray-500">Current Items</Label>
                         <ScrollArea className="h-[200px] w-full rounded-xl border border-gray-100 bg-gray-50/50 p-2">
                             <div className="space-y-1">
                                 {selectedElement.swatchColors.map((color, idx) => {
@@ -366,7 +402,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                                                             <PopoverContent className="w-64 p-3 pointer-events-auto" side="left">
                                                                 <div className="space-y-4">
                                                                     <div className="space-y-2">
-                                                                        <Label className="text-[10px] font-bold uppercase text-gray-500">Preset Palette</Label>
+                                                                        <Label className="text-[10px] font-bold text-gray-500">Preset Palette</Label>
                                                                         <div className="grid grid-cols-6 gap-1.5 overflow-y-auto max-h-32">
                                                                             {activeElementPaletteColors.length > 0 ? (
                                                                                 activeElementPaletteColors.map((color, pIdx) => (
@@ -387,7 +423,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                                                                     <Separator className="bg-gray-100" />
 
                                                                     <div className="space-y-2">
-                                                                        <Label className="text-[10px] font-bold uppercase text-gray-500">Custom Color</Label>
+                                                                        <Label className="text-[10px] font-bold text-gray-500">Custom Color</Label>
                                                                         <div className="flex gap-2 items-center">
                                                                             <div className="relative w-8 h-8 rounded-lg border border-gray-200 shadow-inner overflow-hidden flex-shrink-0">
                                                                                 <Input
@@ -462,18 +498,27 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                                     ref={fileInputRef}
                                     className="hidden"
                                     accept="image/*"
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (event) => {
-                                                const dataUrl = event.target?.result as string;
-                                                setNewColor(dataUrl);
+                                            const formData = new FormData();
+                                            formData.append('image', file);
+                                            const shop = new URLSearchParams(window.location.search).get('shop') || '';
+
+                                            try {
+                                                const response = await fetch(`/imcst_api/public/upload/image?folder=swatches&shop=${encodeURIComponent(shop)}&webp=true`, {
+                                                    method: 'POST',
+                                                    body: formData,
+                                                });
+                                                if (!response.ok) throw new Error('Upload failed');
+                                                const data = await response.json();
+                                                setNewColor(data.url);
                                                 if (!newItemName) {
                                                     setNewItemName(file.name.split('.')[0]);
                                                 }
-                                            };
-                                            reader.readAsDataURL(file);
+                                            } catch (err) {
+                                                console.error('Swatch upload error:', err);
+                                            }
                                         }
                                     }}
                                 />
@@ -481,7 +526,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                                 <Button
                                     size="sm"
                                     onClick={handleAddItemToCurrent}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white h-8 px-3 rounded-lg font-bold text-[10px] uppercase"
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white h-8 px-3 rounded-lg font-bold text-[10px]"
                                 >
                                     Add
                                 </Button>

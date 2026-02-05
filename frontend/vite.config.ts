@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? 'https://custom.duniasantri.com/' : '/',
+  base: '/', // Use relative base to allow backend to swap CDN URLs dynamically
   plugins: [
     // The React and Tailwind plugins are both required for Make, even if
     // Tailwind is not being actively used – do not remove them
@@ -27,7 +27,7 @@ export default defineConfig({
       output: {
         entryFileNames: (chunkInfo) => {
           return chunkInfo.name === 'public'
-            ? 'imcst_assets/public-[hash].js'
+            ? 'imcst_assets/designer-storefront-[hash].js'
             : 'imcst_assets/admin-[hash].js';
         },
         chunkFileNames: (chunkInfo) => {
@@ -55,7 +55,7 @@ export default defineConfig({
             return 'vendor-ui';
           }
           // Separate heavy graphic libs for lazy loading
-          if (id.includes('html2canvas') || id.includes('jspdf') || id.includes('pdfjs-dist')) {
+          if (id.includes('html2canvas') || id.includes('jspdf') || id.includes('pdfjs-dist') || id.includes('psd.js')) {
             return 'vendor-graphics';
           }
         }

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:regression": "node ../doc/test-realtime-sync.js",
     "start": "node server.js",
     "dev": "cross-env NODE_ENV=development node --watch server.js",
     "prisma:generate": "prisma generate",
@@ -14,6 +15,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.980.0",
+    "@aws-sdk/lib-storage": "^3.980.0",
     "@prisma/client": "^5.22.0",
     "@shopify/shopify-api": "^12.3.0",
     "@shopify/shopify-app-express": "^6.0.5",
@@ -24,11 +27,14 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "morgan": "^1.10.1",
+    "multer": "^2.0.2",
     "node-cache": "^5.1.2",
     "prisma": "^5.22.0",
+    "sharp": "^0.34.5",
     "winston": "^3.19.0"
   },
   "devDependencies": {
+    "form-data": "^4.0.5",
     "vitest": "^4.0.18"
   }
 }

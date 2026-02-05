@@ -43,6 +43,7 @@ interface HeaderProps {
   allDesigns?: any[];
   onLoadDesign?: (design: any, mode: 'full' | 'base_only' | 'options_only') => void;
   onDeleteDesign?: (id: string, name: string) => void;
+  onClearAllDesigns?: () => void;
   showSummary?: boolean;
   onToggleSummary?: () => void;
   onClose?: () => void;
@@ -53,6 +54,8 @@ interface HeaderProps {
   pricingConfigComponent?: React.ReactNode;
   handle?: string;
   shop?: string;
+  onPreview?: () => void;
+  showPreview?: boolean;
 }
 
 export function Header({
@@ -69,6 +72,7 @@ export function Header({
   allDesigns = [],
   onLoadDesign,
   onDeleteDesign,
+  onClearAllDesigns,
   showSummary,
   onToggleSummary,
   onClose,
@@ -79,6 +83,8 @@ export function Header({
   pricingConfigComponent,
   handle,
   shop,
+  onPreview,
+  showPreview = false,
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -104,14 +110,14 @@ export function Header({
             {design.name}
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded font-bold uppercase overflow-hidden">
+            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded font-bold overflow-hidden">
               {new Date(design.updatedAt).toLocaleDateString()}
             </span>
           </div>
         </DropdownMenuSubTrigger>
         <DropdownMenuPortal>
           <DropdownMenuSubContent className="w-56 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000003]">
-            <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 py-1.5">Load Method</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 tracking-widest px-2 py-1.5">Load Method</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-gray-100" />
             <DropdownMenuItem
               onClick={() => onLoadDesign?.(design, 'full')}
@@ -166,7 +172,7 @@ export function Header({
 
   return (
     <TooltipProvider delayDuration={150}>
-      <header className="h-16 bg-white border-b border-gray-200 px-4 flex items-center justify-between shadow-sm z-[100000] overflow-visible">
+      <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between z-[100000] overflow-visible">
         <div className="flex items-center gap-4">
           {onClose && (
             <Tooltip>
@@ -175,9 +181,9 @@ export function Header({
                   variant="ghost"
                   size="icon"
                   onClick={onClose}
-                  className="h-10 w-10 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  className="h-12 w-12 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-6 h-6" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Close Designer</TooltipContent>
@@ -186,12 +192,12 @@ export function Header({
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div className="flex flex-col justify-center">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-gray-900 leading-none uppercase tracking-wider">
+                  <h3 className="text-sm font-medium text-gray-900 leading-none">
                     {title || "Product Builder"}
                   </h3>
                   {handle && effectiveShop && (
@@ -217,17 +223,17 @@ export function Header({
 
         <div className="flex-1 flex items-center justify-center px-12">
           <div className="flex items-center gap-3 max-w-lg w-full">
-            <span className="text-xs font-bold text-gray-400 whitespace-nowrap uppercase tracking-tight">Design Name:</span>
+            <span className="text-sm font-medium text-gray-400 whitespace-nowrap">Design Name:</span>
             <div className="relative flex-1">
-              <Input
+              <input
                 value={designName}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => onDesignNameChange?.(e.target.value)}
-                className="h-9 bg-gray-50 border-gray-200 focus:bg-white transition-colors text-center font-bold text-indigo-600 pr-10 rounded-lg w-full"
+                className="h-11 bg-gray-50 border border-gray-200 focus:bg-white transition-colors text-center font-medium text-indigo-600 pr-10 rounded-xl w-full text-base outline-none focus:ring-2 focus:ring-indigo-500/20"
                 placeholder="Name your design..."
               />
               {isSaving && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
                 </div>
               )}
               {!isSaving && lastSavedTime && (
@@ -248,9 +254,9 @@ export function Header({
                   size="sm"
                   onClick={onUndo}
                   disabled={!canUndo}
-                  className="rounded-lg h-9 w-9"
+                  className="rounded-xl h-11 w-11"
                 >
-                  <Undo2 className="w-4 h-4" />
+                  <Undo2 className="w-5 h-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Undo (Ctrl+Z)</TooltipContent>
@@ -263,9 +269,9 @@ export function Header({
                   size="sm"
                   onClick={onRedo}
                   disabled={!canRedo}
-                  className="rounded-lg h-9 w-9"
+                  className="rounded-xl h-11 w-11"
                 >
-                  <Redo2 className="w-4 h-4" />
+                  <Redo2 className="w-5 h-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Redo (Ctrl+Y)</TooltipContent>
@@ -280,10 +286,10 @@ export function Header({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 flex items-center gap-2 px-3 h-9"
+                      className="rounded-xl text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 flex items-center gap-2 px-4 h-11"
                     >
-                      <List className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase tracking-tight">Load</span>
+                      <List className="w-5 h-5" />
+                      <span className="text-sm font-medium">Load</span>
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -292,11 +298,14 @@ export function Header({
               <DropdownMenuContent align="end" className="w-[320px] rounded-xl shadow-2xl border-gray-100 p-2 z-[100001]">
                 <Tabs defaultValue="product" className="w-full">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-gray-50 mb-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Load Template</span>
-                    <TabsList className="bg-gray-100 p-0.5 h-7">
-                      <TabsTrigger value="product" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Product</TabsTrigger>
-                      <TabsTrigger value="library" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Library</TabsTrigger>
-                    </TabsList>
+                    <span className="text-[10px] font-bold text-gray-400 tracking-widest">Load Template</span>
+                    <div className="flex items-center gap-2">
+
+                      <TabsList className="bg-gray-100 p-0.5 h-7">
+                        <TabsTrigger value="product" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Product</TabsTrigger>
+                        <TabsTrigger value="library" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Library</TabsTrigger>
+                      </TabsList>
+                    </div>
                   </div>
                   <TabsContent value="product" className="mt-0">
                     {savedDesigns.length === 0 ? (
@@ -307,6 +316,21 @@ export function Header({
                     ) : (
                       <div className="max-h-[400px] overflow-y-auto pr-1 space-y-1">
                         {savedDesigns.map((design) => renderDesignItem(design))}
+                        {onClearAllDesigns && (
+                          <div className="pt-2 mt-2 border-t border-gray-50">
+                            <button
+                              onClick={() => {
+                                if (window.confirm("Are you sure you want to delete ALL saved designs for this product? This prevents future loading.")) {
+                                  onClearAllDesigns();
+                                }
+                              }}
+                              className="w-full py-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 font-bold tracking-wide rounded-lg transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Clear All Designs
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </TabsContent>
@@ -336,9 +360,9 @@ export function Header({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-lg h-9 w-9 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        className="rounded-xl h-11 w-11 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                       >
-                        <DollarSign className="w-4 h-4" />
+                        <DollarSign className="w-5 h-5" />
                       </Button>
                     </DialogTrigger>
                   </TooltipTrigger>
@@ -375,9 +399,9 @@ export function Header({
                 variant="ghost"
                 size="sm"
                 onClick={onToggleSummary}
-                className={`rounded-lg h-9 w-9 ${!showSummary ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}
+                className={`rounded-xl h-11 w-11 ${!showSummary ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}
               >
-                <PanelRight className="w-4 h-4" />
+                <PanelRight className="w-5 h-5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">{showSummary ? 'Hide' : 'Show'} Controls</TooltipContent>
@@ -389,9 +413,9 @@ export function Header({
                 variant="ghost"
                 size="sm"
                 onClick={toggleFullscreen}
-                className="rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-9 w-9"
+                className="rounded-xl text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-11 w-11"
               >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</TooltipContent>
@@ -405,18 +429,18 @@ export function Header({
                     <DropdownMenuTrigger asChild>
                       <Button
                         disabled={isSaving}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-6 font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95 h-10 flex items-center gap-2 border-b-2 border-indigo-800 uppercase tracking-wide text-xs group"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 font-medium shadow-lg shadow-indigo-200 transition-all active:scale-95 h-12 flex items-center gap-3 border-b-4 border-indigo-800 tracking-wide text-sm group"
                       >
                         {isSaving ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-5 h-5 animate-spin" />
                             <span>Saving...</span>
                           </>
                         ) : (
                           <>
-                            <CloudUpload className="w-4 h-4" />
+                            <CloudUpload className="w-5 h-5" />
                             <span>Save Design</span>
-                            <ChevronDown className="w-3 h-3 ml-1 opacity-50 group-hover:opacity-100 transition-opacity" />
+                            <ChevronDown className="w-4 h-4 ml-1 opacity-50 group-hover:opacity-100 transition-opacity" />
                           </>
                         )}
                       </Button>
@@ -425,7 +449,7 @@ export function Header({
                   <TooltipContent side="bottom">Save Design Changes</TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent align="end" className="w-60 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000002]">
-                  <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-gray-100" />
                   <DropdownMenuItem onClick={() => onSave?.(false)} className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
                     <div className="flex items-center gap-3">
@@ -453,9 +477,9 @@ export function Header({
                   <Button
                     onClick={() => onSave?.(false)}
                     disabled={isSaving}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-8 font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95 h-10 flex items-center gap-2 border-b-2 border-indigo-800 uppercase tracking-wide text-xs"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-10 font-medium shadow-lg shadow-indigo-200 transition-all active:scale-95 h-12 flex items-center gap-3 border-b-4 border-indigo-800 tracking-wide text-sm"
                   >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CloudUpload className="w-5 h-5" />}
                     <span>{isSaving ? 'Processing...' : buttonText}</span>
                   </Button>
                 </TooltipTrigger>

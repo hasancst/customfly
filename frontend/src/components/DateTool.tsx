@@ -88,7 +88,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
             setDateFormat('DD/MM/YYYY');
             setLabel('');
         }
-    }, [selectedElement?.id]);
+    }, [selectedElement?.id, selectedElement?.maxChars]);
 
     const handleAddDate = () => {
         const formattedText = formatDate(dateValue, dateFormat);
@@ -140,15 +140,29 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
                         value={label}
                         onChange={(e) => {
                             setLabel(e.target.value);
-                            handleUpdate({ label: e.target.value });
+                            if (selectedElement) onUpdateElement(selectedElement.id, { label: e.target.value });
                         }}
-                        placeholder="e.g. Delivery Date"
-                        className="h-9 font-bold bg-white"
+                        placeholder="e.g. Select Date"
+                        className="h-10 rounded-xl border-gray-200 bg-white"
                     />
                 </div>
 
+                {selectedElement && (
+                    <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+                        <div className="flex flex-col">
+                            <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                            <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                        </div>
+                        <Switch
+                            checked={selectedElement.showLabel !== false}
+                            onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showLabel: checked })}
+                            className="scale-75"
+                        />
+                    </div>
+                )}
+
                 <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Preview Date</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Preview Date</Label>
                     <div className="flex gap-2">
                         <Input
                             type="date"
@@ -164,7 +178,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
                 </div>
 
                 <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Format</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Format</Label>
                     <Select
                         value={dateFormat}
                         onValueChange={(val) => {
@@ -202,7 +216,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
                     <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-2 h-8 hover:bg-teal-50 text-gray-500 hover:text-teal-600 rounded-lg group">
                         <div className="flex items-center gap-2">
                             <Settings2 className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Configuration</span>
+                            <span className="text-[10px] font-bold tracking-wider">Configuration</span>
                         </div>
                         <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </Button>
@@ -211,7 +225,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
 
                     {/* Visual Styling */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Visual Style</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
                         <Select
                             value={fontFamily}
                             onValueChange={(val) => {
@@ -232,7 +246,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
                         </Select>
 
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                             <Select
                                 value={selectedElement?.fontAssetId || "none"}
                                 onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
@@ -306,7 +320,7 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
 
                     {/* Color Palette Selector */}
                     <div className="space-y-1.5 pt-2">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Color Palette</Label>
                         <Select
                             value={selectedElement?.colorAssetId || "none"}
                             onValueChange={(val) => {
@@ -329,6 +343,6 @@ export function DateTool({ onAddElement, selectedElement, onUpdateElement, userF
                     </div>
                 </CollapsibleContent>
             </Collapsible>
-        </div>
+        </div >
     );
 }

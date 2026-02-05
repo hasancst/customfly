@@ -45,6 +45,7 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
             setIsRequired(selectedElement.isRequired || false);
             setHelpText(selectedElement.helpText || '');
             setHideLabel(selectedElement.hideLabel ?? true);
+            // Sync maxChars if needed, though mostly handled by direct update access
         } else {
             // Reset to defaults for new element
             setDefaultValue('+62 812-3456-7890');
@@ -52,7 +53,7 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
             setHideLabel(true);
             // Keep style persistence if desired, or reset
         }
-    }, [selectedElement?.id]);
+    }, [selectedElement?.id, selectedElement?.maxChars]);
 
     const handleAddPhone = () => {
         const phoneVal = defaultValue;
@@ -98,19 +99,38 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
                             setLabel(e.target.value);
                             handleUpdate({ label: e.target.value });
                         }}
-                        placeholder="e.g. WhatsApp Number"
-                        className="h-9 font-bold bg-white"
+                        className="h-9 rounded-lg text-xs"
+                        placeholder="e.g. Phone Number"
                     />
                 </div>
 
+                {selectedElement && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-xl border border-gray-100/50">
+                        <div className="flex flex-col">
+                            <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                            <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                        </div>
+                        <Switch
+                            checked={selectedElement.showLabel !== false}
+                            onCheckedChange={(checked) => handleUpdate({ showLabel: checked })}
+                            className="scale-75"
+                        />
+                    </div>
+                )}
+
                 <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Preview Phone Number</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Preview Phone Number</Label>
                     <div className="flex gap-2">
                         <Input
                             type="text"
                             value={defaultValue}
+                            maxLength={selectedElement?.maxChars && selectedElement.maxChars > 0 ? selectedElement.maxChars : undefined}
                             onChange={(e) => {
-                                const val = e.target.value;
+                                let val = e.target.value;
+                                const limit = selectedElement?.maxChars || 0;
+                                if (limit > 0 && val.length > limit) {
+                                    val = val.substring(0, limit);
+                                }
                                 setDefaultValue(val);
                                 handleUpdate({ text: val });
                             }}
@@ -137,7 +157,7 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
                     <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-2 h-8 hover:bg-teal-50 text-gray-500 hover:text-teal-600 rounded-lg group">
                         <div className="flex items-center gap-2">
                             <Settings2 className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Configuration</span>
+                            <span className="text-[10px] font-bold tracking-wider">Configuration</span>
                         </div>
                         <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </Button>
@@ -146,7 +166,7 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
 
                     {/* Visual Styling */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Visual Style</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
                         <Select
                             value={fontFamily}
                             onValueChange={(val) => {
@@ -167,7 +187,7 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
                         </Select>
 
                         <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                             <Select
                                 value={selectedElement?.fontAssetId || "none"}
                                 onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
@@ -227,6 +247,22 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
                                 placeholder="Helpful hint..."
                             />
                         </div>
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-medium text-gray-400">Max Characters</Label>
+                                <span className="text-[10px] text-gray-400 italic">0 = Unlimited</span>
+                            </div>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={selectedElement?.maxChars ?? 0}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    handleUpdate({ maxChars: val });
+                                }}
+                                className="h-8 rounded-lg font-bold text-xs"
+                            />
+                        </div>
                         <div className="flex items-center justify-between py-2 px-1">
                             <Label className="text-[10px] font-bold text-gray-600">Required Field</Label>
                             <Switch
@@ -251,7 +287,7 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
 
                     {/* Color Palette Selector */}
                     <div className="space-y-1.5 pt-2">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Color Palette</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Color Palette</Label>
                         <Select
                             value={selectedElement?.colorAssetId || "none"}
                             onValueChange={(val) => {
@@ -274,6 +310,6 @@ export function PhoneTool({ onAddElement, selectedElement, onUpdateElement, user
                     </div>
                 </CollapsibleContent>
             </Collapsible>
-        </div>
+        </div >
     );
 }

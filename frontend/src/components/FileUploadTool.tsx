@@ -12,6 +12,7 @@ interface FileUploadToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
+    isPublicMode?: boolean;
 }
 
 const COMMON_FILE_TYPES = [
@@ -24,18 +25,23 @@ const COMMON_FILE_TYPES = [
     { id: '.zip', label: 'ZIP Archive' }
 ];
 
-export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement }: FileUploadToolProps) {
+export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement, isPublicMode }: FileUploadToolProps) {
     const [allowedTypes, setAllowedTypes] = useState<string[]>(
         selectedElement?.allowedFileTypes || ['.jpg', '.png', '.pdf']
     );
     const [maxSize, setMaxSize] = useState(selectedElement?.maxFileSize || 10);
     const [label, setLabel] = useState(selectedElement?.label || 'Upload your file');
+    const [showLabel, setShowLabel] = useState(selectedElement?.showLabel !== false);
 
     useEffect(() => {
         if (selectedElement) {
             if (selectedElement.allowedFileTypes) setAllowedTypes(selectedElement.allowedFileTypes);
             if (selectedElement.maxFileSize) setMaxSize(selectedElement.maxFileSize);
             if (selectedElement.label) setLabel(selectedElement.label);
+            setShowLabel(selectedElement.showLabel !== false);
+        } else {
+            setLabel('Upload your file');
+            setShowLabel(true);
         }
     }, [selectedElement]);
 
@@ -59,7 +65,7 @@ export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement 
             {/* Label Edit */}
             <div className="px-1 space-y-4">
                 <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Button Label</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Button Label</Label>
                     <Input
                         value={label}
                         onChange={(e) => {
@@ -71,8 +77,23 @@ export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement 
                     />
                 </div>
 
+                <div className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50">
+                    <div className="flex flex-col">
+                        <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                        <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                    </div>
+                    <Switch
+                        checked={showLabel}
+                        onCheckedChange={(checked: boolean) => {
+                            setShowLabel(checked);
+                            handleUpdate({ showLabel: checked });
+                        }}
+                        className="scale-75"
+                    />
+                </div>
+
                 <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Instruction Text</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Instruction Text</Label>
                     <Input
                         value={selectedElement?.helpText || ''}
                         onChange={(e) => handleUpdate({ helpText: e.target.value })}
@@ -97,7 +118,7 @@ export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement 
 
             {/* Allowed File Types */}
             <div className="px-1 space-y-3">
-                <Label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <Label className={`${isPublicMode ? 'text-[16px]' : 'text-sm'} font-bold text-gray-700 flex items-center gap-2`}>
                     <FileText className="w-4 h-4 text-emerald-500" />
                     Allowed File Types
                 </Label>
@@ -124,7 +145,7 @@ export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement 
             {/* Max File Size */}
             <div className="px-1 space-y-4">
                 <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold text-gray-700">Max File Size</Label>
+                    <Label className={`${isPublicMode ? 'text-[16px]' : 'text-sm'} font-bold text-gray-700`}>Max File Size</Label>
                     <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
                         {maxSize} MB
                     </span>

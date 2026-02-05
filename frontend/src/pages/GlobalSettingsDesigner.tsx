@@ -112,7 +112,7 @@ export default function GlobalSettingsDesigner() {
     const [isBaseImageModalOpen, setIsBaseImageModalOpen] = useState(false);
     const [productVariant] = useState({ color: 'white', size: 'M', material: 'cotton' });
     const [enableBounce] = useState(false);
-    const [productOutputSettings, setProductOutputSettings] = useState<any>(null);
+    const [outputSettings, setOutputSettings] = useState<any>(null);
 
     const fetch = useAuthenticatedFetch();
     const shopifyApp = useAppBridge();
@@ -186,7 +186,7 @@ export default function GlobalSettingsDesigner() {
                             if (config.unit) setUnit(config.unit);
                             if (config.showRulers !== undefined) setShowRulers(config.showRulers);
                             if (config.showSafeArea !== undefined) setShowSafeArea(config.showSafeArea);
-                            if (config.productOutputSettings) setProductOutputSettings(config.productOutputSettings);
+                            if (config.outputSettings) setOutputSettings(config.outputSettings);
                             if (config.selectedColorAssetId) setSelectedColorAssetId(config.selectedColorAssetId);
                         }
                     } catch (parseErr) {
@@ -284,7 +284,7 @@ export default function GlobalSettingsDesigner() {
             const config = {
                 safeAreaPadding, safeAreaRadius, safeAreaWidth, safeAreaHeight, safeAreaOffset,
                 paperSize, customPaperDimensions, unit, showRulers, showSafeArea,
-                productOutputSettings, selectedColorAssetId
+                outputSettings, selectedColorAssetId
             };
 
             const res = await fetch('/imcst_api/global_design', {
@@ -487,8 +487,8 @@ export default function GlobalSettingsDesigner() {
                         onBaseImageColorChange={(c) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: c } : p))}
                         baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask}
                         onToggleBaseImageAsMask={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageAsMask: v } : p))}
-                        productOutputSettings={productOutputSettings}
-                        onProductOutputSettingsChange={setProductOutputSettings}
+                        outputSettings={outputSettings}
+                        onProductOutputSettingsChange={setOutputSettings}
                     />
                 </div>
             </div>

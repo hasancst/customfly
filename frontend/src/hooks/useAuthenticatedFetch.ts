@@ -30,39 +30,69 @@ export function useAuthenticatedFetch() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
+        // Extract shop from token as fallback
+        let shopFromToken = '';
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.dest) {
+                    shopFromToken = new URL(payload.dest).hostname;
+                    console.log('[AUTH] Shop from token:', shopFromToken);
+                }
+            } catch (e) {
+                console.warn("[AUTH] Failed to decode token for shop:", e);
+            }
+        }
+
         // Append current window query params (host, shop, etc) to the URI
         const currentSearch = window.location.search;
-        let finalUri = uri;
-        if (currentSearch) {
-            const separator = uri.includes('?') ? '&' : '?';
-            const params = new URLSearchParams(currentSearch);
+        const params = new URLSearchParams(currentSearch);
+        const cleanParams = new URLSearchParams();
 
-            // Sanitize params: remove any "undefined" or "null" string values
-            const cleanParams = new URLSearchParams();
-            params.forEach((value, key) => {
-                if (value !== 'undefined' && value !== 'null' && value !== '') {
-                    cleanParams.set(key, value);
-                }
-            });
+        params.forEach((value, key) => {
+            if (value !== 'undefined' && value !== 'null' && value !== '') {
+                cleanParams.set(key, value);
+            }
+        });
 
-            const paramsStr = cleanParams.toString();
-            finalUri = paramsStr ? `${uri}${separator}${paramsStr}` : uri;
+        // Ensure shop is present (fallback to token if missing from URL)
+        if (!cleanParams.has('shop') && shopFromToken) {
+            cleanParams.set('shop', shopFromToken);
         }
+
+        const paramsStr = cleanParams.toString();
+        const separator = uri.includes('?') ? '&' : '?';
+        const finalUri = paramsStr ? `${uri}${separator}${paramsStr}` : uri;
+
+        console.log(`[AUTH] Fetching: ${finalUri}`, {
+            hasToken: !!token,
+            shopFromToken,
+            paramsStr
+        });
 
         const response = await fetch(finalUri, {
             ...options,
             headers,
         });
 
+        console.log(`[AUTH] Response from ${finalUri}:`, {
+            status: response.status,
+            ok: response.ok,
+            reauthorize: response.headers.get("X-Shopify-API-Request-Failure-Reauthorize")
+        });
+
         // Handle potential re-authorization from the backend
-        if (response.headers.get("X-Shopify-API-Request-Failure-Reauthorize") === "1") {
+        if (response.headers.get("X-Shopify-API-Request-Failure-Reauthorize") === "1" || response.status === 401) {
             const authUrlHeader = response.headers.get("X-Shopify-API-Request-Failure-Reauthorize-Url");
-            if (authUrlHeader) {
+            if (authUrlHeader && !authUrlHeader.includes('shop=undefined')) {
+                console.log('[AUTH] Redirecting via header:', authUrlHeader);
                 window.location.href = authUrlHeader;
             } else {
-                const rawShop = new URLSearchParams(window.location.search).get('shop');
-                const shop = (rawShop && rawShop !== 'undefined' && rawShop !== 'null') ? rawShop : null;
+                const rawShop = params.get('shop');
+                const shop = (rawShop && rawShop !== 'undefined' && rawShop !== 'null') ? rawShop : shopFromToken;
                 const authUrl = shop ? `/api/auth?shop=${shop}` : "/api/auth";
+                console.warn('[AUTH] Manual redirect triggered. Shop source:', { rawShop, shopFromToken });
+                console.log('[AUTH] Redirecting to:', authUrl);
                 window.location.href = authUrl;
             }
             return response;

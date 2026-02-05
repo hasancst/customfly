@@ -79,14 +79,27 @@ export function CheckboxTool({
                 {/* General Settings */}
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Title</Label>
                         <Input
                             value={selectedElement.label || ''}
                             onChange={(e) => onUpdateElement(selectedElement.id, { label: e.target.value })}
-                            className="h-9"
+                            className="h-10"
                             placeholder="e.g. Select Extras"
                         />
                     </div>
+
+                    {selectedElement && (
+                        <div className="flex items-center justify-between p-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
+                            <div className="flex flex-col">
+                                <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
+                                <p className="text-[9px] text-gray-500">Display this title to customers</p>
+                            </div>
+                            <Switch
+                                checked={selectedElement.showLabel !== false}
+                                onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showLabel: checked })}
+                                className="scale-75"
+                            />
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 gap-2">
                         <div className="flex items-center justify-between py-2 px-3 bg-gray-50/50 rounded-lg border border-gray-100 shadow-sm">
@@ -119,7 +132,7 @@ export function CheckboxTool({
                         {selectedElement.isMultiple && (
                             <div className="grid grid-cols-2 gap-2 p-2 bg-amber-50/30 rounded-lg border border-amber-100/50">
                                 <div className="space-y-1">
-                                    <Label className="text-[9px] font-bold text-amber-700 uppercase">Min Select</Label>
+                                    <Label className="text-[9px] font-bold text-amber-700">Min Select</Label>
                                     <Input
                                         type="number"
                                         min={0}
@@ -130,7 +143,7 @@ export function CheckboxTool({
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-[9px] font-bold text-amber-700 uppercase">Max Select</Label>
+                                    <Label className="text-[9px] font-bold text-amber-700">Max Select</Label>
                                     <Input
                                         type="number"
                                         min={0}
@@ -148,7 +161,7 @@ export function CheckboxTool({
 
                 {/* Font Configuration */}
                 <div className="space-y-3 pt-2 border-t border-gray-100">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase">Typography</Label>
+                    <Label className="text-[10px] font-bold text-gray-400">Typography</Label>
                     <Select
                         value={selectedElement.fontFamily || 'Inter'}
                         onValueChange={(val) => onUpdateElement(selectedElement.id, { fontFamily: val })}
@@ -166,7 +179,7 @@ export function CheckboxTool({
                     </Select>
 
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Font Group</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                         <Select
                             value={selectedElement.fontAssetId || "none"}
                             onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
@@ -212,7 +225,7 @@ export function CheckboxTool({
 
                     {/* Source Selection */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
+                        <Label className="text-[10px] font-bold text-gray-400 flex items-center gap-2">
                             <Link2 className="w-3 h-3" />
                             Group Options
                         </Label>
@@ -227,7 +240,7 @@ export function CheckboxTool({
                                 <SelectItem value="none">No Source (Static)</SelectItem>
                                 {userOptions && userOptions.length > 0 && (
                                     <>
-                                        <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50/50 mt-1">Saved Asset Groups</div>
+                                        <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 bg-gray-50/50 mt-1">Saved Asset Groups</div>
                                         {userOptions.map((asset) => (
                                             <SelectItem key={asset.id} value={`asset:${asset.id}`}>
                                                 {asset.name}
@@ -243,7 +256,7 @@ export function CheckboxTool({
                     {selectedElement.checkboxOptions && selectedElement.checkboxOptions.length > 0 && (
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-bold text-gray-400 uppercase">Enable/Disable Options</Label>
+                                <Label className="text-[10px] font-bold text-gray-400">Enable/Disable Options</Label>
                             </div>
                             <ScrollArea className="h-[200px] w-full rounded-xl border border-gray-100 bg-gray-50/50 p-2">
                                 <div className="space-y-1">

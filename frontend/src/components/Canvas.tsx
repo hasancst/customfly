@@ -1,5 +1,10 @@
-import { motion, useDragControls } from 'motion/react';
-import { Move } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import {
+  Move,
+  Minus,
+  Plus
+} from 'lucide-react';
 import { CanvasElement, ProductVariant } from '../types';
 import { DraggableElement } from './DraggableElement';
 
@@ -35,6 +40,8 @@ interface CanvasProps {
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
   isPublicMode?: boolean;
   safeAreaShape?: 'rectangle' | 'circle';
+  hideSafeAreaLine?: boolean;
+  onZoomChange?: (zoom: number) => void;
 }
 
 export function Canvas({
@@ -57,6 +64,7 @@ export function Canvas({
   safeAreaWidth,
   safeAreaHeight,
   safeAreaOffset,
+  onZoomChange,
   onUpdateSafeAreaOffset,
   onUpdateSafeAreaWidth,
   onUpdateSafeAreaHeight,
@@ -68,8 +76,14 @@ export function Canvas({
   baseImageProperties,
   onUpdateBaseImage,
   isPublicMode = false,
+  hideSafeAreaLine = false,
 }: CanvasProps) {
-  const dragControls = useDragControls();
+  const [isBaseImageLoaded, setIsBaseImageLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsBaseImageLoaded(false);
+  }, [baseImage]);
+
   const productColors: Record<string, string> = {
     white: '#ffffff',
     black: '#1a1a1a',
@@ -152,12 +166,34 @@ export function Canvas({
 
   return (
     <div
-      className="flex-1 p-12 overflow-auto bg-gradient-to-br from-gray-50 to-gray-100 relative"
+      className="flex-1 p-12 overflow-auto bg-gray-50 relative"
       onPointerDown={() => onSelectElement(null)}
       onClick={() => onSelectElement(null)}
     >
-      <div className="flex items-center justify-center min-h-full">
-        <div className="relative">
+      {/* Floating Zoom Indicator with Controls */}
+      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+        <div className="bg-white px-2 py-1.5 rounded-full shadow-md pointer-events-auto select-none flex items-center gap-2 border border-gray-100/50">
+          <button
+            onClick={() => onZoomChange?.(Math.max(10, zoom - 10))}
+            className="p-1.5 hover:bg-gray-50 rounded-full transition-colors text-gray-500 hover:text-indigo-600"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="min-w-[45px] text-center">
+            <span className="text-[11px] font-black text-gray-900 tracking-tighter">{Math.round(zoom)}%</span>
+          </div>
+
+          <button
+            onClick={() => onZoomChange?.(Math.min(200, zoom + 10))}
+            className="p-1.5 hover:bg-gray-50 rounded-full transition-colors text-gray-500 hover:text-indigo-600"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center justify-center min-w-full min-h-full">
+        <div className="relative m-auto">
           {/* Rulers */}
           {showRulers && !isNaN(currentWidth) && (
             <>
@@ -173,7 +209,7 @@ export function Canvas({
           {/* Paper Canvas */}
           <div
             id="canvas-paper"
-            className={`relative bg-white shadow-2xl overflow-hidden ${showRulers ? 'rounded-br-3xl' : 'rounded-3xl'}`}
+            className="relative bg-white shadow-md overflow-hidden"
             style={{
               width: currentWidth || 1000,
               height: currentHeight || 1000,
@@ -182,244 +218,165 @@ export function Canvas({
             onPointerDown={() => onSelectElement(null)}
             onClick={() => onSelectElement(null)}
           >
-            {/* Base Image */}
+            {/* 2. DESIGN ELEMENTS LAYER */}
+            {(() => {
+              const zoomMult = (validZoom / 100);
+              const maskW = (baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * zoomMult;
+              const maskH = (baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * zoomMult;
+              const maskX = (currentWidth - maskW) / 2 + (baseImageProperties?.x || 0) * zoomMult;
+              const maskY = (currentHeight - maskH) / 2 + (baseImageProperties?.y || 0) * zoomMult;
+
+              const maskStyle: React.CSSProperties = (baseImageAsMask && baseImage && isBaseImageLoaded) ? {
+                WebkitMaskImage: baseImageMaskInvert
+                  ? `url("${baseImage}")`
+                  : `linear-gradient(black, black), url("${baseImage}")`,
+                maskImage: baseImageMaskInvert
+                  ? `url("${baseImage}")`
+                  : `linear-gradient(black, black), url("${baseImage}")`,
+                WebkitMaskSize: baseImageMaskInvert
+                  ? `${maskW}px ${maskH}px`
+                  : `100% 100%, ${maskW}px ${maskH}px`,
+                maskSize: baseImageMaskInvert
+                  ? `${maskW}px ${maskH}px`
+                  : `100% 100%, ${maskW}px ${maskH}px`,
+                WebkitMaskPosition: baseImageMaskInvert
+                  ? `${maskX}px ${maskY}px`
+                  : `0 0, ${maskX}px ${maskY}px`,
+                maskPosition: baseImageMaskInvert
+                  ? `${maskX}px ${maskY}px`
+                  : `0 0, ${maskX}px ${maskY}px`,
+                WebkitMaskRepeat: 'no-repeat',
+                maskRepeat: 'no-repeat',
+                WebkitMaskComposite: baseImageMaskInvert ? 'source-over' : 'destination-out',
+                maskComposite: baseImageMaskInvert ? 'add' : 'subtract',
+                maskMode: 'alpha',
+                WebkitMaskMode: 'alpha'
+              } : {};
+
+              const clipStyle: React.CSSProperties = showSafeArea ? (() => {
+                const p = (safeAreaPadding || 0) / 100;
+                const wPercent = safeAreaWidth !== undefined ? safeAreaWidth / 100 : (1 - 2 * p);
+                const hPercent = safeAreaHeight !== undefined ? safeAreaHeight / 100 : (1 - 2 * p);
+                const zm = (validZoom / 100);
+
+                const sW = currentWidth * wPercent;
+                const sH = currentHeight * hPercent;
+
+                const clipLeft = (currentWidth - sW) / 2 + (safeAreaOffset.x * zm);
+                const clipRight = (currentWidth - sW) / 2 - (safeAreaOffset.x * zm);
+                const clipTop = (currentHeight - sH) / 2 + (safeAreaOffset.y * zm);
+                const clipBottom = (currentHeight - sH) / 2 - (safeAreaOffset.y * zm);
+
+                const clipVal = `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px round ${safeAreaRadius * zm}px)`;
+                return { WebkitClipPath: clipVal, clipPath: clipVal };
+              })() : {};
+
+              return (
+                <div
+                  className="absolute inset-0 transition-all"
+                  style={{
+                    zIndex: 25, // Above mockup (20) for interactivity
+                    ...maskStyle,
+                    ...clipStyle
+                  }}
+                >
+                  {/* Design Elements */}
+                  {(elements || [])
+                    .filter(el => !!el && (!isPublicMode || el.isVisible !== false))
+                    .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+                    .map((element) => (
+                      <DraggableElement
+                        key={element.id}
+                        element={element}
+                        isSelected={selectedElement === element.id}
+                        onSelect={() => onSelectElement(element.id)}
+                        onUpdate={(updates: Partial<CanvasElement>, skipHistory?: boolean) => onUpdateElement(element.id, updates, skipHistory)}
+                        onDelete={() => onDeleteElement(element.id)}
+                        onDuplicate={() => onDuplicateElement(element.id)}
+                        zoom={validZoom}
+                        enableBounce={enableBounce}
+                        isPublicMode={isPublicMode}
+                      />
+                    ))}
+                </div>
+              );
+            })()}
+
+
+            {/* 4. MOCKUP IMAGE LAYER */}
             {baseImage && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[0]">
+              <div
+                className="absolute inset-0 flex items-center justify-center pointer-events-none imcst-base-image"
+                style={{
+                  zIndex: 20
+                }}
+              >
                 <motion.div
                   drag
                   dragMomentum={false}
-                  onDragEnd={(_, info) => {
+                  onDrag={(e, info) => {
+                    const zoomMult = (validZoom / 100);
                     onUpdateBaseImage({
-                      x: (baseImageProperties?.x || 0) + info.offset.x / (validZoom / 100),
-                      y: (baseImageProperties?.y || 0) + info.offset.y / (validZoom / 100),
+                      x: (baseImageProperties?.x || 0) + info.delta.x / zoomMult,
+                      y: (baseImageProperties?.y || 0) + info.delta.y / zoomMult,
                     });
                   }}
-                  className="cursor-move select-none pointer-events-auto relative"
+                  className="relative cursor-move pointer-events-auto"
                   style={{
                     x: (baseImageProperties?.x || 0) * (validZoom / 100),
                     y: (baseImageProperties?.y || 0) * (validZoom / 100),
-                    scale: (baseImageProperties?.scale || 1) * (validZoom / 100),
-                    maxWidth: 'none',
+                    scale: (baseImageProperties?.scale || 1),
                   }}
                 >
-                  <div
-                    className="relative"
-                    style={{
-                      width: baseImageProperties?.width ? `${baseImageProperties.width}px` : 'auto',
-                      height: baseImageProperties?.height ? `${baseImageProperties.height}px` : 'auto',
-                      backgroundColor: (baseImageColorEnabled && baseImageColor) ? baseImageColor : 'transparent',
+                  <img
+                    src={baseImage === 'none' ? undefined : baseImage}
+                    crossOrigin="anonymous"
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      if (!baseImageProperties?.width) {
+                        onUpdateBaseImage({ width: img.naturalWidth, height: img.naturalHeight });
+                      }
+                      setIsBaseImageLoaded(true);
                     }}
-                  >
-                    <img src={baseImage} alt="Base" className="block max-w-none drag-none pointer-events-none" draggable={false} />
-                  </div>
+                    style={{
+                      width: (baseImageProperties?.width || 0) * (validZoom / 100),
+                      height: (baseImageProperties?.height || 0) * (validZoom / 100),
+                      display: baseImage === 'none' ? 'none' : 'block',
+                      maxWidth: 'none',
+                    }}
+                    draggable={false}
+                  />
+
+                  {/* Color Overlay: Now applied to TRANSPARENT area as per user's request */}
+                  {baseImageColorEnabled && baseImageColor && (
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        backgroundColor: baseImageColor,
+                        WebkitMaskImage: `linear-gradient(black, black), url("${baseImage}")`,
+                        maskImage: `linear-gradient(black, black), url("${baseImage}")`,
+                        WebkitMaskSize: '100% 100%, 100% 100%',
+                        maskSize: '100% 100%, 100% 100%',
+                        WebkitMaskRepeat: 'no-repeat',
+                        maskRepeat: 'no-repeat',
+                        WebkitMaskPosition: 'center',
+                        maskPosition: 'center',
+                        WebkitMaskComposite: 'destination-out',
+                        maskComposite: 'subtract',
+                        mixBlendMode: 'normal'
+                      }}
+                    />
+                  )}
                 </motion.div>
               </div>
             )}
 
-            {/* Safe Print Area Overlay (Only show handles/border in Admin) */}
-            {showSafeArea && !isPublicMode && !isNaN(currentWidth) && !isNaN(currentHeight) && (
+            {/* Safe Area Controls (only show in Admin / non-public) */}
+            {!isPublicMode && showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (
               <motion.div
-                drag
-                dragControls={dragControls}
-                dragListener={false}
-                dragMomentum={false}
-                dragElastic={0}
-                onDrag={(e, info) => {
-                  onUpdateSafeAreaOffset({
-                    x: (safeAreaOffset?.x || 0) + info.delta.x / (validZoom / 100),
-                    y: (safeAreaOffset?.y || 0) + info.delta.y / (validZoom / 100)
-                  }, true); // skipHistory
-                }}
-                onDragEnd={() => {
-                  onUpdateSafeAreaOffset(safeAreaOffset, false); // commitHistory
-                }}
-                className="absolute inset-0 z-30 pointer-events-none group/safe-area imcst-preview-hide"
-                style={{
-                  x: (safeAreaOffset?.x || 0) * (validZoom / 100),
-                  y: (safeAreaOffset?.y || 0) * (validZoom / 100),
-                }}
+                className="absolute inset-0 pointer-events-none z-[30]"
               >
                 {(() => {
-                  const p = (safeAreaPadding || 0) / 100;
-                  const wPercent = safeAreaWidth !== undefined ? safeAreaWidth / 100 : (1 - 2 * p);
-                  const hPercent = safeAreaHeight !== undefined ? safeAreaHeight / 100 : (1 - 2 * p);
-                  const safeW = currentWidth * wPercent;
-                  const safeH = currentHeight * hPercent;
-                  const insetX = (currentWidth - safeW) / 2;
-                  const insetY = (currentHeight - safeH) / 2;
-                  const zoomMult = validZoom / 100;
-
-                  const handleResize = (e: React.PointerEvent, direction: 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se') => {
-                    e.stopPropagation();
-                    const startX = e.clientX;
-                    const startY = e.clientY;
-                    const startW = safeW;
-                    const startH = safeH;
-                    const startInsetX = insetX;
-                    const startInsetY = insetY;
-
-                    const onPointerMove = (moveEvent: PointerEvent) => {
-                      const deltaX = (moveEvent.clientX - startX) / zoomMult;
-                      const deltaY = (moveEvent.clientY - startY) / zoomMult;
-
-                      let newW = startW;
-                      let newH = startH;
-                      let newInsetX = startInsetX;
-                      let newInsetY = startInsetY;
-
-                      if (direction.includes('e')) {
-                        newW = startW + deltaX;
-                      }
-                      if (direction.includes('w')) {
-                        newW = startW - deltaX;
-                        newInsetX = startInsetX + deltaX;
-                      }
-                      if (direction.includes('s')) {
-                        newH = startH + deltaY;
-                      }
-                      if (direction.includes('n')) {
-                        newH = startH - deltaY;
-                        newInsetY = startInsetY + deltaY;
-                      }
-
-                      // Clamp values
-                      newW = Math.max(10, Math.min(currentWidth, newW));
-                      newH = Math.max(10, Math.min(currentHeight, newH));
-
-                      let finalWPercent = newW / currentWidth;
-                      let finalHPercent = newH / currentHeight;
-
-                      if (finalWPercent > 1) finalWPercent = 1;
-                      if (finalHPercent > 1) finalHPercent = 1;
-
-                      onUpdateSafeAreaWidth(finalWPercent * 100);
-                      onUpdateSafeAreaHeight(finalHPercent * 100);
-
-                      if (direction.includes('w')) {
-                        const currentCenter = startInsetX + startW / 2;
-                        const newCenter = newInsetX + newW / 2;
-                        const offsetChange = (newCenter - currentCenter) / zoomMult;
-                        onUpdateSafeAreaOffset({ x: (safeAreaOffset?.x || 0) + offsetChange, y: safeAreaOffset?.y || 0 });
-                      }
-                      if (direction.includes('n')) {
-                        const currentMiddle = startInsetY + startH / 2;
-                        const newMiddle = newInsetY + newH / 2;
-                        const offsetChange = (newMiddle - currentMiddle) / zoomMult;
-                        onUpdateSafeAreaOffset({ x: safeAreaOffset?.x || 0, y: (safeAreaOffset?.y || 0) + offsetChange });
-                      }
-                    };
-
-                    const onPointerUp = () => {
-                      window.removeEventListener('pointermove', onPointerMove);
-                      window.removeEventListener('pointerup', onPointerUp);
-                    };
-
-                    window.addEventListener('pointermove', onPointerMove);
-                    window.addEventListener('pointerup', onPointerUp);
-                  };
-
-                  return (
-                    <>
-                      <div className="absolute inset-0 pointer-events-none">
-                        <svg width={currentWidth || 0} height={currentHeight || 0}>
-                          <rect
-                            x={insetX + (safeAreaOffset.x * zoomMult)}
-                            y={insetY + (safeAreaOffset.y * zoomMult)}
-                            width={safeW}
-                            height={safeH}
-                            rx={safeAreaRadius * zoomMult}
-                            ry={safeAreaRadius * zoomMult}
-                            fill="none"
-                            stroke="#4f46e5"
-                            strokeWidth={3}
-                            strokeDasharray="8 4"
-                          />
-                        </svg>
-                      </div>
-
-                      {/* Drag Handle Icon and Label */}
-                      <div
-                        onPointerDown={(e) => dragControls.start(e)}
-                        className="absolute pointer-events-auto cursor-move flex items-center gap-1.5 px-2 py-1 bg-white/90 backdrop-blur-sm border border-indigo-200 rounded-full shadow-lg group-hover/safe-area:scale-110 transition-transform duration-200"
-                        style={{
-                          top: `${insetY - 12}px`,
-                          left: '50%',
-                          transform: 'translateX(-50%)'
-                        }}
-                      >
-                        <Move className="w-3 h-3 text-indigo-600" />
-                        <span className="text-[10px] font-bold text-indigo-700 whitespace-nowrap">Safe Area</span>
-                      </div>
-
-                      {/* Resize Handles */}
-                      <div className="absolute inset-0 pointer-events-none">
-                        <div onPointerDown={(e) => handleResize(e, 'n')} className="absolute pointer-events-auto cursor-ns-resize" style={{ top: insetY - 4, left: insetX + 10, width: safeW - 20, height: 8 }} />
-                        <div onPointerDown={(e) => handleResize(e, 's')} className="absolute pointer-events-auto cursor-ns-resize" style={{ top: insetY + safeH - 4, left: insetX + 10, width: safeW - 20, height: 8 }} />
-                        <div onPointerDown={(e) => handleResize(e, 'e')} className="absolute pointer-events-auto cursor-ew-resize" style={{ top: insetY + 10, left: insetX + safeW - 4, width: 8, height: safeH - 20 }} />
-                        <div onPointerDown={(e) => handleResize(e, 'w')} className="absolute pointer-events-auto cursor-ew-resize" style={{ top: insetY + 10, left: insetX - 4, width: 8, height: safeH - 20 }} />
-
-                        {[
-                          { dir: 'nw', top: insetY - 4, left: insetX - 4 },
-                          { dir: 'ne', top: insetY - 4, left: insetX + safeW - 4 },
-                          { dir: 'sw', top: insetY + safeH - 4, left: insetX - 4 },
-                          { dir: 'se', top: insetY + safeH - 4, left: insetX + safeW - 4 },
-                        ].map((c) => (
-                          <div
-                            key={c.dir}
-                            onPointerDown={(e) => handleResize(e, c.dir as any)}
-                            className={`absolute pointer-events-auto w-3 h-3 bg-white border-2 border-indigo-600 rounded-full shadow-sm cursor-${c.dir}-resize`}
-                            style={{ top: c.top - 2, left: c.left - 2 }}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  );
-                })()}
-              </motion.div>
-            )}
-
-            {/* Elements */}
-            <div
-              className="absolute inset-0 z-[10]"
-              style={{
-                ...(baseImageAsMask && baseImage ? (() => {
-                  const zoomMult = validZoom / 100;
-                  const imgW = (baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * zoomMult;
-                  const imgH = (baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * zoomMult;
-                  const posX = `calc(50% + ${(baseImageProperties?.x || 0) * zoomMult}px)`;
-                  const posY = `calc(50% + ${(baseImageProperties?.y || 0) * zoomMult}px)`;
-
-                  if (baseImageMaskInvert) {
-                    // Inverted: Reveal in opaque areas (standard intersect)
-                    return {
-                      WebkitMaskImage: `url(${baseImage})`,
-                      maskImage: `url(${baseImage})`,
-                      WebkitMaskComposite: 'destination-in',
-                      maskComposite: 'intersect',
-                      WebkitMaskSize: `${imgW}px ${imgH}px`,
-                      maskSize: `${imgW}px ${imgH}px`,
-                      WebkitMaskPosition: `${posX} ${posY}`,
-                      maskPosition: `${posX} ${posY}`,
-                      WebkitMaskRepeat: 'no-repeat',
-                      maskRepeat: 'no-repeat',
-                    };
-                  } else {
-                    // Standard: Reveal in transparent areas (exclude/punch hole)
-                    return {
-                      WebkitMaskImage: `linear-gradient(#000, #000), url(${baseImage})`,
-                      maskImage: `linear-gradient(#000, #000), url(${baseImage})`,
-                      WebkitMaskComposite: 'destination-out',
-                      maskComposite: 'exclude',
-                      WebkitMaskSize: `100% 100%, ${imgW}px ${imgH}px`,
-                      maskSize: `100% 100%, ${imgW}px ${imgH}px`,
-                      WebkitMaskPosition: `0 0, ${posX} ${posY}`,
-                      maskPosition: `0 0, ${posX} ${posY}`,
-                      WebkitMaskRepeat: 'no-repeat',
-                      maskRepeat: 'no-repeat',
-                    };
-                  }
-                })() : {}),
-                ...(showSafeArea ? (() => {
                   const p = (safeAreaPadding || 0) / 100;
                   const wPercent = safeAreaWidth !== undefined ? safeAreaWidth / 100 : (1 - 2 * p);
                   const hPercent = safeAreaHeight !== undefined ? safeAreaHeight / 100 : (1 - 2 * p);
@@ -428,44 +385,160 @@ export function Canvas({
                   const safeW = currentWidth * wPercent;
                   const safeH = currentHeight * hPercent;
 
-                  const clipLeft = (currentWidth - safeW) / 2 + (safeAreaOffset.x * zoomMult);
-                  const clipRight = (currentWidth - safeW) / 2 - (safeAreaOffset.x * zoomMult);
-                  const clipTop = (currentHeight - safeH) / 2 + (safeAreaOffset.y * zoomMult);
-                  const clipBottom = (currentHeight - safeH) / 2 - (safeAreaOffset.y * zoomMult);
+                  const insetX = (currentWidth - safeW) / 2 + (safeAreaOffset.x * zoomMult);
+                  const insetY = (currentHeight - safeH) / 2 + (safeAreaOffset.y * zoomMult);
 
-                  const clipValue = `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px round ${safeAreaRadius * zoomMult}px)`;
+                  return (
+                    <>
+                      <div
+                        className="absolute border-2 border-dashed border-indigo-400 pointer-events-none"
+                        style={{
+                          top: insetY,
+                          left: insetX,
+                          width: safeW,
+                          height: safeH,
+                          borderRadius: `${safeAreaRadius * zoomMult}px`,
+                          display: hideSafeAreaLine ? 'none' : 'block'
+                        }}
+                      >
+                        {!hideSafeAreaLine && (
+                          <>
+                            {/* Drag Handle (Move) */}
+                            <div
+                              className="absolute -top-6 left-0 bg-white shadow-sm border border-indigo-100 rounded-md px-2 py-0.5 flex items-center gap-1 cursor-move pointer-events-auto"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                const startPos = { x: e.clientX, y: e.clientY };
+                                const startOffset = { ...safeAreaOffset };
 
-                  return {
-                    WebkitClipPath: clipValue,
-                    clipPath: clipValue
-                  };
-                })() : {})
-              }}
-            >
-              {(elements || [])
-                .filter(el => !!el)
-                .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
-                .map((element) => (
-                  <DraggableElement
-                    key={element.id}
-                    element={element}
-                    isSelected={selectedElement === element.id}
-                    onSelect={() => onSelectElement(element.id)}
-                    onUpdate={(updates: Partial<CanvasElement>, skipHistory?: boolean) => onUpdateElement(element.id, updates, skipHistory)}
-                    onDelete={() => onDeleteElement(element.id)}
-                    onDuplicate={() => onDuplicateElement(element.id)}
-                    zoom={validZoom}
-                    enableBounce={enableBounce}
-                    isPublicMode={isPublicMode}
-                  />
-                ))}
-            </div>
+                                const onMove = (moveEvent: PointerEvent) => {
+                                  const dx = (moveEvent.clientX - startPos.x) / zoomMult;
+                                  const dy = (moveEvent.clientY - startPos.y) / zoomMult;
+                                  onUpdateSafeAreaOffset({ x: startOffset.x + dx, y: startOffset.y + dy }, true);
+                                };
+
+                                const onUp = (upEvent: PointerEvent) => {
+                                  const dx = (upEvent.clientX - startPos.x) / zoomMult;
+                                  const dy = (upEvent.clientY - startPos.y) / zoomMult;
+                                  onUpdateSafeAreaOffset({ x: startOffset.x + dx, y: startOffset.y + dy }, false);
+                                  window.removeEventListener('pointermove', onMove);
+                                  window.removeEventListener('pointerup', onUp);
+                                };
+
+                                window.addEventListener('pointermove', onMove);
+                                window.addEventListener('pointerup', onUp);
+                              }}
+                            >
+                              <Move className="w-3 h-3 text-indigo-600" />
+                              <span className="text-[10px] font-medium text-indigo-700 whitespace-nowrap">Safe Area</span>
+                            </div>
+
+                            {/* Resize Handles */}
+                            {[
+                              { type: 'nw', cursor: 'nw-resize', pos: { top: -4, left: -4 } },
+                              { type: 'n', cursor: 'ns-resize', pos: { top: -4, left: '50%', marginLeft: -4 } },
+                              { type: 'ne', cursor: 'ne-resize', pos: { top: -4, right: -4 } },
+                              { type: 'e', cursor: 'ew-resize', pos: { top: '50%', right: -4, marginTop: -4 } },
+                              { type: 'se', cursor: 'se-resize', pos: { bottom: -4, right: -4 } },
+                              { type: 's', cursor: 'ns-resize', pos: { bottom: -4, left: '50%', marginLeft: -4 } },
+                              { type: 'sw', cursor: 'sw-resize', pos: { bottom: -4, left: -4 } },
+                              { type: 'w', cursor: 'ew-resize', pos: { top: '50%', left: -4, marginTop: -4 } },
+                            ].map((handle) => (
+                              <div
+                                key={handle.type}
+                                className="absolute bg-white border border-indigo-500 rounded-full w-2 h-2 pointer-events-auto z-40"
+                                style={{
+                                  ...handle.pos,
+                                  cursor: handle.cursor,
+                                }}
+                                onPointerDown={(e) => {
+                                  e.stopPropagation();
+                                  const startPos = { x: e.clientX, y: e.clientY };
+                                  // Capture initial values (unzoomed)
+                                  const startWPercent = safeAreaWidth !== undefined ? safeAreaWidth : ((1 - 2 * p) * 100);
+                                  const startHPercent = safeAreaHeight !== undefined ? safeAreaHeight : ((1 - 2 * p) * 100);
+                                  const startOffset = { ...safeAreaOffset };
+
+                                  // Base canvas dimensions (unzoomed)
+                                  const bW = baseWidth;
+                                  const bH = baseHeight;
+
+                                  const onMove = (moveEvent: PointerEvent) => {
+                                    // Delta in unzoomed pixels
+                                    const dx = (moveEvent.clientX - startPos.x) / zoomMult;
+                                    const dy = (moveEvent.clientY - startPos.y) / zoomMult;
+
+                                    let newWPercent = startWPercent;
+                                    let newHPercent = startHPercent;
+                                    let newOffsetX = startOffset.x;
+                                    let newOffsetY = startOffset.y;
+
+                                    // Width Logic
+                                    if (handle.type.includes('e')) {
+                                      // Right edge moves right (+dx)
+                                      const dW = dx;
+                                      const newW = (bW * (startWPercent / 100)) + dW;
+                                      newWPercent = (newW / bW) * 100;
+                                      newOffsetX = startOffset.x + (dx / 2);
+                                    } else if (handle.type.includes('w')) {
+                                      // Left edge moves left (+dx is right, so we want -dx to increase width)
+                                      // Actually if we move mouse left (dx negative), width INCREASES.
+                                      const dW = -dx;
+                                      const newW = (bW * (startWPercent / 100)) + dW;
+                                      newWPercent = (newW / bW) * 100;
+                                      newOffsetX = startOffset.x + (dx / 2);
+                                    }
+
+                                    // Height Logic
+                                    if (handle.type.includes('s')) {
+                                      // Bottom edge moves down (+dy)
+                                      const dH = dy;
+                                      const newH = (bH * (startHPercent / 100)) + dH;
+                                      newHPercent = (newH / bH) * 100;
+                                      newOffsetY = startOffset.y + (dy / 2);
+                                    } else if (handle.type.includes('n')) {
+                                      // Top edge moves up (dy negative -> width increases)
+                                      const dH = -dy;
+                                      const newH = (bH * (startHPercent / 100)) + dH;
+                                      newHPercent = (newH / bH) * 100;
+                                      newOffsetY = startOffset.y + (dy / 2);
+                                    }
+
+                                    // Updates
+                                    if (handle.type.includes('e') || handle.type.includes('w')) {
+                                      onUpdateSafeAreaWidth(Math.max(1, Math.min(100, newWPercent)));
+                                    }
+                                    if (handle.type.includes('n') || handle.type.includes('s')) {
+                                      onUpdateSafeAreaHeight(Math.max(1, Math.min(100, newHPercent)));
+                                    }
+
+                                    onUpdateSafeAreaOffset({ x: newOffsetX, y: newOffsetY }, true);
+                                  };
+
+                                  const onUp = () => {
+                                    window.removeEventListener('pointermove', onMove);
+                                    window.removeEventListener('pointerup', onUp);
+                                  };
+
+                                  window.addEventListener('pointermove', onMove);
+                                  window.addEventListener('pointerup', onUp);
+                                }}
+                              />
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </motion.div>
+            )}
 
 
           </div>
 
         </div>
-      </div>
+      </div >
     </div >
   );
 }
