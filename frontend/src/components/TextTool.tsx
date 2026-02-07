@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Type, ChevronDown, Layers, Settings2, Shrink, WrapText, Move, ScanLine, Copy, Trash2, RotateCw, ArrowRightLeft, CaseSensitive, CaseUpper, CaseLower } from 'lucide-react';
+import { Plus, Type, ChevronDown, Layers, Settings2, Shrink, WrapText, Move, ScanLine, Copy, Trash2, RotateCw, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -608,6 +608,25 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               </div>
             </div>
 
+            {/* Default Text Visibility */}
+            <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
+                    <EyeOff className="w-3 h-3" /> Hide Default Text on Public
+                  </Label>
+                  <p className="text-[9px] text-gray-400 mt-0.5 ml-5">
+                    Hidden until customer types
+                  </p>
+                </div>
+                <Switch
+                  checked={selectedElement?.hideTextPreview}
+                  onCheckedChange={(c) => handleUpdate({ hideTextPreview: c })}
+                  className="scale-75"
+                />
+              </div>
+            </div>
+
             {!isLockedTo3 && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -632,57 +651,6 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
               </div>
             )}
 
-            {/* Text Case */}
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium text-gray-400">Text Case</Label>
-              <ToggleGroup
-                type="single"
-                value={textCase}
-                onValueChange={(val: any) => {
-                  if (val) {
-                    setTextCase(val);
-                    if (selectedElement) {
-                      const newText = formatText(text, val, maxChars);
-                      setText(newText);
-                      handleUpdate({ textCase: val, text: newText });
-                    }
-                  }
-                }}
-                className="bg-white border border-gray-100 p-0.5 rounded-lg h-8"
-              >
-                <ToggleGroupItem value="none" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
-                  <CaseSensitive className="w-3.5 h-3.5" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
-                  <CaseUpper className="w-3.5 h-3.5" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="lowercase" className="flex-1 h-7 rounded-md data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-600">
-                  <CaseLower className="w-3.5 h-3.5" />
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-
-            {/* Letter Spacing Slider */}
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-medium text-gray-400 flex items-center gap-1.5">
-                  <ArrowRightLeft className="w-3 h-3" /> Letter Spacing
-                </Label>
-                <span className="text-[10px] font-bold text-indigo-500">{(selectedElement?.letterSpacing || 0)}px</span>
-              </div>
-              <Slider
-                data-testid="letter-spacing-slider"
-                value={[selectedElement?.letterSpacing || 0]}
-                onValueChange={([val]) => {
-                  setLetterSpacing(val);
-                  handleUpdate({ letterSpacing: val });
-                }}
-                min={-10}
-                max={50}
-                step={1}
-                className="py-2"
-              />
-            </div>
 
             {!isLockedTo3 && (
               <>
@@ -711,30 +679,7 @@ export function TextTool({ onAddElement, selectedElement, onUpdateElement, canva
                   </Select>
                 </div>
 
-                {/* Color Palette Selector */}
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium text-gray-400">Color Palette</Label>
-                  <Select
-                    value={colorAssetId || "none"}
-                    onValueChange={(val) => {
-                      const finalVal = val === "none" ? undefined : val;
-                      setColorAssetId(finalVal || '');
-                      if (selectedElement) handleUpdate({ colorAssetId: finalVal });
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
-                      <SelectValue placeholder="Global Default" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Global Default</SelectItem>
-                      {userColors?.map((asset) => (
-                        <SelectItem key={asset.id} value={asset.id}>
-                          {asset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+
               </>
             )}
           </CollapsibleContent>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Trash2,
     Pencil,
@@ -25,6 +25,9 @@ import {
     ShopifyProduct
 } from '../types';
 import { toast } from 'sonner';
+import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
+import { cleanAssetName } from '../utils/fonts';
+import { getProxiedUrl } from '@/utils/urlUtils';
 
 // Hooks
 import { useCanvasState } from '@/hooks/designer/useCanvasState';
@@ -109,6 +112,7 @@ export function DesignerCore({
     } = useCanvasState(preparedInitialPages);
 
     // Editor UI States
+    const [designId, setDesignId] = useState<string | undefined>(initialDesignId);
     const [zoom, setZoom] = useState(50);
     const [showSummary, setShowSummary] = useState(true);
     const [designName, setDesignName] = useState(initialConfig.designName || '');
@@ -136,13 +140,13 @@ export function DesignerCore({
     const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
     const [buttonText, setButtonText] = useState(initialConfig.buttonText || 'Design It');
     const [outputSettings, setOutputSettings] = useState<any>(initialConfig.outputSettings || null);
+    const [showGrid] = useState(initialConfig.showGrid ?? false);
 
-    // Sync config from parent when it loads/updates
-    useEffect(() => {
-        if (initialConfig.outputSettings) {
-            setOutputSettings(initialConfig.outputSettings);
-        }
-    }, [initialConfig.outputSettings]);
+    // Toolbar Feature Flags
+    const [enabledGrid, setEnabledGrid] = useState(initialConfig.enabledGrid ?? true);
+    const [enabledUndoRedo, setEnabledUndoRedo] = useState(initialConfig.enabledUndoRedo ?? true);
+    const [enabledDownload, setEnabledDownload] = useState(initialConfig.enabledDownload ?? true);
+    const [enabledReset, setEnabledReset] = useState(initialConfig.enabledReset ?? true);
 
     // Asset Selection States (for admin/config mode)
     const [selectedVariantId, setSelectedVariantId] = useState<string>('');
@@ -152,6 +156,254 @@ export function DesignerCore({
     const [selectedOptionAssetId, setSelectedOptionAssetId] = useState<string | null>(initialConfig.optionAssetId || initialConfig.assets?.optionAssetId || null);
     const [selectedGalleryAssetId, setSelectedGalleryAssetId] = useState<string | null>(initialConfig.galleryAssetId || initialConfig.assets?.galleryAssetId || null);
     const [selectedShapeAssetId, setSelectedShapeAssetId] = useState<string | null>(initialConfig.shapeAssetId || initialConfig.assets?.shapeAssetId || null);
+
+    const filteredUserFonts = useMemo(() => {
+        if (selectedFontAssetId) return userFonts.filter(a => String(a.id) === String(selectedFontAssetId));
+        return userFonts.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
+    }, [userFonts, selectedFontAssetId, productId]);
+
+    // Dynamic Font Loading - Load ALL fonts that are either in the filtered list OR used by elements
+    const usedFontAssetIds = useMemo(() => {
+        const ids = new Set<string>();
+        pages.forEach(p => {
+            p.elements.forEach(el => {
+                if (el.fontAssetId) ids.add(String(el.fontAssetId));
+            });
+        });
+        return Array.from(ids).sort().join(',');
+    }, [pages]);
+
+    useEffect(() => {
+        // Collect all fonts that need loading
+        const fontsToLoad = new Set<any>(filteredUserFonts);
+
+        // Also find fonts used by elements that might not be in the filtered list
+        if (usedFontAssetIds) {
+            const ids = usedFontAssetIds.split(',');
+            ids.forEach(id => {
+                const asset = userFonts.find(a => String(a.id) === id);
+                if (asset) fontsToLoad.add(asset);
+            });
+        }
+
+        if (fontsToLoad.size > 0) {
+            // 1. Google Fonts
+            const googleFamilies = new Set<string>();
+            fontsToLoad.forEach(f => {
+                if (f.config?.fontType === 'google') {
+                    if (f.config?.googleConfig === 'specific' && f.config?.specificFonts) {
+                        f.config.specificFonts.split(/[,\n]/).forEach((n: string) => {
+                            const trimmed = n.trim();
+                            if (trimmed && trimmed.length < 100 && !trimmed.includes('|') && !trimmed.includes('data:')) {
+                                googleFamilies.add(trimmed);
+                            }
+                        });
+                    } else if (f.config?.googleConfig === 'all') {
+                        POPULAR_GOOGLE_FONTS.forEach(n => googleFamilies.add(n));
+                    }
+                }
+            });
+
+            if (googleFamilies.size > 0) {
+                const linkId = 'designer-google-fonts';
+                let link = document.getElementById(linkId) as HTMLLinkElement;
+                if (!link) {
+                    link = document.createElement('link');
+                    link.id = linkId;
+                    link.rel = 'stylesheet';
+                    document.head.appendChild(link);
+                }
+                const newHref = `https://fonts.googleapis.com/css?family=${Array.from(googleFamilies).map(f => f.replace(/ /g, '+')).join('|')}&display=swap`;
+                if (link.href !== newHref) link.href = newHref;
+            }
+
+            // 2. Custom @font-face
+            const styleId = 'designer-custom-fonts';
+            let style = document.getElementById(styleId) as HTMLStyleElement;
+            if (!style) {
+                style = document.createElement('style');
+                style.id = styleId;
+                document.head.appendChild(style);
+            }
+            let css = '';
+            fontsToLoad.forEach(f => {
+                if (f.config?.fontType === 'custom' && f.value && !f.value.includes('|')) {
+                    css += `@font-face { font-family: "${cleanAssetName(f.name)}"; src: url("${f.value}"); font-display: swap; }\n`;
+                }
+
+                if (f.value && f.value.includes('|')) {
+                    const lines = f.value.split('\n');
+                    lines.forEach((line: string) => {
+                        if (line.includes('|')) {
+                            const [name, data] = line.split('|');
+                            if (name && data && (data.trim().startsWith('data:') || data.trim().startsWith('http'))) {
+                                css += `@font-face { font-family: "${cleanAssetName(name.trim())}"; src: url("${data.trim()}"); font-display: swap; }\n`;
+                            }
+                        }
+                    });
+                }
+            });
+            if (style.textContent !== css) style.textContent = css;
+        }
+    }, [filteredUserFonts, usedFontAssetIds, userFonts]);
+
+    // Sync config from parent when it loads/updates
+    useEffect(() => {
+        if (initialConfig.outputSettings) {
+            setOutputSettings(initialConfig.outputSettings);
+        }
+    }, [initialConfig.outputSettings]);
+
+    // --- Variant Specific Design Logic ---
+    const [isUniqueMode, setIsUniqueMode] = useState<boolean>(initialConfig.isUniqueMode || false);
+    const [uniqueDesignBehavior, setUniqueDesignBehavior] = useState<'duplicate' | 'empty'>(initialConfig.uniqueDesignBehavior || 'duplicate');
+    const [variantAssets, setVariantAssets] = useState<Record<string, any>>(initialConfig.variantAssets || {});
+    const [globalDesigns, setGlobalDesigns] = useState<PageData[]>(preparedInitialPages);
+    const [variantDesigns, setVariantDesigns] = useState<Record<string, PageData[]>>(initialConfig.variantDesigns || {});
+    const prevVariantRef = useRef<string | null>(null); // Start null to skip first effect run if needed, or handle init
+    const pagesRef = useRef(pages);
+
+    // Keep pagesRef in sync for logic
+    useEffect(() => { pagesRef.current = pages; }, [pages]);
+
+    // Handle Variant Switching with Persistence
+    useEffect(() => {
+        if (prevVariantRef.current === null && selectedVariantId) {
+            prevVariantRef.current = selectedVariantId;
+            // Initial load of variant-specific assets AND pages if unique
+            const vKey = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+            const isTargetUnique = isUniqueMode || !!variantDesigns[selectedVariantId] || !!variantDesigns[vKey];
+
+            if (isTargetUnique) {
+                // Load variant design if it exists
+                const existingDesign = variantDesigns[selectedVariantId] || variantDesigns[vKey];
+                if (existingDesign) {
+                    setPages(existingDesign);
+                    if (!existingDesign.find(p => p.id === activePageId)) {
+                        setActivePageId(existingDesign[0]?.id || 'default');
+                    }
+                }
+
+                // Load assets for this variant
+                const assets = variantAssets[selectedVariantId] || variantAssets[vKey];
+                if (assets) {
+                    setSelectedBaseColorAssetId(assets.selectedBaseColorAssetId || null);
+                    setSelectedElementColorAssetId(assets.selectedElementColorAssetId || null);
+                    setSelectedFontAssetId(assets.selectedFontAssetId || null);
+                    setSelectedOptionAssetId(assets.selectedOptionAssetId || null);
+                    setSelectedGalleryAssetId(assets.selectedGalleryAssetId || null);
+                    setSelectedShapeAssetId(assets.selectedShapeAssetId || null);
+                }
+            }
+            return;
+        }
+
+        if (prevVariantRef.current && prevVariantRef.current !== selectedVariantId) {
+            const oldId = prevVariantRef.current;
+            const newId = selectedVariantId;
+            const currentWork = pagesRef.current;
+            const vKey = String(oldId).match(/\d+/)?.[0] || String(oldId);
+
+            // 1. Save work from OLD bucket
+            // If global unique mode is ON, or this specific variant was unlinked
+            if (isUniqueMode || variantDesigns[oldId] || variantDesigns[vKey]) {
+                setVariantDesigns(prev => ({ ...prev, [oldId]: currentWork, [vKey]: currentWork }));
+                // Also save current asset selections for this variant
+                setVariantAssets(prev => ({
+                    ...prev,
+                    [oldId]: {
+                        selectedBaseColorAssetId,
+                        selectedElementColorAssetId,
+                        selectedFontAssetId,
+                        selectedOptionAssetId,
+                        selectedGalleryAssetId,
+                        selectedShapeAssetId
+                    },
+                    [vKey]: {
+                        selectedBaseColorAssetId,
+                        selectedElementColorAssetId,
+                        selectedFontAssetId,
+                        selectedOptionAssetId,
+                        selectedGalleryAssetId,
+                        selectedShapeAssetId
+                    }
+                }));
+            } else {
+                setGlobalDesigns(currentWork);
+            }
+
+            // 2. Load work for NEW bucket
+            const nextVKey = String(newId).match(/\d+/)?.[0] || String(newId);
+            const isTargetUnique = isUniqueMode || variantDesigns[newId] || variantDesigns[nextVKey];
+
+            if (isTargetUnique) {
+                // If unique mode is ON but NO design exists yet, use behavior logic
+                const existingDesign = variantDesigns[newId] || variantDesigns[nextVKey];
+                const nextPages = existingDesign || (
+                    uniqueDesignBehavior === 'empty'
+                        ? preparedInitialPages.map(p => ({ ...p, elements: [] }))
+                        : JSON.parse(JSON.stringify(currentWork || pagesRef.current || globalDesigns || preparedInitialPages))
+                );
+
+                setPages(nextPages);
+
+                // Load assets for this variant if they exist
+                const assets = variantAssets[newId] || variantAssets[nextVKey];
+                if (assets) {
+                    setSelectedBaseColorAssetId(assets.selectedBaseColorAssetId || null);
+                    setSelectedElementColorAssetId(assets.selectedElementColorAssetId || null);
+                    setSelectedFontAssetId(assets.selectedFontAssetId || null);
+                    setSelectedOptionAssetId(assets.selectedOptionAssetId || null);
+                    setSelectedGalleryAssetId(assets.selectedGalleryAssetId || null);
+                    setSelectedShapeAssetId(assets.selectedShapeAssetId || null);
+                }
+
+                if (!nextPages.find(p => p.id === activePageId)) {
+                    setActivePageId(nextPages[0]?.id || 'default');
+                }
+            } else {
+                const nextGlobal = (variantDesigns[oldId] || isUniqueMode) ? globalDesigns : currentWork;
+                setPages(nextGlobal);
+                if (!nextGlobal.find(p => p.id === activePageId)) {
+                    setActivePageId(nextGlobal[0]?.id || 'default');
+                }
+            }
+
+            prevVariantRef.current = newId;
+        }
+    }, [selectedVariantId, variantDesigns, isUniqueMode]);
+    // Intentionally omitting globalDesigns to avoid cycles, using ref logic
+
+    const toggleVariantLink = (link: boolean) => {
+        const vKey = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+
+        if (!link) {
+            // Unlink: Respect behavior choice
+            const nextPages = uniqueDesignBehavior === 'empty'
+                ? pages.map(p => ({ ...p, elements: [] }))
+                : JSON.parse(JSON.stringify(pages));
+
+            setVariantDesigns(prev => ({
+                ...prev,
+                [selectedVariantId]: nextPages,
+                [vKey]: nextPages
+            }));
+            setPages(nextPages);
+            toast.success(`Variant unlinked. ${uniqueDesignBehavior === 'empty' ? 'Started with empty design.' : 'Duplicated current design.'}`);
+        } else {
+            // Link: Remove from variantDesigns, load global
+            if (confirm("This will discard the custom design for this variant and use the global design. Continue?")) {
+                const newDesigns = { ...variantDesigns };
+                delete newDesigns[selectedVariantId];
+                delete newDesigns[vKey];
+                setVariantDesigns(newDesigns);
+                setPages(globalDesigns);
+                toast.success("Variant linked to global design");
+            }
+        }
+    };
+
+    const isVariantLinked = !isUniqueMode && !variantDesigns[selectedVariantId] && !variantDesigns[String(selectedVariantId).match(/\d+/)?.[0] || ''];
 
     const activeBasePaletteColors = React.useMemo(() => {
         if (!selectedBaseColorAssetId || !userColors) return [];
@@ -172,7 +424,7 @@ export function DesignerCore({
         const rawSelectedId = String(selectedVariantId);
         // Ensure valid ID
         if (!rawSelectedId || rawSelectedId === 'null' || rawSelectedId === 'undefined') {
-            return activePage?.baseImage;
+            return getProxiedUrl(activePage?.baseImage || '');
         }
 
         const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
@@ -180,12 +432,12 @@ export function DesignerCore({
         // 1. Explicit UI Assignment (Designer choice for this variant)
         // Check both raw ID and numeric key to be safe
         const variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
-        if (variantImage && variantImage !== 'none') return variantImage;
+        if (variantImage && variantImage !== 'none') return getProxiedUrl(variantImage);
 
         // 2. Legacy config variant mockups
         const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
         const legacyUrl = typeof vConfig === 'string' ? vConfig : (vConfig?.url || vConfig?.default?.url);
-        if (legacyUrl) return legacyUrl;
+        if (legacyUrl) return getProxiedUrl(legacyUrl);
 
         // 3. Shopify Variant Image (AUTOMATIC)
         // This ensures that if a variant has an image in Shopify, it is used by default
@@ -194,16 +446,16 @@ export function DesignerCore({
             return vid === vKey || String(v.id) === rawSelectedId;
         });
         const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
-        if (sVariantImage) return sVariantImage;
+        if (sVariantImage) return getProxiedUrl(sVariantImage);
 
         // 4. Global Page Base Image (Designer default background)
-        if (activePage?.baseImage) return activePage.baseImage;
+        if (activePage?.baseImage) return getProxiedUrl(activePage.baseImage);
 
         // 5. Shopify Product Image (Ultimate Fallback)
         const sProductImage = productData?.images?.[0];
         const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
 
-        return finalFallback || undefined;
+        return getProxiedUrl(finalFallback || undefined);
     }, [activePage, selectedVariantId, initialConfig, productData]);
 
     // Initialize selected variant
@@ -221,15 +473,36 @@ export function DesignerCore({
 
         setIsSaving(true);
 
+        // Determine what acts as the "Master" design for the save payload
+        // If current variant is unlinked, 'pages' is just that variant.
+        // We should save 'globalDesigns' as the main designJson, unless we want to force current as global?
+        // Usually, designJson is the "Global/Default". variantDesigns are overrides.
+        // If we are currently editing global (linked), then 'pages' IS variable global.
+
+        const isLinkedCurrent = !variantDesigns[selectedVariantId] && !variantDesigns[String(selectedVariantId).match(/\d+/)?.[0] || ''];
+        const finalGlobal = isLinkedCurrent ? pages : globalDesigns;
+
+        // Update variant designs map with current if unlinked
+        const finalVariantDesigns = { ...variantDesigns };
+        if (!isLinkedCurrent) {
+            const vKey = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+            finalVariantDesigns[selectedVariantId] = pages;
+            finalVariantDesigns[vKey] = pages;
+        }
+
         try {
             const data = {
-                id: initialDesignId,
+                id: designId,
                 name: designName,
                 productId,
                 isTemplate,
                 config: {
                     ...initialConfig,
                     designName,
+                    isUniqueMode,
+                    uniqueDesignBehavior,
+                    variantDesigns: finalVariantDesigns,
+                    variantAssets: variantAssets, // Save the per-variant asset configs
                     showSafeArea,
                     hideSafeAreaLine,
                     safeAreaPadding,
@@ -244,6 +517,11 @@ export function DesignerCore({
                     designerLayout,
                     buttonText,
                     outputSettings: outputSettingsOverride || outputSettings,
+                    showGrid,
+                    enabledGrid,
+                    enabledUndoRedo,
+                    enabledDownload,
+                    enabledReset,
                     selectedBaseColorAssetId,
                     selectedColorAssetId: selectedElementColorAssetId,
                     fontAssetId: selectedFontAssetId,
@@ -251,13 +529,16 @@ export function DesignerCore({
                     galleryAssetId: selectedGalleryAssetId,
                     shapeAssetId: selectedShapeAssetId,
                 },
-                designJson: pages.map(p => ({
+                designJson: finalGlobal.map(p => ({
                     ...p,
                     elements: p.elements
                 }))
             };
 
-            await onSave(data);
+            const result = await onSave(data);
+            if (result && result.id) {
+                setDesignId(result.id);
+            }
             setLastSavedPagesJson(currentPagesJson);
             setLastSavedTime(new Date());
             if (!isSilent) toast.success("Design saved successfully");
@@ -413,68 +694,70 @@ export function DesignerCore({
                     userFonts={userFonts}
                     userColors={userColors}
                     isPublicMode={isPublicMode}
+                    shop={productData?.shop}
                     onCrop={() => setIsCropModalOpen(true)}
                 />
 
-                <div className="h-12 bg-white border-b border-gray-100 px-4 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Side:</span>
-                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <div className="h-14 bg-white border-b border-gray-100 px-4 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0">Sides :</span>
+
+                        <div className="flex items-center gap-2">
                             {pages.map((page, index) => (
-                                <div key={page.id} className="relative group">
+                                <div key={page.id} className="flex items-center gap-1">
                                     <button
-                                        onClick={() => {
-                                            setActivePageId(page.id);
-                                            setSelectedElement(null);
-                                        }}
-                                        onDoubleClick={() => {
-                                            if (isPublicMode) return;
-                                            const newName = window.prompt("Rename Side:", page.name || `Side ${index + 1}`);
-                                            if (newName) renamePage(page.id, newName);
-                                        }}
-                                        className={`px-3 py-1 pr-6 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${activePageId === page.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        onClick={() => setActivePageId(page.id)}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border-2 flex items-center gap-2 whitespace-nowrap ${activePageId === page.id
+                                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                                            : 'bg-white border-gray-100 text-gray-500 hover:border-gray-200'
+                                            }`}
                                     >
+                                        <div className={`w-2 h-2 rounded-full ${activePageId === page.id ? 'bg-indigo-500 animate-pulse' : 'bg-gray-300'}`} />
                                         {page.name || `Side ${index + 1}`}
                                     </button>
-                                    {!isPublicMode && activePageId === page.id && (
-                                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <span className="cursor-pointer p-0.5 hover:bg-gray-100 rounded-full">
-                                                        <MoreVertical className="w-3 h-3 text-gray-400" />
-                                                    </span>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent className="z-[1000004]">
-                                                    <DropdownMenuItem onClick={() => {
-                                                        const newName = window.prompt("Rename Side:", page.name || `Side ${index + 1}`);
-                                                        if (newName) renamePage(page.id, newName);
-                                                    }}>
-                                                        <Pencil className="w-3 h-3 mr-2" />
-                                                        Rename
-                                                    </DropdownMenuItem>
+
+                                    {activePageId === page.id && (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <button className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors">
+                                                    <MoreVertical className="w-4 h-4" />
+                                                </button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="start" className="w-40 rounded-xl p-1.5 border-gray-100 shadow-xl">
+                                                <DropdownMenuItem
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const n = prompt('Rename page:', page.name);
+                                                        if (n) renamePage(page.id, n);
+                                                    }}
+                                                    className="text-xs font-bold rounded-lg p-2.5 focus:bg-indigo-50 focus:text-indigo-600 cursor-pointer"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5 mr-2 opacity-50" /> Rename Side
+                                                </DropdownMenuItem>
+                                                {pages.length > 1 && (
                                                     <DropdownMenuItem
-                                                        disabled={pages.length <= 1}
-                                                        onClick={() => {
-                                                            if (confirm("Delete this side?")) deletePage(page.id);
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Are you sure you want to delete this side?')) deletePage(page.id);
                                                         }}
-                                                        className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                                        className="text-xs font-bold text-red-500 focus:text-red-600 focus:bg-red-50 rounded-lg p-2.5 cursor-pointer mt-1"
                                                     >
-                                                        <Trash2 className="w-3 h-3 mr-2" />
-                                                        Delete
+                                                        <Trash2 className="w-3.5 h-3.5 mr-2 opacity-50" /> Delete Side
                                                     </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     )}
                                 </div>
                             ))}
+
                             {!isPublicMode && (
                                 <button
                                     onClick={addPage}
-                                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white hover:text-indigo-600 hover:shadow-sm text-gray-400 transition-all"
-                                    title="Add Side"
+                                    className="p-2 flex items-center justify-center rounded-xl bg-gray-50 border-2 border-dashed border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all group shrink-0"
+                                    title="Add New Side"
                                 >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                 </button>
                             )}
                         </div>
@@ -518,6 +801,7 @@ export function DesignerCore({
                 </div>
 
                 <div ref={zoomContainerRef} className="flex-1 relative">
+
                     <Canvas
                         elements={activePage?.elements || []}
                         productVariant={productData?.variants?.find((v: any) => String(v.id) === String(selectedVariantId)) || (productData?.variants?.[0] as any)}
@@ -564,156 +848,144 @@ export function DesignerCore({
                         }}
                         isPublicMode={isPublicMode}
                         hideSafeAreaLine={hideSafeAreaLine}
+                        showGrid={showGrid}
                     />
                 </div>
             </div>
-
-            {showSummary && (
-                <div className="w-[420px] shrink-0 h-full">
-                    <Summary
-                        elements={activePage?.elements || []}
-                        selectedElement={selectedElement}
-                        onSelectElement={setSelectedElement}
-                        onDeleteElement={deleteElement}
-                        showSafeArea={showSafeArea}
-                        onToggleSafeArea={() => setShowSafeArea(!showSafeArea)}
-                        safeAreaRadius={safeAreaRadius}
-                        onSafeAreaRadiusChange={setSafeAreaRadius}
-                        safeAreaOffset={safeAreaOffset}
-                        onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
-                        showRulers={showRulers}
-                        onToggleRulers={() => setShowRulers(!showRulers)}
-                        unit={unit}
-                        onUnitChange={setUnit}
-                        paperSize={paperSize}
-                        onPaperSizeChange={setPaperSize}
-                        customPaperDimensions={customPaperDimensions}
-                        onCustomPaperDimensionsChange={setCustomPaperDimensions}
-                        onReset={() => {
-                            if (onReset) {
-                                onReset();
-                            } else {
-                                if (isPublicMode) {
-                                    if (window.confirm("Are you sure you want to reset the design to its original state?")) {
-                                        setPages(initialPages);
-                                        addToHistory(initialPages);
-                                        toast.success("Design reset to original");
-                                    }
+            {
+                showSummary && (
+                    <div className="w-[420px] shrink-0 h-full">
+                        <Summary
+                            zoom={zoom}
+                            onZoomChange={setZoom}
+                            isUniqueMode={isUniqueMode}
+                            onToggleUniqueMode={setIsUniqueMode}
+                            uniqueDesignBehavior={uniqueDesignBehavior}
+                            onUniqueDesignBehaviorChange={setUniqueDesignBehavior}
+                            isVariantLinked={isVariantLinked}
+                            onToggleVariantLink={toggleVariantLink}
+                            elements={activePage?.elements || []}
+                            selectedElement={selectedElement}
+                            onSelectElement={setSelectedElement}
+                            onDeleteElement={deleteElement}
+                            showSafeArea={showSafeArea}
+                            onToggleSafeArea={() => setShowSafeArea(!showSafeArea)}
+                            safeAreaRadius={safeAreaRadius}
+                            onSafeAreaRadiusChange={setSafeAreaRadius}
+                            safeAreaOffset={safeAreaOffset}
+                            onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
+                            showRulers={showRulers}
+                            onToggleRulers={() => setShowRulers(!showRulers)}
+                            unit={unit}
+                            onUnitChange={setUnit}
+                            paperSize={paperSize}
+                            onPaperSizeChange={setPaperSize}
+                            customPaperDimensions={customPaperDimensions}
+                            onCustomPaperDimensionsChange={setCustomPaperDimensions}
+                            onReset={() => {
+                                if (onReset) {
+                                    onReset();
                                 } else {
-                                    // Admin mode: Clear canvas
-                                    if (window.confirm("Are you sure you want to clear all elements from the canvas? This cannot be undone.")) {
-                                        const clearedPages = pages.map(p => ({
-                                            ...p,
-                                            elements: []
-                                        }));
-                                        setPages(clearedPages);
-                                        addToHistory(clearedPages);
-                                        toast.success("Canvas cleared");
+                                    if (isPublicMode) {
+                                        if (window.confirm("Are you sure you want to reset the design to its original state?")) {
+                                            setPages(initialPages);
+                                            addToHistory(initialPages);
+                                            toast.success("Design reset to original");
+                                        }
+                                    } else {
+                                        // Admin mode: Clear canvas
+                                        if (window.confirm("Are you sure you want to clear all elements from the canvas? This cannot be undone.")) {
+                                            const clearedPages = pages.map(p => ({
+                                                ...p,
+                                                elements: []
+                                            }));
+                                            setPages(clearedPages);
+                                            addToHistory(clearedPages);
+                                            toast.success("Canvas cleared");
+                                        }
                                     }
                                 }
-                            }
-                        }}
-                        onToggleSummary={() => setShowSummary(!showSummary)}
-                        userColors={userColors}
-                        userGalleries={userGalleries}
-                        activeBasePaletteColors={activeBasePaletteColors}
-                        shopifyOptions={productData?.options || []}
-                        shopifyVariants={productData?.variants || []}
-                        selectedVariantId={selectedVariantId}
-                        onVariantChange={setSelectedVariantId}
-                        isPublicMode={isPublicMode}
-                        onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
-                        onRemoveBaseImage={() => {
-                            const updated = pages.map(p => p.id === activePageId ? {
-                                ...p,
-                                baseImage: 'none',
-                                baseImageProperties: { x: 0, y: 0, scale: 1 }
-                            } : p);
-                            setPages(updated);
-                            addToHistory(updated);
-                            toast.success('Mockup removed');
-                        }}
-                        baseImageColorEnabled={activePage?.baseImageColorEnabled ?? false}
-                        onBaseImageColorEnabledChange={(enabled) => {
-                            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p));
-                        }}
-                        baseImageColor={activePage?.baseImageColor}
-                        onBaseImageColorChange={(color) => {
-                            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color } : p));
-                        }}
-                        baseImageAsMask={activePage?.baseImageAsMask ?? false}
-                        onToggleBaseImageAsMask={(enabled) => {
-                            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageAsMask: enabled } : p));
-                            addToHistory(pages.map(p => p.id === activePageId ? { ...p, baseImageAsMask: enabled } : p));
-                        }}
-                        baseImageMaskInvert={activePage?.baseImageMaskInvert ?? false}
-                        onToggleBaseImageMaskInvert={(enabled) => {
-                            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
-                            addToHistory(pages.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
-                        }}
-                        baseImage={(() => {
-                            if (activePage?.baseImage === 'none') return undefined;
-
-                            const rawSelectedId = String(selectedVariantId);
-                            const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
-
-                            // 1. Explicit UI Assignment (Designer choice for this variant)
-                            const variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
-                            if (variantImage && variantImage !== 'none') return variantImage;
-
-                            // 2. Legacy config variant mockups
-                            const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
-                            const legacyUrl = typeof vConfig === 'string' ? vConfig : (vConfig?.url || vConfig?.default?.url);
-                            if (legacyUrl) return legacyUrl;
-
-                            // 3. Shopify Variant Image (AUTOMATIC)
-                            const sVariant = productData?.variants?.find((v: any) => {
-                                const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
-                                return vid === vKey || String(v.id) === rawSelectedId;
-                            });
-                            const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
-                            if (sVariantImage) return sVariantImage;
-
-                            // 4. Global Page Base Image (Designer default background)
-                            if (activePage?.baseImage) return activePage.baseImage;
-
-                            // 5. Shopify Product Image (Ultimate Fallback)
-                            const sProductImage = productData?.images?.[0];
-                            const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
-
-                            return finalFallback || undefined;
-                        })()}
-                        selectedBaseColorAssetId={selectedBaseColorAssetId}
-                        onSelectedBaseColorAssetIdChange={setSelectedBaseColorAssetId}
-                        selectedElementColorAssetId={selectedElementColorAssetId}
-                        onSelectedElementColorAssetIdChange={setSelectedElementColorAssetId}
-                        selectedFontAssetId={selectedFontAssetId}
-                        onSelectedFontAssetIdChange={setSelectedFontAssetId}
-                        selectedOptionAssetId={selectedOptionAssetId}
-                        onSelectedOptionAssetIdChange={setSelectedOptionAssetId}
-                        selectedGalleryAssetId={selectedGalleryAssetId}
-                        onSelectedGalleryAssetIdChange={setSelectedGalleryAssetId}
-                        selectedShapeAssetId={selectedShapeAssetId}
-                        onSelectedShapeAssetIdChange={setSelectedShapeAssetId}
-                        designerLayout={designerLayout}
-                        onDesignerLayoutChange={setDesignerLayout}
-                        buttonText={buttonText}
-                        onButtonTextChange={setButtonText}
-                        outputSettings={outputSettings}
-                        onProductOutputSettingsChange={(newSettings) => setOutputSettings((prev: any) => ({ ...prev, ...newSettings }))}
-                        onSave={(isT, settings) => handleSave(isT, false, settings)}
-                        onTestExport={() => handleTestExport({
-                            designName,
-                            outputSettings,
-                            setIsSaving,
-                            setSelectedElement
-                        })}
-                        isSaving={isSaving}
-                        hideSafeAreaLine={hideSafeAreaLine}
-                        onToggleHideSafeAreaLine={() => setHideSafeAreaLine(!hideSafeAreaLine)}
-                    />
-                </div>
-            )}
+                            }}
+                            onToggleSummary={() => setShowSummary(!showSummary)}
+                            userColors={userColors}
+                            userGalleries={userGalleries}
+                            activeBasePaletteColors={activeBasePaletteColors}
+                            shopifyOptions={productData?.options || []}
+                            shopifyVariants={productData?.variants || []}
+                            selectedVariantId={selectedVariantId}
+                            onVariantChange={setSelectedVariantId}
+                            isPublicMode={isPublicMode}
+                            onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+                            onRemoveBaseImage={() => {
+                                const updated = pages.map(p => p.id === activePageId ? {
+                                    ...p,
+                                    baseImage: 'none',
+                                    baseImageProperties: { x: 0, y: 0, scale: 1 }
+                                } : p);
+                                setPages(updated);
+                                addToHistory(updated);
+                                toast.success('Mockup removed');
+                            }}
+                            baseImageColorEnabled={activePage?.baseImageColorEnabled ?? false}
+                            onBaseImageColorEnabledChange={(enabled) => {
+                                setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p));
+                            }}
+                            baseImageColor={activePage?.baseImageColor}
+                            onBaseImageColorChange={(color) => {
+                                setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color } : p));
+                            }}
+                            baseImageAsMask={activePage?.baseImageAsMask ?? false}
+                            onToggleBaseImageAsMask={(enabled) => {
+                                setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageAsMask: enabled } : p));
+                                addToHistory(pages.map(p => p.id === activePageId ? { ...p, baseImageAsMask: enabled } : p));
+                            }}
+                            baseImageMaskInvert={activePage?.baseImageMaskInvert ?? false}
+                            onToggleBaseImageMaskInvert={(enabled) => {
+                                setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
+                                addToHistory(pages.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
+                            }}
+                            baseImage={resolvedBaseImage}
+                            selectedBaseColorAssetId={selectedBaseColorAssetId}
+                            onSelectedBaseColorAssetIdChange={setSelectedBaseColorAssetId}
+                            selectedElementColorAssetId={selectedElementColorAssetId}
+                            onSelectedElementColorAssetIdChange={setSelectedElementColorAssetId}
+                            selectedFontAssetId={selectedFontAssetId}
+                            onSelectedFontAssetIdChange={setSelectedFontAssetId}
+                            selectedOptionAssetId={selectedOptionAssetId}
+                            onSelectedOptionAssetIdChange={setSelectedOptionAssetId}
+                            selectedGalleryAssetId={selectedGalleryAssetId}
+                            onSelectedGalleryAssetIdChange={setSelectedGalleryAssetId}
+                            selectedShapeAssetId={selectedShapeAssetId}
+                            onSelectedShapeAssetIdChange={setSelectedShapeAssetId}
+                            designerLayout={designerLayout}
+                            onDesignerLayoutChange={setDesignerLayout}
+                            buttonText={buttonText}
+                            onButtonTextChange={setButtonText}
+                            outputSettings={outputSettings}
+                            onProductOutputSettingsChange={(newSettings) => setOutputSettings((prev: any) => ({ ...prev, ...newSettings }))}
+                            onSave={(isT, settings) => handleSave(isT, false, settings)}
+                            onTestExport={() => handleTestExport({
+                                designName,
+                                outputSettings,
+                                setIsSaving,
+                                setSelectedElement
+                            })}
+                            isSaving={isSaving}
+                            hideSafeAreaLine={hideSafeAreaLine}
+                            onToggleHideSafeAreaLine={() => setHideSafeAreaLine(!hideSafeAreaLine)}
+                            // Toolbar feature flags
+                            enabledGrid={enabledGrid}
+                            onToggleEnabledGrid={() => setEnabledGrid(!enabledGrid)}
+                            enabledUndoRedo={enabledUndoRedo}
+                            onToggleEnabledUndoRedo={() => setEnabledUndoRedo(!enabledUndoRedo)}
+                            enabledDownload={enabledDownload}
+                            onToggleEnabledDownload={() => setEnabledDownload(!enabledDownload)}
+                            enabledReset={enabledReset}
+                            onToggleEnabledReset={() => setEnabledReset(!enabledReset)}
+                        />
+                    </div>
+                )
+            }
 
             <BaseImageModal
                 isOpen={isBaseImageModalOpen}
@@ -776,6 +1048,6 @@ export function DesignerCore({
                     }
                 }}
             />
-        </div>
+        </div >
     );
 }

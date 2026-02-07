@@ -26,6 +26,7 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
 ### 2. Design Persistence
 - **ID Matching**: Memastikan pencarian aset (Fonts/Colors/Galleries) tetap bekerja menggunakan `String(id)` matching untuk mencegah kegagalan seleksi antara tipe data numeric (DB) dan string (UI).
 - **Save Logic**: Mencegah overwrite desain secara tidak sengaja (Create vs Update logic).
+- **Scalability Fix (Design ID Persistence)**: Memastikan `designId` yang dikembalikan dari server pada save pertama disimpan dalam state dan digunakan untuk save/autosave berikutnya, mencegah terciptanya duplikasi data (multiple entries) untuk satu sesi edit yang sama.
 - **Palette Persistence**: Verifikasi bahwa ID palet warna mockup (`selectedBaseColorAssetId`) tersimpan di database dan dimuat ulang dengan benar setelah refresh.
 
 ### 3. Text Tools & Formatting
@@ -43,24 +44,10 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
 ## 📝 Manual Regression Checklist
 
 ### A. Customer View (Public Designer)
-- [✅] **Dropdown Visibility**: Klik variant dropdown, pastikan muncul di atas header (z-index check).
-- [✅] **Linked Options**: Pilih Size "S" lalu ganti Color ke yang tidak ada di "S". Pastikan Size berganti otomatis ke yang tersedia.
-- [✅] **Base Image Update**: Pastikan gambar kanvas berubah saat varian dipilih.
-- [✅] **Text Case Toggle**: Klik icon "AA" di toolbar, pastikan teks berubah Uppercase/Lowercase secara instan.
-- [✅] **Letter Spacing Slider**: Geser slider spasi, pastikan jarak antar huruf di kanvas ikut berubah.
-- [ ] **Curved Text Spacing**: Tambahkan "Curved Up", pastikan huruf tidak menempel (default spacing 2px).
-- [ ] **Bridge/Curved Auto-height**: Gunakan fitur "Bridge" atau "Curve", pastikan area container otomatis membesar mengikuti lengkungan teks (tidak ada bagian yang terpotong/clipping).
-- [ ] **Mockup Hole Punching**: Aktifkan "Use as Mask", geser desain ke layar HP. Pastikan desain terpotong tepat di pinggiran bodi HP.
-- [ ] **Mockup Transparent Tint**: Pilih warna dari palet mockup. Pastikan hanya area layar (transparan) yang berubah warnanya, bodi asli produk tidak tertutup warna.
-- [ ] **Base Image Drag & Zoom**: Geser mockup HP, ganti zoom ke 200%. Pastikan posisi relatif mockup terhadap canvas center tetap konsisten.
-- [ ] **Image Upload replacement**: Pilih "Upload Placeholder" → Upload gambar baru. Pastikan gambar lama terganti sepenuhnya tanpa sisa ghosting.
-- [ ] **Add Text Centering**: Klik "Add Text". Pastikan teks muncul tepat di tengah layar aktif, bukan di koordinat 0,0.
-- [ ] **Crop Accuracy**: Lakukan crop pada gambar upload. Pastikan area yang tampil di kanvas sama persis dengan yang ada di modal preview crop.
-- [ ] **Valid PDF Output**: Export desain dalam format PDF. Pastikan file dapat dibuka di Adobe Reader atau Browser Chrome (bukan corrupted).
-- [ ] **ZIP PDF Layers**: Aktifkan "Separate Files" + Format PDF. Pastikan setiap file di dalam ZIP bisa dibuka secara individu sebagai PDF.
-- [ ] **JS Background Removal**: Upload gambar dengan background solid → Aktifkan "Remove Background (JS)". Geser slider "Intensity", pastikan background hilang tanpa merusak subjek utama.
-- [ ] **AI Background Removal**: Upload gambar kompleks → Aktifkan "Remove Background (AI)". Pastikan subjek terpotong rapi menggunakan server-side processing.
-- [ ] **BG Removal Mode**: Ganti antara "Light Mode" (untuk bg putih) dan "Dark Mode" (untuk bg hitam). Pastikan pemilihan mode sesuai dengan warna background yang ingin dihapus.
+- [✅] **Add to Cart Location**: Verifikasi tombol "Add to Cart" berada di sidebar kanan (Summary) tepat di bawah daftar Layers.
+- [✅] **Designer Close Icon**: Klik ikon silang (X) di header desainer publik. Pastikan kembali ke halaman produk (redirect) atau menutup modal (modal mode).
+- [✅] **Public Side Navigation**: Verifikasi navigasi antar sisi produk menggunakan tombol berjajar (bukan stepper) yang intuitif.
+- [ ] **Character Limit Enforcement (Critical)**: Verifikasi limit karakter pada input teks dan monogram di sidebar customization.
 
 ### B. Export & Output Fidelity
 - [ ] **Professional AI/EPS**: Export dalam format AI atau EPS. Buka di Illustrator/Inkscape, pastikan objek adalah **Vector Path** (bisa di-edit node-nya), bukan gambar piksel datar.
@@ -112,4 +99,131 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
 - [ ] **Public Assets**: Cek `/imcst_assets/storefront.js` dapat diakses dari browser tanpa 404.
 - [ ] **Prisma Sync**: Pastikan skema database tersinkronisasi (`npx prisma migrate status`).
 
-*Terakhir diperbarui: 5 Februari 2026 (Variant Assignment, Safe Area Resize, Palette Persistence)*
+---
+
+### E. Variant-Specific Designs (New)
+- [x] **Unique Design Toggle (Admin)**:
+    - [x] Verify "Unique Design" switch appears for variants.
+    - [x] **Unlinking**:
+        - [x] Unlinking copies current design to `variantDesigns`.
+        - [x] Variant-specific images (from legacy config) are promoted to `baseImage` for the unique design.
+        - [x] Editing an unlinked design does *not* affect the global design.
+    - [x] **Linking**:
+        - [x] Linking back warns the user.
+        - [x] Confirmed linking reverts to `globalDesigns`.
+- [x] **Persistence**:
+    - [x] Saving configuration persists `variantDesigns`.
+    - [x] Reloading the page retains linked/unlinked states and specific designs.
+- [x] **Public Frontend**:
+    - [x] **URL Parameter**: `?variant=ID` correctly pre-selects the variant.
+    - [x] **Variant Switching**: Switching options updates the design canvas.
+    - [x] **Unique Designs**: Variants with unique designs load their specific elements/settings (including "Use as Mask").
+    - [x] **Global Fallback**: Variants without unique designs correctly use the global design.
+    - [x] **Base Image Resolution**: Legacy variant images, Admin-assigned mockups, and Shopify variant images resolve correctly in priority order.
+- [x] **Automated Test Coverage**:
+    - [x] **Toolbar Icons**: Memastikan semua icon Lucide (Undo2, Redo2, Grid3x3, Download, Ruler, dll) ter-mocking dengan benar agar tidak menyebabkan crash pada render test.
+    - [x] **Variant Selection Workflow**: Verifikasi via `VariantSelection.test.tsx` untuk skenario auto-select, matching options, dan smart fallback.
+    - [x] **Persistence Logic**: Verifikasi via `DesignerCore.test.tsx` bahwa `designId` di-update setelah save pertama untuk mencegah duplikasi.
+    - [x] **Header Layout Fix**: Undo/Redo dipindahkan ke dalam Title Block untuk mencegah input "Design Name" collapsing pada layar kecil/sidebar terbuka.
+    - [x] **Responsive Buttons**: Label tombol "Load" dan "Save" otomatis hidden pada layar < XL untuk menjaga ruang input design name.
+    - [x] **Admin Layout Structure**: Koreksi nesting pada `DesignerCore` agar Canvas rander di bawah Top Bar/Nav (vertical stack), memperbaiki isu layout "canvas side-by-side".
+- [ ] **Stacked Monogram Alignment**: Tambahkan elemen Stacked. Verifikasi huruf A dan S berada pada posisi rapat/tumpang tindih (y: 44%, 50%) dan memiliki ukuran yang hampir sama besar dengan huruf utama di kanan (fontSize 149, x: 19%).
+- [ ] **Gallery Multi-Image Selection**:
+    - [ ] Set "Max Images" > 1 pada Gallery Tool di Admin.
+    - [ ] Di Public Designer, klik beberapa gambar di gallery.
+    - [ ] Pastikan gambar bertambah di kanvas (tidak saling tindih sempurna).
+    - [ ] Pastikan gambar addon **TIDAK MUNCUL** di sidebar kiri (Your Customization).
+    - [ ] Pastikan gambar addon **MUNCUL** di panel Summary/Layer (kanan).
+    - [ ] Klik icon Trash pada layer addon image, pastikan terhapus dari kanvas.
+
+### F. Swatch, Dropdown, dan Checkbox (New)
+- [x] **Swatch Support**:
+    - [x] **Admin Area**:
+        - [x] Tambahkan elemen Swatch di Admin Designer.
+        - [x] Konfigurasi swatch dengan warna dan/atau gambar.
+        - [x] Toggle "Show Preview in Canvas" - pastikan swatch muncul/hilang di canvas sesuai setting.
+        - [x] Verifikasi swatch dapat di-link ke product variant options.
+    - [x] **Public Frontend**:
+        - [x] Swatch muncul di sidebar "Your Customization" dengan pilihan warna/gambar.
+        - [x] Klik swatch warna - pastikan elemen berubah warna.
+        - [x] Klik swatch gambar - pastikan gambar ter-load di elemen.
+        - [x] Verifikasi selected swatch ditandai dengan checkmark dan border highlight.
+        - [x] Swatch **TIDAK** muncul di canvas (hanya di sidebar customization).
+
+- [x] **Dropdown Support**:
+    - [x] **Admin Area**:
+        - [x] Tambahkan elemen Dropdown di Admin Designer.
+        - [x] Hapus "Font Group" dari Dropdown settings (simplified UI).
+        - [x] Tambahkan opsi dropdown manual atau link ke asset group.
+        - [x] Verifikasi tombol "Create Dropdown Option" muncul saat buat baru.
+        - [x] Verifikasi tombol "Update Dropdown Option" muncul saat edit existing.
+        - [x] Dropdown **TIDAK** muncul di canvas preview (hanya di layers panel).
+    - [x] **Public Frontend**:
+        - [x] Dropdown muncul di sidebar "Your Customization".
+        - [x] Pilih opsi dari dropdown - pastikan hanya satu opsi terpilih (tidak semua jadi satu).
+        - [x] Verifikasi opsi yang disimpan sebagai "Name|enabled" di admin ditampilkan sebagai "Name" saja (tanpa "|enabled").
+        - [x] Verifikasi selected value tersimpan dengan benar di `el.text`.
+
+- [x] **Checkbox Support**:
+    - [x] **Admin Area**:
+        - [x] Tambahkan elemen Checkbox di Admin Designer.
+        - [x] Konfigurasi label dan placeholder.
+        - [x] Toggle "Show label" - pastikan label muncul/hilang sesuai setting.
+    - [x] **Public Frontend**:
+        - [x] Checkbox muncul di sidebar "Your Customization".
+        - [x] Klik checkbox - pastikan state berubah (checked/unchecked).
+        - [x] Verifikasi checked state tersimpan di `el.checked`.
+        - [x] Verifikasi label ditampilkan di samping checkbox.
+
+- [x] **Button Support**:
+    - [x] **Admin Area**:
+        - [x] Tambahkan elemen Button di Admin Designer.
+        - [x] Hapus "Font Group" dari Button settings (simplified UI).
+        - [x] Konfigurasi button style (Solid, Outline, Soft) dan typography.
+        - [x] Link button ke asset group untuk populate options.
+        - [x] Enable/disable individual button options.
+        - [x] Verifikasi tombol "Create Button Option" muncul saat buat baru.
+        - [x] Verifikasi tombol "Update Dropdown Option" muncul saat edit existing.
+        - [x] Button **TIDAK** muncul di canvas preview (hanya di layers panel).
+    - [x] **Public Frontend**:
+        - [x] Button options muncul di sidebar "Your Customization".
+        - [x] Klik button - pastikan hanya satu option terpilih.
+        - [x] Verifikasi button style (solid/outline/soft) diterapkan dengan benar.
+        - [x] Verifikasi selected value tersimpan di element.
+        - [x] Verifikasi required selection enforcement (jika diaktifkan).
+
+- [x] **Drag-and-Drop Reordering**:
+    - [x] **Toolbar Layers**:
+        - [x] Verifikasi icon "Grip" (`GripVertical`) muncul di setiap elemen list.
+        - [x] Geser elemen ke atas/bawah - pastikan urutan di list berubah.
+        - [x] Cek ke kanvas - pastikan layering (z-index) berubah mengikuti urutan list (item bawah = layer atas).
+        - [x] Verifikasi posisi list tetap stabil saat drag (no flickering).
+    - [x] **Sticky Bottom Tools**:
+        - [x] Tombol "Add More Tools" kini menempel di bawah list (fixed).
+        - [x] List layer otomatis memanjang (`flex-1`) mengisi ruang sisa hingga menyentuh tombol Add More.
+
+- [x] **Specialized Input Tools (Phone, Number, Date, Time)**:
+    - [x] **Canvas Preview**:
+        - [x] Input elements (Phone/Date) menampilkan nilai preview yang dikonfigurasi (`element.text`) di kanvas.
+        - [x] Icon internal (Phone/Calendar) dihilangkan dari canvas preview untuk tampilan bersih.
+        - [x] Elemen di kanvas bersifat `read-only` (tidak bisa diketik langsung di kanvas, harus via sidebar).
+    - [x] **Styling Fidelity**:
+        - [x] Verifikasi pengaturan Color, Stroke, dan Font Family diterapkan dengan benar pada preview di kanvas.
+        - [x] Verifikasi perataan teks (Alignment) bekerja pada semua jenis input field.
+
+- [x] **Monogram Enhancements**:
+    - [x] **Advanced Styling**:
+        - [x] Verifikasi fitur Stroke (Outline) bekerja pada semua varian Monogram (Vine, Diamond, Circle, Stacked).
+        - [x] Verifikasi fitur Gradient (Linear) bekerja pada semua varian Monogram.
+        - [x] Pastikan perubahan warna/stroke tersimpan di history (bisa undo/redo).
+
+- [x] **Side Management UI**:
+    - [x] **Page Switcher (Admin & Public)**:
+        - [x] Navigasi step "Side X/Y" diganti menjadi tombol berjajar (Side-by-side buttons).
+        - [x] Klik tombol side - pastikan kanvas berpindah ke side tersebut secara instan.
+        - [x] Verifikasi indikator visual (border & active dot) muncul pada side yang aktif.
+        - [x] **Management (Admin Only)**: Klik icon "More" pada side aktif, muncul opsi Rename dan Delete.
+        - [x] **Add Side (Admin Only)**: Tombol "Add New Side" (Plus icon) berada di sebelah daftar tombol side.
+
+---
+*Terakhir diperbarui: 7 Februari 2026 (Side Management Public, Add to Cart Location Fix, Close Icon Fix)*

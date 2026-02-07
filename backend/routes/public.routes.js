@@ -346,5 +346,28 @@ router.post("/pricing/calculate", async (req, res) => {
     }
 });
 
+// Image Proxy to bypass CORS issues
+router.get("/proxy-image", async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).send("URL required");
+
+    try {
+        const response = await fetch(decodeURIComponent(url));
+        if (!response.ok) {
+            return res.status(response.status).send(`Failed to fetch image: ${response.statusText}`);
+        }
+
+        const contentType = response.headers.get("content-type");
+        const buffer = Buffer.from(await response.arrayBuffer());
+
+        res.setHeader("Content-Type", contentType || "image/png");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
+        res.send(buffer);
+    } catch (error) {
+        console.error("[Proxy Image] Error:", error);
+        res.status(500).send(error.message);
+    }
+});
 
 export default router;

@@ -306,6 +306,36 @@ export function GalleryTool({ onAddElement, selectedElement, onUpdateElement, us
                             </div>
                         </div>
 
+                        {/* Selection Limits */}
+                        <div className="space-y-3">
+                            <Label className="text-[10px] font-bold text-gray-400 px-1">Selection Limits</Label>
+                            <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-100 rounded-xl">
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] text-gray-500">Min Images</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={selectedElement?.minSelection || 0}
+                                        onChange={(e) => handleUpdate({ minSelection: parseInt(e.target.value) || 0 })}
+                                        className="h-8 text-xs font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] text-gray-500">Max Images</Label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        value={selectedElement?.maxSelection || 1}
+                                        onChange={(e) => handleUpdate({ maxSelection: parseInt(e.target.value) || 1 })}
+                                        className="h-8 text-xs font-bold"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[9px] text-gray-400 italic px-1">
+                                Control how many images a customer can add to the canvas from this gallery slot.
+                            </p>
+                        </div>
+
                         {/* Preview Control */}
                         <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100/50 space-y-4">
                             <div className="flex items-center justify-between">

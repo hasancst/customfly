@@ -25,9 +25,29 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
     const imgRef = useRef<HTMLImageElement>(null);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    const cleanSrc = useMemo(() => {
+        if (!src) return '';
+        const rawUrl = src.includes('|') ? src.split('|')[1].trim() : src;
+
+        // Skip proxying for data/blob URLs or local assets
+        if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:') || rawUrl.startsWith('/')) {
+            return rawUrl;
+        }
+
+        // Proxy external storage URLs to avoid CORS issues (blocked on some origins)
+        if (rawUrl.includes('linodeobjects.com') || rawUrl.includes('amazonaws.com')) {
+            const baseUrl = (window as any).IMCST_BASE_URL || '';
+            if (baseUrl) {
+                return `${baseUrl}/imcst_public_api/proxy-image?url=${encodeURIComponent(rawUrl)}`;
+            }
+        }
+
+        return rawUrl;
+    }, [src]);
+
     useEffect(() => {
         setIsLoaded(false);
-    }, [src]);
+    }, [cleanSrc]);
 
     const z = zoom / 100;
 
@@ -134,7 +154,7 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
         };
 
         process();
-    }, [src, removeBg, deep, mode, crop, isLoaded, removeBgType, width, height, tint, isEngraved, engraveThreshold, engraveColor, engraveInvert]);
+    }, [cleanSrc, removeBg, deep, mode, crop, isLoaded, removeBgType, width, height, tint, isEngraved, engraveThreshold, engraveColor, engraveInvert]);
 
     const showProcessed = (removeBg && removeBgType === 'js') || isEngraved;
 
@@ -230,10 +250,10 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
                 >
                     <img
                         ref={imgRef}
-                        src={src}
+                        src={cleanSrc}
                         onLoad={() => setIsLoaded(true)}
                         style={imgStyle}
-                        crossOrigin={src.startsWith('data:') || src.startsWith('blob:') ? undefined : "anonymous"}
+                        crossOrigin={cleanSrc.startsWith('data:') || cleanSrc.startsWith('blob:') ? undefined : "anonymous"}
                         draggable={false}
                     />
                     {!showProcessed && tint && (
@@ -241,8 +261,8 @@ const ProcessedImage = memo(({ id, src, removeBg, removeBgType, deep, mode, widt
                             className="absolute inset-0 pointer-events-none"
                             style={{
                                 backgroundColor: tint,
-                                maskImage: `url(${src})`,
-                                WebkitMaskImage: `url(${src})`,
+                                maskImage: `url(${cleanSrc})`,
+                                WebkitMaskImage: `url(${cleanSrc})`,
                                 maskSize: 'contain',
                                 WebkitMaskSize: 'contain',
                                 maskRepeat: 'no-repeat',

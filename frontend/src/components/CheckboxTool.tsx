@@ -1,4 +1,5 @@
-import { Link2, Settings2, CheckCircle2, Circle, CheckSquare } from 'lucide-react';
+import { Link2, Settings2, CheckCircle2, Circle, CheckSquare, Plus, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,14 +20,14 @@ interface CheckboxToolProps {
     selectedElement: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
     userOptions?: any[];
-    userFonts?: any[];
+    onAddElement: (element: CanvasElement) => void;
 }
 
 export function CheckboxTool({
     selectedElement,
     onUpdateElement,
     userOptions,
-    userFonts
+    onAddElement
 }: CheckboxToolProps) {
     const handleLinkOption = (val: string) => {
         if (val === 'none') {
@@ -157,6 +158,25 @@ export function CheckboxTool({
                         )}
 
                     </div>
+
+                    <div className="pt-0">
+                        <Button
+                            onClick={() => {
+                                if (selectedElement?.id === 'draft') {
+                                    onAddElement({
+                                        ...selectedElement as any,
+                                        id: `checkbox-${Date.now()}`,
+                                    });
+                                } else {
+                                    import('sonner').then(({ toast }) => toast.success('Checkbox option updated'));
+                                }
+                            }}
+                            className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-amber-100 flex items-center justify-center gap-2 border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition-all"
+                        >
+                            {selectedElement?.id === 'draft' ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                            {selectedElement?.id === 'draft' ? 'Create Checkbox Option' : 'Update Checkbox Option'}
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Font Configuration */}
@@ -177,26 +197,6 @@ export function CheckboxTool({
                             ))}
                         </SelectContent>
                     </Select>
-
-                    <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
-                        <Select
-                            value={selectedElement.fontAssetId || "none"}
-                            onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
-                        >
-                            <SelectTrigger className="h-8 text-xs bg-white">
-                                <SelectValue placeholder="Global Default" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Global Default</SelectItem>
-                                {userFonts?.map((asset) => (
-                                    <SelectItem key={asset.id} value={asset.id}>
-                                        {asset.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
 
                     <div className="flex gap-3">
                         <div className="space-y-1 flex-1">

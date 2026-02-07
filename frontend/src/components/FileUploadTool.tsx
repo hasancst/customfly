@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FileText, AlertCircle } from 'lucide-react';
+import { FileText, AlertCircle, Plus, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CanvasElement } from '@/types';
@@ -75,6 +77,26 @@ export function FileUploadTool({ onAddElement, selectedElement, onUpdateElement,
                         className="h-9 rounded-lg"
                         placeholder="e.g. Upload Logo"
                     />
+                </div>
+
+                <div className="pt-2">
+                    <Button
+                        onClick={() => {
+                            if (selectedElement?.id === 'draft') {
+                                onAddElement({
+                                    ...selectedElement as any,
+                                    id: `file_upload-${Date.now()}`,
+                                });
+                            } else {
+                                // Already being updated via handleUpdate, but provide feedback
+                                toast.success('Upload option updated');
+                            }
+                        }}
+                        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all"
+                    >
+                        {selectedElement?.id === 'draft' ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                        {selectedElement?.id === 'draft' ? 'Create Upload Option' : 'Update Upload Option'}
+                    </Button>
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50">

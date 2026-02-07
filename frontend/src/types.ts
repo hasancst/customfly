@@ -40,6 +40,7 @@ export interface CanvasElement {
   textMode?: 'shrink' | 'wrap';
   maxChars?: number;
   textCase?: 'none' | 'uppercase' | 'lowercase';
+  hideTextPreview?: boolean;
   bridge?: {
     curve: number;
     offsetY: number;
@@ -59,6 +60,11 @@ export interface CanvasElement {
   removeBgDeep?: number;
   removeBgMode?: 'light' | 'dark';
   removeBgType?: 'js' | 'rembg';
+  removeBgConfig?: {
+    mode: 'live' | 'ai';
+    sensitivity?: number;
+    targetColor?: string;
+  };
   imageFilters?: {
     brightness?: number; // 0 to 200, default 100
     contrast?: number;   // 0 to 200, default 100
@@ -164,6 +170,8 @@ export interface CanvasElement {
   disableTextDecoration?: boolean;
   disableColorPickerUI?: boolean;
   isVisible?: boolean;
+  checked?: boolean;
+  numberValue?: number;
 }
 
 export interface OutputSettings {

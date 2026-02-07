@@ -54,15 +54,16 @@ export default defineConfig({
             id.includes('lucide-react')) {
             return 'vendor-ui';
           }
-          // Separate heavy graphic libs for lazy loading
-          if (id.includes('html2canvas') || id.includes('jspdf') || id.includes('pdfjs-dist') || id.includes('psd.js')) {
-            return 'vendor-graphics';
-          }
+          // Separate heavy graphic libs to avoid large single chunks
+          if (id.includes('html2canvas')) return 'vendor-html2canvas';
+          if (id.includes('jspdf')) return 'vendor-jspdf';
+          if (id.includes('pdfjs-dist')) return 'vendor-pdfjs';
+          if (id.includes('psd.js')) return 'vendor-psd';
         }
       },
     },
-    // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000,
+    // Increase chunk size warning limit to accommodate heavy libraries
+    chunkSizeWarningLimit: 2000,
   },
   server: {
     allowedHosts: ['custom.duniasantri.com'],

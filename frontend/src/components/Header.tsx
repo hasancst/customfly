@@ -1,7 +1,6 @@
-import { Undo2, Redo2, Sparkles, Maximize2, Minimize2, Loader2, CloudUpload, List, Trash2, PanelRight, X, Library, Box, Layers, Image as ImageIcon, ChevronDown, DollarSign, AlertCircle, Eye, Pencil } from 'lucide-react';
+import { Undo2, Redo2, Sparkles, Maximize2, Minimize2, Loader2, CloudUpload, List, Trash2, PanelRight, X, Library, Box, Layers, Image as ImageIcon, ChevronDown, DollarSign, AlertCircle, Eye } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Tooltip,
   TooltipContent,
@@ -30,10 +29,13 @@ import {
 } from '@/components/ui/dialog';
 
 interface HeaderProps {
-  onUndo: () => void;
-  onRedo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  showPreview?: boolean;
+  onPreview?: () => void;
+  productId?: string;
   title?: string;
   onSave?: (isTemplate?: boolean, isSilent?: boolean) => void;
   designName?: string;
@@ -50,12 +52,9 @@ interface HeaderProps {
   isPublicMode?: boolean;
   buttonText?: string;
   lastSavedTime?: Date | null;
-  productId?: string;
   pricingConfigComponent?: React.ReactNode;
   handle?: string;
   shop?: string;
-  onPreview?: () => void;
-  showPreview?: boolean;
 }
 
 export function Header({
@@ -63,6 +62,9 @@ export function Header({
   onRedo,
   canUndo,
   canRedo,
+  showPreview,
+  onPreview,
+  productId,
   title,
   onSave,
   designName,
@@ -79,12 +81,9 @@ export function Header({
   isPublicMode = false,
   buttonText = 'Design It',
   lastSavedTime,
-  productId,
   pricingConfigComponent,
   handle,
   shop,
-  onPreview,
-  showPreview = false,
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -172,7 +171,7 @@ export function Header({
 
   return (
     <TooltipProvider delayDuration={150}>
-      <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between z-[100000] overflow-visible">
+      <header className="h-16 bg-white border-b border-gray-200 px-4 flex items-center justify-between gap-4 z-[100000] overflow-hidden">
         <div className="flex items-center gap-4">
           {onClose && (
             <Tooltip>
@@ -218,27 +217,63 @@ export function Header({
                 </div>
               </div>
             </div>
+
+            {(onUndo || onRedo) && (
+              <div className="flex items-center gap-1 border-l pl-4 ml-2 hidden md:flex">
+                {onUndo && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onUndo}
+                        disabled={!canUndo}
+                        className="h-9 w-9 text-gray-400 hover:text-indigo-600 disabled:opacity-20 transition-all active:scale-90"
+                      >
+                        <Undo2 className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Undo</TooltipContent>
+                  </Tooltip>
+                )}
+                {onRedo && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onRedo}
+                        disabled={!canRedo}
+                        className="h-9 w-9 text-gray-400 hover:text-indigo-600 disabled:opacity-20 transition-all active:scale-90"
+                      >
+                        <Redo2 className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Redo</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-12">
-          <div className="flex items-center gap-3 max-w-lg w-full">
-            <span className="text-sm font-medium text-gray-400 whitespace-nowrap">Design Name:</span>
-            <div className="relative flex-1">
+        <div className="flex-1 flex items-center justify-center px-2 min-w-0">
+          <div className="flex items-center gap-3 w-full max-w-sm">
+            <div className="relative flex-1 min-w-0">
               <input
                 value={designName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onDesignNameChange?.(e.target.value)}
-                className="h-11 bg-gray-50 border border-gray-200 focus:bg-white transition-colors text-center font-medium text-indigo-600 pr-10 rounded-xl w-full text-base outline-none focus:ring-2 focus:ring-indigo-500/20"
+                onChange={(e) => onDesignNameChange?.(e.target.value)}
+                className="h-10 bg-gray-50/50 border border-gray-100 focus:bg-white transition-all text-center font-bold text-indigo-600 pr-10 rounded-xl w-full text-xs outline-none focus:ring-4 focus:ring-indigo-500/10 placeholder:text-gray-300"
                 placeholder="Name your design..."
               />
               {isSaving && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                  <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                 </div>
               )}
               {!isSaving && lastSavedTime && (
-                <div className="absolute -bottom-5 left-0 w-full text-[9px] text-gray-400 font-medium whitespace-nowrap overflow-hidden text-center">
-                  Last saved: {lastSavedTime.toLocaleTimeString()}
+                <div className="absolute -bottom-4 left-0 w-full text-[8px] text-gray-400 font-bold uppercase tracking-tighter whitespace-nowrap overflow-hidden text-center opacity-70">
+                  Last saved: {lastSavedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               )}
             </div>
@@ -246,152 +281,132 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onUndo}
-                  disabled={!canUndo}
-                  className="rounded-xl h-11 w-11"
-                >
-                  <Undo2 className="w-5 h-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Undo (Ctrl+Z)</TooltipContent>
-            </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onRedo}
-                  disabled={!canRedo}
-                  className="rounded-xl h-11 w-11"
-                >
-                  <Redo2 className="w-5 h-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Redo (Ctrl+Y)</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {!isPublicMode && (
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="rounded-xl text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 flex items-center gap-2 px-4 h-11"
-                    >
-                      <List className="w-5 h-5" />
-                      <span className="text-sm font-medium">Load</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Load Previous Designs</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent align="end" className="w-[320px] rounded-xl shadow-2xl border-gray-100 p-2 z-[100001]">
-                <Tabs defaultValue="product" className="w-full">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-50 mb-2">
-                    <span className="text-[10px] font-bold text-gray-400 tracking-widest">Load Template</span>
-                    <div className="flex items-center gap-2">
-
-                      <TabsList className="bg-gray-100 p-0.5 h-7">
-                        <TabsTrigger value="product" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Product</TabsTrigger>
-                        <TabsTrigger value="library" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Library</TabsTrigger>
-                      </TabsList>
-                    </div>
-                  </div>
-                  <TabsContent value="product" className="mt-0">
-                    {savedDesigns.length === 0 ? (
-                      <div className="py-12 text-center text-gray-400">
-                        <Box className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-xs font-medium">No designs for this product.</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-[400px] overflow-y-auto pr-1 space-y-1">
-                        {savedDesigns.map((design) => renderDesignItem(design))}
-                        {onClearAllDesigns && (
-                          <div className="pt-2 mt-2 border-t border-gray-50">
-                            <button
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to delete ALL saved designs for this product? This prevents future loading.")) {
-                                  onClearAllDesigns();
-                                }
-                              }}
-                              className="w-full py-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 font-bold tracking-wide rounded-lg transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              Clear All Designs
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="library" className="mt-0">
-                    {allDesigns.length === 0 ? (
-                      <div className="py-12 text-center text-gray-400">
-                        <Library className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-xs font-medium">Your library is empty.</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-[400px] overflow-y-auto pr-1 space-y-1">
-                        {allDesigns.map((design) => renderDesignItem(design))}
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {!isPublicMode && (
-            <div className="flex items-center">
-              <Dialog>
+          {
+            !isPublicMode && (
+              <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
+                    <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-xl h-11 w-11 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        className="rounded-xl text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 flex items-center gap-2 px-3 h-11"
                       >
-                        <DollarSign className="w-5 h-5" />
+                        <List className="w-5 h-5" />
+                        <span className="sr-only">Load</span>
                       </Button>
-                    </DialogTrigger>
+                    </DropdownMenuTrigger>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">Pricing Settings</TooltipContent>
-                </Tooltip>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl p-0 border-0 shadow-2xl">
-                  <DialogHeader className="p-6 pb-0">
-                    <DialogTitle className="text-2xl font-black text-gray-900 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
-                        <DollarSign className="w-6 h-6 text-emerald-600" />
-                      </div>
-                      Pricing Configuration
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="p-6">
-                    {pricingConfigComponent ? (
-                      pricingConfigComponent
-                    ) : (
-                      <div className="p-12 text-center text-gray-400">
-                        <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                        <p className="font-bold">Not Available</p>
-                        <p className="text-xs">Pricing configuration is only available in Admin mode.</p>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
+                  <TooltipContent side="bottom">Load Previous Designs</TooltipContent>
+                </Tooltip >
+                <DropdownMenuContent align="end" className="w-[320px] rounded-xl shadow-2xl border-gray-100 p-2 z-[100001]">
+                  < Tabs defaultValue="product" className="w-full">
+                    < div className="flex items-center justify-between px-3 py-2 border-b border-gray-50 mb-2">
+                      < span className="text-[10px] font-bold text-gray-400 tracking-widest">Load Template</span>
+                      < div className="flex items-center gap-2">
+
+                        < TabsList className="bg-gray-100 p-0.5 h-7">
+                          < TabsTrigger value="product" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Product</TabsTrigger>
+                          < TabsTrigger value="library" className="text-[9px] h-6 px-2 font-bold data-[state=active]:bg-white">Library</TabsTrigger>
+                        </TabsList >
+                      </div >
+                    </div >
+                    <TabsContent value="product" className="mt-0">
+                      {
+                        savedDesigns.length === 0 ? (
+                          <div className="py-12 text-center text-gray-400">
+                            < Box className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                            < p className="text-xs font-medium">No designs for this product.</p>
+                          </div >
+                        ) : (
+                          <div className="max-h-[400px] overflow-y-auto pr-1 space-y-1">
+                            {savedDesigns.map((design) => renderDesignItem(design))}
+                            {
+                              onClearAllDesigns && (
+                                <div className="pt-2 mt-2 border-t border-gray-50">
+                                  < button
+                                    onClick={() => {
+                                      if (window.confirm("Are you sure you want to delete ALL saved designs for this product? This prevents future loading.")) {
+                                        onClearAllDesigns();
+                                      }
+                                    }
+                                    }
+                                    className="w-full py-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 font-bold tracking-wide rounded-lg transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    Clear All Designs
+                                  </button >
+                                </div >
+                              )
+                            }
+                          </div >
+                        )}
+                    </TabsContent >
+                    <TabsContent value="library" className="mt-0">
+                      {
+                        allDesigns.length === 0 ? (
+                          <div className="py-12 text-center text-gray-400">
+                            < Library className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                            < p className="text-xs font-medium">Your library is empty.</p>
+                          </div >
+                        ) : (
+                          <div className="max-h-[400px] overflow-y-auto pr-1 space-y-1">
+                            {allDesigns.map((design) => renderDesignItem(design))}
+                          </div >
+                        )
+                      }
+                    </TabsContent >
+                  </Tabs >
+                </DropdownMenuContent >
+              </DropdownMenu >
+            )}
+
+          {
+            !isPublicMode && (
+              <div className="flex items-center">
+                < Dialog >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-xl h-11 w-11 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <DollarSign className="w-5 h-5" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Pricing Settings</TooltipContent>
+                  </Tooltip >
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl p-0 border-0 shadow-2xl">
+                    < DialogHeader className="p-6 pb-0">
+                      < DialogTitle className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                        < div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                          < DollarSign className="w-6 h-6 text-emerald-600" />
+                        </div >
+                        Pricing Configuration
+                      </DialogTitle >
+                    </DialogHeader >
+                    <div className="p-6">
+                      {
+                        pricingConfigComponent ? (
+                          pricingConfigComponent
+                        ) : (
+                          <div className="p-12 text-center text-gray-400">
+                            < AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                            < p className="font-bold">Not Available</p>
+                            < p className="text-xs">Pricing configuration is only available in Admin mode.</p>
+                          </div >
+                        )
+                      }
+                    </div >
+                  </DialogContent >
+                </Dialog >
+              </div >
+            )
+          }
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -405,7 +420,7 @@ export function Header({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">{showSummary ? 'Hide' : 'Show'} Controls</TooltipContent>
-          </Tooltip>
+          </Tooltip >
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -419,76 +434,96 @@ export function Header({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</TooltipContent>
-          </Tooltip>
+          </Tooltip >
 
           <div className="flex items-center">
-            {!isPublicMode ? (
-              <DropdownMenu>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
+            {
+              !isPublicMode ? (
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          disabled={isSaving}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 lg:px-6 font-medium shadow-lg shadow-indigo-200 transition-all active:scale-95 h-12 flex items-center gap-3 border-b-4 border-indigo-800 tracking-wide text-sm group"
+                        >
+                          {isSaving ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span className="hidden xl:inline">Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CloudUpload className="w-5 h-5" />
+                              <span className="hidden xl:inline">Save Design</span>
+                              <ChevronDown className="w-4 h-4 ml-1 opacity-50 group-hover:opacity-100 transition-opacity" />
+                            </>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Save Design Changes</TooltipContent>
+                  </Tooltip >
+                  <DropdownMenuContent align="end" className="w-60 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000002]">
+                    < DropdownMenuLabel className="text-[10px] font-bold text-gray-400 tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
+                    < DropdownMenuSeparator className="bg-gray-100" />
+                    < DropdownMenuItem onClick={() => onSave?.(false)
+                    } className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
+                      < div className="flex items-center gap-3">
+                        < Box className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
+                        < div className="flex flex-col gap-0.5">
+                          < span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">This Product Only</span>
+                          < span className="text-[10px] text-gray-400">Regular design for current product</span>
+                        </div >
+                      </div >
+                    </DropdownMenuItem >
+                    <DropdownMenuItem onClick={() => onSave?.(true)} className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
+                      < div className="flex items-center gap-3">
+                        < Library className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
+                        < div className="flex flex-col gap-0.5">
+                          < span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Store Template</span>
+                          < span className="text-[10px] text-gray-400">Add to global templates library</span>
+                        </div >
+                      </div >
+                    </DropdownMenuItem >
+                  </DropdownMenuContent >
+                </DropdownMenu >
+              ) : (
+                <div className="flex items-center gap-2">
+                  < Tooltip >
+                    <TooltipTrigger asChild>
                       <Button
+                        onClick={() => onSave?.(false)}
                         disabled={isSaving}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 font-medium shadow-lg shadow-indigo-200 transition-all active:scale-95 h-12 flex items-center gap-3 border-b-4 border-indigo-800 tracking-wide text-sm group"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-10 font-medium shadow-lg shadow-indigo-200 transition-all active:scale-95 h-12 flex items-center gap-3 border-b-4 border-indigo-800 tracking-wide text-sm"
                       >
-                        {isSaving ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            <span>Saving...</span>
-                          </>
-                        ) : (
-                          <>
-                            <CloudUpload className="w-5 h-5" />
-                            <span>Save Design</span>
-                            <ChevronDown className="w-4 h-4 ml-1 opacity-50 group-hover:opacity-100 transition-opacity" />
-                          </>
-                        )}
+                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CloudUpload className="w-5 h-5" />}
+                        <span>{isSaving ? 'Processing...' : buttonText}</span>
                       </Button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Save Design Changes</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="end" className="w-60 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000002]">
-                  <DropdownMenuLabel className="text-[10px] font-bold text-gray-400 tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-gray-100" />
-                  <DropdownMenuItem onClick={() => onSave?.(false)} className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
-                    <div className="flex items-center gap-3">
-                      <Box className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">This Product Only</span>
-                        <span className="text-[10px] text-gray-400">Regular design for current product</span>
-                      </div>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onSave?.(true)} className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
-                    <div className="flex items-center gap-3">
-                      <Library className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Store Template</span>
-                        <span className="text-[10px] text-gray-400">Add to global templates library</span>
-                      </div>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => onSave?.(false)}
-                    disabled={isSaving}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-10 font-medium shadow-lg shadow-indigo-200 transition-all active:scale-95 h-12 flex items-center gap-3 border-b-4 border-indigo-800 tracking-wide text-sm"
-                  >
-                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CloudUpload className="w-5 h-5" />}
-                    <span>{isSaving ? 'Processing...' : buttonText}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Save Design Changes</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </div>
-      </header>
-    </TooltipProvider>
+                    </TooltipTrigger >
+                    <TooltipContent side="bottom">Save Design Changes</TooltipContent>
+                  </Tooltip >
+
+                  {showPreview && onPreview && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={onPreview}
+                          variant="ghost"
+                          className="h-11 px-4 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl flex items-center gap-2 border border-indigo-100 ml-2 font-bold text-xs uppercase tracking-wider shadow-sm"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Preview
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Preview Final Output</TooltipContent>
+                    </Tooltip >
+                  )}
+                </div >
+              )}
+          </div >
+        </div >
+      </header >
+    </TooltipProvider >
   );
 }

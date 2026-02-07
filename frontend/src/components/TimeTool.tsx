@@ -13,7 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
+
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 
@@ -211,73 +211,28 @@ export function TimeTool({ onAddElement, selectedElement, onUpdateElement, userF
                     </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 space-y-4 px-1">
+                    {/* Font Group and Color Only */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                         <Select
-                            value={fontFamily}
-                            onValueChange={(val) => {
-                                setFontFamily(val);
-                                handleUpdate({ fontFamily: val });
-                            }}
+                            value={selectedElement?.fontAssetId || "none"}
+                            onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
                         >
-                            <SelectTrigger className="h-9 text-xs bg-white">
-                                <SelectValue />
+                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                <SelectValue placeholder="Global Default" />
                             </SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
-                                {POPULAR_GOOGLE_FONTS.map((font) => (
-                                    <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                                        {font}
+                            <SelectContent>
+                                <SelectItem value="none">Global Default</SelectItem>
+                                {userFonts?.map((asset: any) => (
+                                    <SelectItem key={asset.id} value={asset.id}>
+                                        {asset.name}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
-
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
-                            <Select
-                                value={selectedElement?.fontAssetId || "none"}
-                                onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
-                            >
-                                <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
-                                    <SelectValue placeholder="Global Default" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Global Default</SelectItem>
-                                    {userFonts?.map((asset: any) => (
-                                        <SelectItem key={asset.id} value={asset.id}>
-                                            {asset.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <Input
-                                type="number"
-                                value={fontSize}
-                                onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    setFontSize(val);
-                                    handleUpdate({ fontSize: val });
-                                }}
-                                className="h-9 w-20 text-xs"
-                            />
-                            <div className="flex-1 flex gap-2 items-center">
-                                <div className="relative w-9 h-9 rounded-lg border border-gray-200 overflow-hidden flex-shrink-0">
-                                    <Input
-                                        type="color"
-                                        className="absolute inset-0 w-full h-full p-0 border-none cursor-pointer"
-                                        value={color}
-                                        onChange={(e) => {
-                                            setColor(e.target.value);
-                                            handleUpdate({ color: e.target.value });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
                     </div>
+
+
 
                     <div className="space-y-2 pt-2 border-t border-gray-100">
                         <div className="space-y-1.5">
@@ -299,6 +254,15 @@ export function TimeTool({ onAddElement, selectedElement, onUpdateElement, userF
                                 onCheckedChange={(val) => {
                                     setIsRequired(val);
                                     handleUpdate({ isRequired: val });
+                                }}
+                            />
+                        </div>
+                        <div className="flex items-center justify-between py-2 px-1">
+                            <Label className="text-[10px] font-bold text-gray-600">Hide Label on Canvas</Label>
+                            <Switch
+                                checked={selectedElement?.hideLabel ?? false}
+                                onCheckedChange={(val) => {
+                                    handleUpdate({ hideLabel: val });
                                 }}
                             />
                         </div>

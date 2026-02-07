@@ -116,9 +116,7 @@ describe('DesignerCore Autosave', () => {
     });
 
     it('should update designId on subsequent saves (Scalability Fix)', async () => {
-        const onSave = vi.fn()
-            .mockResolvedValueOnce({ id: '1001', name: 'First Save' }) // First save returns ID
-            .mockResolvedValue({ id: '1001', name: 'Update Save' });   // Subsequent saves
+        const onSave = vi.fn().mockImplementation(() => Promise.resolve({ id: '1001', name: 'Saved Design' }));
 
         render(<DesignerCore {...defaultProps} onSave={onSave} />);
 
@@ -304,7 +302,7 @@ describe('DesignerCore Asset Logic (Public & Admin Overrides)', () => {
 
     it('should initialize selected asset IDs from config and allow changes via Summary', async () => {
         render(<DesignerCore {...assetProps} />);
-        
+
         expect(screen.getByTestId('selected-font').textContent).toBe('server-font-id');
 
         const changeFontBtn = screen.getByTestId('change-font-asset');

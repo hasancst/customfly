@@ -32,6 +32,7 @@ export default function ModalView({ productId, shop }: ModalViewProps) {
                             shopDomain={shop}
                             isPublicMode={true}
                             layout="modal"
+                            onBack={() => setIsOpen(false)}
                         />
                     </div>
                 </div>

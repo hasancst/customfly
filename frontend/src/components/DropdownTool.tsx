@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, ChevronDown, Link2, Trash2, Settings2 } from 'lucide-react';
+import { Plus, ChevronDown, Link2, Trash2, Settings2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +20,7 @@ interface DropdownToolProps {
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
     productData?: any;
     userOptions?: any[];
-    userFonts?: any[];
+    onAddElement: (element: CanvasElement) => void;
 }
 
 export function DropdownTool({
@@ -28,7 +28,7 @@ export function DropdownTool({
     onUpdateElement,
     productData,
     userOptions,
-    userFonts
+    onAddElement
 }: DropdownToolProps) {
     const [newItem, setNewItem] = React.useState('');
     const productOptions = productData?.options || [];
@@ -114,6 +114,25 @@ export function DropdownTool({
                         </div>
                     )}
 
+                    <div className="pt-0">
+                        <Button
+                            onClick={() => {
+                                if (selectedElement?.id === 'draft') {
+                                    onAddElement({
+                                        ...selectedElement as any,
+                                        id: `dropdown-${Date.now()}`,
+                                    });
+                                } else {
+                                    import('sonner').then(({ toast }) => toast.success('Dropdown option updated'));
+                                }
+                            }}
+                            className="w-full h-11 bg-cyan-600 hover:bg-cyan-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-cyan-100 flex items-center justify-center gap-2 border-b-4 border-cyan-800 active:border-b-0 active:translate-y-1 transition-all"
+                        >
+                            {selectedElement?.id === 'draft' ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                            {selectedElement?.id === 'draft' ? 'Create Dropdown Option' : 'Update Dropdown Option'}
+                        </Button>
+                    </div>
+
 
 
                     <div className="space-y-1.5">
@@ -126,7 +145,7 @@ export function DropdownTool({
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                         <div className="space-y-1.5">
                             <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
                             <Select
@@ -140,25 +159,6 @@ export function DropdownTool({
                                     <SelectItem value="classic">Classic</SelectItem>
                                     <SelectItem value="outline">Modern Outline</SelectItem>
                                     <SelectItem value="soft">Soft Fill</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
-                            <Select
-                                value={selectedElement.fontAssetId || "none"}
-                                onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
-                            >
-                                <SelectTrigger className="h-8 text-xs bg-white">
-                                    <SelectValue placeholder="Global Default" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Global Default</SelectItem>
-                                    {userFonts?.map((asset) => (
-                                        <SelectItem key={asset.id} value={asset.id}>
-                                            {asset.name}
-                                        </SelectItem>
-                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>

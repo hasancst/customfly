@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Settings2 } from 'lucide-react';
+import { Plus, Check, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 
@@ -21,15 +20,17 @@ interface NumberToolProps {
     onAddElement: (element: CanvasElement) => void;
     selectedElement?: CanvasElement;
     onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
-    userFonts?: any[];
     userColors?: any[];
+    userFonts?: any[];
 }
 
-export function NumberTool({ onAddElement, selectedElement, onUpdateElement, userFonts, userColors = [] }: NumberToolProps) {
+export function NumberTool({ onAddElement, selectedElement, onUpdateElement, userColors = [], userFonts = [] }: NumberToolProps) {
     const [defaultValue, setDefaultValue] = useState<number>(selectedElement?.defaultValue !== undefined ? Number(selectedElement.defaultValue) : 0);
     const [label, setLabel] = useState(selectedElement?.label || '');
     const [fontSize, setFontSize] = useState(selectedElement?.fontSize || 32);
     const [fontFamily, setFontFamily] = useState(selectedElement?.fontFamily || 'Inter');
+    const [fontWeight, setFontWeight] = useState(selectedElement?.fontWeight || 700);
+    const [italic, setItalic] = useState(selectedElement?.italic || false);
     const [color, setColor] = useState(selectedElement?.color || '#000000');
     const [numberPrefix, setNumberPrefix] = useState(selectedElement?.numberPrefix || '');
     const [numberSuffix, setNumberSuffix] = useState(selectedElement?.numberSuffix || '');
@@ -38,6 +39,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
     const [stepValue, setStepValue] = useState<number | undefined>(selectedElement?.stepValue);
     const [isRequired, setIsRequired] = useState(selectedElement?.isRequired || false);
     const [helpText, setHelpText] = useState(selectedElement?.helpText || '');
+    const [fontAssetId, setFontAssetId] = useState(selectedElement?.fontAssetId || '');
 
     useEffect(() => {
         if (selectedElement) {
@@ -45,6 +47,8 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
             setLabel(selectedElement.label || '');
             setFontSize(selectedElement.fontSize || 32);
             setFontFamily(selectedElement.fontFamily || 'Inter');
+            setFontWeight(selectedElement.fontWeight || 700);
+            setItalic(selectedElement.italic || false);
             setColor(selectedElement.color || '#000000');
             setNumberPrefix(selectedElement.numberPrefix || '');
             setNumberSuffix(selectedElement.numberSuffix || '');
@@ -53,15 +57,15 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
             setStepValue(selectedElement.stepValue);
             setIsRequired(selectedElement.isRequired || false);
             setHelpText(selectedElement.helpText || '');
+            setFontAssetId(selectedElement.fontAssetId || '');
         } else {
             // Reset to defaults for new element
             setDefaultValue(0);
             setLabel('');
             setNumberPrefix('');
             setNumberSuffix('');
-            // Keep style persistence if desired, or reset
         }
-    }, [selectedElement?.id, selectedElement?.maxChars]);
+    }, [selectedElement?.id]);
 
     const handleAddNumber = () => {
         const numVal = defaultValue;
@@ -88,8 +92,11 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
             numberSuffix,
             fontSize,
             fontFamily,
+            fontWeight,
+            italic,
             color,
-            textAlign: 'center'
+            textAlign: 'center',
+            fontAssetId: fontAssetId || undefined
         };
         onAddElement(newElement);
     };
@@ -97,6 +104,23 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
     const handleUpdate = (updates: Partial<CanvasElement>) => {
         if (selectedElement) {
             onUpdateElement(selectedElement.id, updates);
+
+            // Sync local state for better UX
+            if (updates.label !== undefined) setLabel(updates.label);
+            if (updates.fontSize !== undefined) setFontSize(updates.fontSize);
+            if (updates.fontFamily !== undefined) setFontFamily(updates.fontFamily);
+            if (updates.fontWeight !== undefined) setFontWeight(updates.fontWeight);
+            if (updates.italic !== undefined) setItalic(updates.italic);
+            if (updates.color !== undefined) setColor(updates.color);
+            if (updates.fontAssetId !== undefined) setFontAssetId(updates.fontAssetId || '');
+            if (updates.numberPrefix !== undefined) setNumberPrefix(updates.numberPrefix);
+            if (updates.numberSuffix !== undefined) setNumberSuffix(updates.numberSuffix);
+            if (updates.minValue !== undefined) setMinValue(updates.minValue);
+            if (updates.maxValue !== undefined) setMaxValue(updates.maxValue);
+            if (updates.stepValue !== undefined) setStepValue(updates.stepValue);
+            if (updates.isRequired !== undefined) setIsRequired(updates.isRequired);
+            if (updates.helpText !== undefined) setHelpText(updates.helpText);
+            if (updates.defaultValue !== undefined) setDefaultValue(Number(updates.defaultValue));
         }
     };
 
@@ -108,28 +132,11 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                     <Label className="text-[10px] font-bold text-gray-400">Title</Label>
                     <Input
                         value={label}
-                        onChange={(e) => {
-                            setLabel(e.target.value);
-                            if (selectedElement) onUpdateElement(selectedElement.id, { label: e.target.value });
-                        }}
+                        onChange={(e) => handleUpdate({ label: e.target.value })}
                         placeholder="e.g. Quantity"
                         className="h-10 rounded-xl border-gray-200 bg-white"
                     />
                 </div>
-
-                {selectedElement && (
-                    <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
-                        <div className="flex flex-col">
-                            <Label className="text-[10px] font-bold text-gray-700">Show label</Label>
-                            <p className="text-[9px] text-gray-500">Display this title to customers</p>
-                        </div>
-                        <Switch
-                            checked={selectedElement.showLabel !== false}
-                            onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showLabel: checked })}
-                            className="scale-75"
-                        />
-                    </div>
-                )}
 
                 {selectedElement && (
                     <div className="flex items-center justify-between p-3 bg-teal-50/50 rounded-xl border border-teal-100/50">
@@ -168,20 +175,28 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                                 }
 
                                 setDefaultValue(finalVal);
-                                handleUpdate({ defaultValue: finalVal, text: String(finalVal) });
+                                handleUpdate({ defaultValue: finalVal, text: valStr });
                             }}
                             className="h-10 font-bold text-lg text-center bg-white"
                         />
                     </div>
                 </div>
 
-                <Button
-                    onClick={handleAddNumber}
-                    className="w-full h-11 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-lg shadow-teal-100 transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
-                >
-                    <Plus className="w-5 h-5" />
-                    Add Number
-                </Button>
+                <div className="pt-0">
+                    <Button
+                        onClick={() => {
+                            if (selectedElement?.id === 'draft') {
+                                handleAddNumber();
+                            } else {
+                                import('sonner').then(({ toast }) => toast.success('Number updated'));
+                            }
+                        }}
+                        className="w-full h-11 bg-teal-600 hover:bg-teal-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-teal-100 flex items-center justify-center gap-2 border-b-4 border-teal-800 active:border-b-0 active:translate-y-1 transition-all"
+                    >
+                        {selectedElement?.id === 'draft' ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                        {selectedElement?.id === 'draft' ? 'Create Number Element' : 'Update Number Element'}
+                    </Button>
+                </div>
             </div>
 
             <Separator className="bg-gray-100" />
@@ -259,76 +274,54 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                                 />
                             </div>
                         </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <Label className="text-[9px] text-gray-400">Prefix</Label>
+                                <Input
+                                    value={numberPrefix}
+                                    onChange={(e) => handleUpdate({ numberPrefix: e.target.value })}
+                                    className="h-8 text-xs px-2"
+                                    placeholder="e.g. $"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[9px] text-gray-400">Suffix</Label>
+                                <Input
+                                    value={numberSuffix}
+                                    onChange={(e) => handleUpdate({ numberSuffix: e.target.value })}
+                                    className="h-8 text-xs px-2"
+                                    placeholder="e.g. lbs"
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Styling */}
+                    {/* Font Group and Color Only */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-gray-400">Visual Style</Label>
+                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
                         <Select
-                            value={fontFamily}
+                            value={fontAssetId || "none"}
                             onValueChange={(val) => {
-                                setFontFamily(val);
-                                handleUpdate({ fontFamily: val });
+                                const finalVal = val === "none" ? undefined : val;
+                                setFontAssetId(finalVal || '');
+                                handleUpdate({ fontAssetId: finalVal });
                             }}
                         >
-                            <SelectTrigger className="h-9 text-xs bg-white">
-                                <SelectValue />
+                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                                <SelectValue placeholder="Global Default" />
                             </SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
-                                {POPULAR_GOOGLE_FONTS.map((font) => (
-                                    <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                                        {font}
+                            <SelectContent>
+                                <SelectItem value="none">Global Default</SelectItem>
+                                {userFonts?.map((asset: any) => (
+                                    <SelectItem key={asset.id} value={asset.id}>
+                                        {asset.name}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
-
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
-                            <Select
-                                value={selectedElement?.fontAssetId || "none"}
-                                onValueChange={(val) => handleUpdate({ fontAssetId: val === "none" ? undefined : val })}
-                            >
-                                <SelectTrigger className="h-8 text-xs bg-white">
-                                    <SelectValue placeholder="Global Default" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Global Default</SelectItem>
-                                    {userFonts?.map((asset: any) => (
-                                        <SelectItem key={asset.id} value={asset.id}>
-                                            {asset.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <Input
-                                type="number"
-                                value={fontSize}
-                                onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    setFontSize(val);
-                                    handleUpdate({ fontSize: val });
-                                }}
-                                className="h-9 w-20 text-xs"
-                            />
-                            <div className="flex-1 flex gap-2 items-center">
-                                <div className="relative w-9 h-9 rounded-lg border border-gray-200 overflow-hidden flex-shrink-0">
-                                    <Input
-                                        type="color"
-                                        className="absolute inset-0 w-full h-full p-0 border-none cursor-pointer"
-                                        value={color}
-                                        onChange={(e) => {
-                                            setColor(e.target.value);
-                                            handleUpdate({ color: e.target.value });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
                     </div>
+
+
 
                     {/* Extra Info */}
                     <div className="space-y-2 pt-2 border-t border-gray-100">
@@ -354,6 +347,15 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                                 }}
                             />
                         </div>
+                        <div className="flex items-center justify-between py-2 px-1">
+                            <Label className="text-[10px] font-bold text-gray-600">Hide Label on Canvas</Label>
+                            <Switch
+                                checked={selectedElement?.hideLabel ?? false}
+                                onCheckedChange={(val) => {
+                                    handleUpdate({ hideLabel: val });
+                                }}
+                            />
+                        </div>
                     </div>
 
                     {/* Color Palette Selector */}
@@ -371,7 +373,7 @@ export function NumberTool({ onAddElement, selectedElement, onUpdateElement, use
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Global Default</SelectItem>
-                                {userColors?.map((asset) => (
+                                {userColors?.map((asset: any) => (
                                     <SelectItem key={asset.id} value={asset.id}>
                                         {asset.name}
                                     </SelectItem>

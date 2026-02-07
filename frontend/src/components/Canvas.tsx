@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
-  Move,
-  Minus,
-  Plus
+  Move
 } from 'lucide-react';
 import { CanvasElement, ProductVariant } from '../types';
 import { DraggableElement } from './DraggableElement';
@@ -42,6 +40,7 @@ interface CanvasProps {
   safeAreaShape?: 'rectangle' | 'circle';
   hideSafeAreaLine?: boolean;
   onZoomChange?: (zoom: number) => void;
+  showGrid?: boolean;
 }
 
 export function Canvas({
@@ -55,6 +54,7 @@ export function Canvas({
   showSafeArea,
   productVariant,
   showRulers,
+  showGrid = false,
   unit,
   enableBounce,
   paperSize,
@@ -100,53 +100,56 @@ export function Canvas({
     }
   };
 
-  // Convert mm to pixels
-  const mmToPx = 3.7795275591;
+  const pxPerUnit = getPixelsPerUnit();
+  const validZoom = Math.max(10, zoom || 100);
 
-  // Paper sizes in mm (width x height)
+  const safeCustom = {
+    width: Number(customPaperDimensions?.width) || 210,
+    height: Number(customPaperDimensions?.height) || 297
+  };
+
   const paperSizes: Record<string, { width: number; height: number }> = {
-    'Default': { width: 1000 / mmToPx, height: 1000 / mmToPx },
+    'Default': { width: 1000 / 3.7795275591, height: 1000 / 3.7795275591 },
     'A4': { width: 210, height: 297 },
     'A3': { width: 297, height: 420 },
     'A5': { width: 148, height: 210 },
     'Letter': { width: 216, height: 279 },
     'Legal': { width: 216, height: 356 },
     'Tabloid': { width: 279, height: 432 },
-    'Custom': customPaperDimensions || { width: 210, height: 297 },
+    'Custom': safeCustom,
   };
 
-  const selectedPaper = paperSizes[paperSize] || paperSizes['A4'];
-  const pxPerUnit = getPixelsPerUnit();
-  const validZoom = isNaN(zoom) || zoom <= 0 ? 100 : zoom;
-  const scaledPxPerUnit = pxPerUnit * (validZoom / 100);
+  const paperMM = paperSizes[paperSize] || paperSizes['Default'];
+  const mmToPx = 3.7795275591;
 
-  const baseWidth = selectedPaper.width * mmToPx;
-  const baseHeight = selectedPaper.height * mmToPx;
+  const baseWidth = paperMM.width * mmToPx;
+  const baseHeight = paperMM.height * mmToPx;
   const currentWidth = baseWidth * (validZoom / 100);
   const currentHeight = baseHeight * (validZoom / 100);
 
   const renderRulerTicks = (orientation: 'horizontal' | 'vertical') => {
-    if (isNaN(currentWidth) || isNaN(currentHeight)) return null;
     const ticks = [];
-    const length = orientation === 'horizontal' ? currentWidth : currentHeight;
-    const count = Math.floor(length / scaledPxPerUnit);
+    const pixelsPerUnit = pxPerUnit * (validZoom / 100);
+    const limit = orientation === 'horizontal' ? currentWidth : currentHeight;
 
-    for (let i = 0; i <= count; i++) {
-      const pos = i * scaledPxPerUnit;
-      const isMajor = i % 5 === 0;
-      const isTen = i % 10 === 0;
+    const majorStep = unit === 'mm' ? 10 : 1;
+    const minorStep = 1;
+
+    for (let i = 0; i * pixelsPerUnit <= limit; i += minorStep) {
+      const pos = i * pixelsPerUnit;
+      const isMajor = i % majorStep === 0;
 
       ticks.push(
-        <g key={i}>
+        <g key={`${orientation}-${i}`}>
           <line
-            x1={orientation === 'horizontal' ? pos : 0}
-            y1={orientation === 'horizontal' ? (isTen ? 0 : (isMajor ? 10 : 15)) : pos}
-            x2={orientation === 'horizontal' ? pos : (isTen ? 25 : (isMajor ? 15 : 10))}
-            y2={orientation === 'horizontal' ? 25 : pos}
+            x1={orientation === 'horizontal' ? pos : (orientation === 'vertical' ? (isMajor ? 0 : 15) : 0)}
+            y1={orientation === 'horizontal' ? (isMajor ? 0 : 15) : (orientation === 'vertical' ? pos : 0)}
+            x2={orientation === 'horizontal' ? pos : 25}
+            y2={orientation === 'horizontal' ? 25 : (orientation === 'vertical' ? pos : 0)}
             stroke="#94a3b8"
-            strokeWidth="1"
+            strokeWidth={isMajor ? 1 : 0.5}
           />
-          {isTen && (
+          {isMajor && (
             <text
               x={orientation === 'horizontal' ? pos + 2 : (orientation === 'vertical' ? 2 : 0)}
               y={orientation === 'horizontal' ? 10 : (orientation === 'vertical' ? pos - 2 : 0)}
@@ -164,36 +167,53 @@ export function Canvas({
     return ticks;
   };
 
+  const renderGrid = () => {
+    const lines = [];
+    const pixelsPerUnit = pxPerUnit * (validZoom / 100);
+
+    // Vertical lines
+    for (let x = 0; x <= currentWidth; x += pixelsPerUnit) {
+      const isMajor = Math.round(x / pixelsPerUnit) % (unit === 'mm' ? 10 : 1) === 0;
+      lines.push(
+        <line
+          key={`grid-v-${x}`}
+          x1={x}
+          y1={0}
+          x2={x}
+          y2={currentHeight}
+          stroke={isMajor ? "rgba(79, 70, 229, 0.15)" : "rgba(79, 70, 229, 0.05)"}
+          strokeWidth={isMajor ? 1 : 0.5}
+        />
+      );
+    }
+
+    // Horizontal lines
+    for (let y = 0; y <= currentHeight; y += pixelsPerUnit) {
+      const isMajor = Math.round(y / pixelsPerUnit) % (unit === 'mm' ? 10 : 1) === 0;
+      lines.push(
+        <line
+          key={`grid-h-${y}`}
+          x1={0}
+          y1={y}
+          x2={currentWidth}
+          y2={y}
+          stroke={isMajor ? "rgba(79, 70, 229, 0.15)" : "rgba(79, 70, 229, 0.05)"}
+          strokeWidth={isMajor ? 1 : 0.5}
+        />
+      );
+    }
+
+    return lines;
+  };
+
   return (
     <div
-      className="flex-1 p-12 overflow-auto bg-gray-50 relative"
+      className="absolute inset-0 overflow-auto bg-gray-100/50 custom-scrollbar p-12 md:p-24"
       onPointerDown={() => onSelectElement(null)}
       onClick={() => onSelectElement(null)}
     >
-      {/* Floating Zoom Indicator with Controls */}
-      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
-        <div className="bg-white px-2 py-1.5 rounded-full shadow-md pointer-events-auto select-none flex items-center gap-2 border border-gray-100/50">
-          <button
-            onClick={() => onZoomChange?.(Math.max(10, zoom - 10))}
-            className="p-1.5 hover:bg-gray-50 rounded-full transition-colors text-gray-500 hover:text-indigo-600"
-          >
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="min-w-[45px] text-center">
-            <span className="text-[11px] font-black text-gray-900 tracking-tighter">{Math.round(zoom)}%</span>
-          </div>
-
-          <button
-            onClick={() => onZoomChange?.(Math.min(200, zoom + 10))}
-            className="p-1.5 hover:bg-gray-50 rounded-full transition-colors text-gray-500 hover:text-indigo-600"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-      <div className="flex items-center justify-center min-w-full min-h-full">
-        <div className="relative m-auto">
+      <div className="flex min-w-full min-h-full">
+        <div className="relative m-auto shrink-0 shadow-xl">
           {/* Rulers */}
           {showRulers && !isNaN(currentWidth) && (
             <>
@@ -249,8 +269,6 @@ export function Canvas({
                 maskRepeat: 'no-repeat',
                 WebkitMaskComposite: baseImageMaskInvert ? 'source-over' : 'destination-out',
                 maskComposite: baseImageMaskInvert ? 'add' : 'subtract',
-                maskMode: 'alpha',
-                WebkitMaskMode: 'alpha'
               } : {};
 
               const clipStyle: React.CSSProperties = showSafeArea ? (() => {
@@ -282,7 +300,7 @@ export function Canvas({
                 >
                   {/* Design Elements */}
                   {(elements || [])
-                    .filter(el => !!el && (!isPublicMode || el.isVisible !== false))
+                    .filter(el => !!el && el.type !== 'file_upload' && (!isPublicMode || (el.isVisible !== false && !(el as any).isHiddenByLogic)))
                     .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
                     .map((element) => (
                       <DraggableElement
@@ -314,7 +332,7 @@ export function Canvas({
                 <motion.div
                   drag
                   dragMomentum={false}
-                  onDrag={(e, info) => {
+                  onDrag={(_e, info) => {
                     const zoomMult = (validZoom / 100);
                     onUpdateBaseImage({
                       x: (baseImageProperties?.x || 0) + info.delta.x / zoomMult,
@@ -372,7 +390,7 @@ export function Canvas({
             )}
 
             {/* Safe Area Controls (only show in Admin / non-public) */}
-            {!isPublicMode && showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (
+            {showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (
               <motion.div
                 className="absolute inset-0 pointer-events-none z-[30]"
               >
@@ -401,7 +419,7 @@ export function Canvas({
                           display: hideSafeAreaLine ? 'none' : 'block'
                         }}
                       >
-                        {!hideSafeAreaLine && (
+                        {!hideSafeAreaLine && !isPublicMode && (
                           <>
                             {/* Drag Handle (Move) */}
                             <div
@@ -533,8 +551,16 @@ export function Canvas({
                 })()}
               </motion.div>
             )}
-
-
+            {/* Grid Overlay */}
+            {showGrid && (
+              <svg
+                className="absolute inset-0 pointer-events-none z-[50]"
+                width={currentWidth}
+                height={currentHeight}
+              >
+                {renderGrid()}
+              </svg>
+            )}
           </div>
 
         </div>

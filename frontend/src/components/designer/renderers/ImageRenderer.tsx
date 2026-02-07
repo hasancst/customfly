@@ -58,29 +58,14 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
             element.src.includes('image-gallery.png');
 
         if (isPublicMode) {
-            if (isDummy) {
-                if (element.showCanvasPreview) {
-                    return (
-                        <div className="w-full h-full relative group">
-                            <img
-                                src={element.src}
-                                className="w-full h-full object-cover rounded-lg opacity-40 grayscale"
-                                alt="Gallery Placeholder"
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <Database className="w-8 h-8 text-gray-400 opacity-50" />
-                            </div>
-                        </div>
-                    );
-                }
-                return null;
-            }
+            if (isDummy) return null;
 
             if (element.src) {
+                const cleanSrc = element.src.includes('|') ? element.src.split('|')[1].trim() : element.src;
                 return (
                     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
                         <img
-                            src={element.src}
+                            src={cleanSrc}
                             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                             draggable={false}
                             alt="Selected Gallery"
@@ -91,10 +76,13 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
             return null;
         }
 
+        const currentSrc = element.src || SYSTEM_DEFAULT_DUMMY;
+        const cleanSrc = currentSrc.includes('|') ? currentSrc.split('|')[1].trim() : currentSrc;
+
         return (
             <div className="w-full h-full relative group">
                 <img
-                    src={element.src || SYSTEM_DEFAULT_DUMMY}
+                    src={cleanSrc}
                     className={`w-full h-full object-cover rounded-lg shadow-sm ${isDummy ? 'border-purple-200 border-2 border-dashed' : 'border border-purple-200'}`}
                     alt="Gallery Preview"
                 />

@@ -62,7 +62,9 @@ router.post("/config", async (req, res) => {
             'selectedBaseColorAssetId',
             'buttonText', 'designerLayout', 'enabledTools', 'inlineSettings',
             'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
-            'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId'
+            'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId',
+            // Toolbar feature flags
+            'enabledGrid', 'enabledUndoRedo', 'enabledDownload', 'enabledReset', 'showGrid'
         ];
 
         const cleanData = {};
@@ -84,6 +86,10 @@ router.post("/config", async (req, res) => {
                 ...cleanData
             }
         });
+
+        // Clear public API cache for this product
+        const cacheKey = `pub_prod_${shop}_${productId}`;
+        cache.del(cacheKey);
 
         res.json(transformDesignUrls(config));
     } catch (error) {

@@ -30,7 +30,7 @@ Area ini penuh dengan alat (tools) untuk membuat template.
 
 *   **Sidebar Kanan (Layers)**: `src/components/Summary.tsx`
     *   *Penyebutan*: "Layer Panel" / "Summary"
-    *   *Fungsi*: Mengatur urutan layer, hide/lock item.
+    *   *Fungsi*: Mengatur urutan layer, hide/lock item. Di tampilan **Publik**, panel ini juga menampung tombol utama **Add to Cart** di bawah daftar layers.
 
 *   **Header Atas**: `src/components/Header.tsx`
     *   *Penyebutan*: "Header"
@@ -49,7 +49,7 @@ Area ini lebih sederhana dan fokus pada input data customer.
 *   **Sidebar Kiri (Input Form)**: `src/components/PublicCustomizationPanel.tsx`
     *   *Penyebutan*: "Customer Panel" / "Form Input"
     *   *Fungsi*: **PENGGANTI TOOLBAR**. Berisi form input dimana customer mengetik teks atau memilih opsi.
-    *   *Ciri Khas*: Berisi input field, color picker, dan logic "Add to Cart". **Bukan** tombol add text bebas.
+    *   *Ciri Khas*: Berisi input field, color picker, dan tombol "Reset Design". (Catatan: Tombol "Add to Cart" telah dipindahkan ke Sidebar Kanan agar alur review desain lebih intuitif).
     *   *Edit ini jika*: Ingin mengubah tampilan form input customer, layout input field, atau styling panel samping customer.
 
 *   **Canvas (Tengah)**: `src/components/Canvas.tsx`

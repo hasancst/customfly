@@ -2,15 +2,38 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DesignerOpenCore } from './DesignerOpenCore';
 
+// Mock Lucide icons
+vi.mock('lucide-react', () => ({
+    Minus: () => <div>Minus</div>,
+    Plus: () => <div>Plus</div>,
+    X: () => <div>X</div>,
+    Eye: () => <div>Eye</div>,
+    Pencil: () => <div>Pencil</div>,
+    UploadCloud: () => <div>UploadCloud</div>,
+    Database: () => <div>Database</div>,
+    RotateCcw: () => <div>RotateCcw</div>,
+    Undo2: () => <div>Undo2</div>,
+    Redo2: () => <div>Redo2</div>,
+    Grid3x3: () => <div>Grid3x3</div>,
+    Download: () => <div>Download</div>,
+    Ruler: () => <div>Ruler</div>,
+    Image: () => <div>ImageIcon</div>,
+    CloudUpload: () => <div>CloudUpload</div>,
+    CheckCircle2: () => <div>CheckCircle2</div>,
+    Loader2: () => <div>Loader2</div>,
+    ChevronLeft: () => <div>ChevronLeft</div>,
+    ChevronRight: () => <div>ChevronRight</div>,
+}));
+
 // Use vi.hoisted to get data available for vi.mock
 const { mockProduct } = vi.hoisted(() => ({
     mockProduct: {
         id: '123',
         title: 'Test Product',
         variants: [
-            { id: 'v1', product_id: '123', title: 'Black / Small', option1: 'Black', option2: 'Small', price: '10.00', image: 'https://example.com/black.png' },
-            { id: 'v2', product_id: '123', title: 'Blue / Small', option1: 'Blue', option2: 'Small', price: '12.00', image: 'https://example.com/blue.png' },
-            { id: 'v3', product_id: '123', title: 'Pink / Medium', option1: 'Pink', option2: 'Medium', price: '15.00', image: 'https://example.com/pink.png' }
+            { id: '101', product_id: '123', title: 'Black / Small', option1: 'Black', option2: 'Small', price: '10.00', image: 'https://example.com/black.png' },
+            { id: '102', product_id: '123', title: 'Blue / Small', option1: 'Blue', option2: 'Small', price: '12.00', image: 'https://example.com/blue.png' },
+            { id: '103', product_id: '123', title: 'Pink / Medium', option1: 'Pink', option2: 'Medium', price: '15.00', image: 'https://example.com/pink.png' }
         ],
         options: [
             { id: 'opt1', product_id: '123', name: 'Color', position: 1, values: ['Black', 'Blue', 'Pink'] },
@@ -55,7 +78,38 @@ vi.mock('./Canvas', () => ({
 }));
 
 vi.mock('./Summary', () => ({
-    Summary: () => <div data-testid="mock-summary">Summary</div>
+    Summary: ({ shopifyOptions, shopifyVariants, selectedVariantId, onVariantChange }: any) => {
+        const currentVariant = shopifyVariants?.find((v: any) => {
+            const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+            const sid = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+            return vid === sid;
+        });
+
+        return (
+            <div data-testid="mock-summary">
+                {shopifyOptions?.map((opt: any, idx: number) => {
+                    const val = currentVariant ? currentVariant[`option${idx + 1}`] : '';
+                    return (
+                        <div key={opt.id} data-testid="mock-select-default" data-value={val}>
+                            {idx === 0 && (
+                                <>
+                                    <button data-testid="change-to-blue" onClick={() => onVariantChange('102')}>Blue</button>
+                                    <button data-testid="change-to-pink" onClick={() => onVariantChange('103')}>Pink</button>
+                                </>
+                            )}
+                            {idx === 1 && (
+                                <button data-testid="change-to-medium" onClick={() => onVariantChange('103')}>Medium</button>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
+}));
+
+vi.mock('./PublicCustomizationPanel', () => ({
+    PublicCustomizationPanel: () => <div>PublicCustomizationPanel</div>
 }));
 
 vi.mock('./ContextualToolbar', () => ({
@@ -70,17 +124,6 @@ vi.mock('./BaseImageModal', () => ({
     BaseImageModal: () => <div>BaseImageModal</div>
 }));
 
-// Mock Lucide icons
-vi.mock('lucide-react', () => ({
-    Minus: () => <div>Minus</div>,
-    Plus: () => <div>Plus</div>,
-    X: () => <div>X</div>,
-    Eye: () => <div>Eye</div>,
-    Pencil: () => <div>Pencil</div>,
-    UploadCloud: () => <div>UploadCloud</div>,
-}));
-
-// Mock Sonner
 vi.mock('sonner', () => ({
     toast: {
         success: vi.fn(),
@@ -161,7 +204,7 @@ describe('DesignerOpenCore Variant Selection (Hoisted)', () => {
     it('prioritizes admin variantBaseImages over shopify variant image', async () => {
         const initialConfig = {
             variantBaseImages: {
-                'v1': {
+                '101': {
                     'default': { url: 'https://example.com/admin-custom-black.png' }
                 }
             }

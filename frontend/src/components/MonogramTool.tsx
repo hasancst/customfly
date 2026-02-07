@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, ChevronDown, Layers, Settings2, Move, ScanLine, Copy, Trash2, RotateCw } from 'lucide-react';
+import { Plus, ChevronDown, Layers, Settings2, Move, ScanLine, Copy, Trash2, RotateCw, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -59,10 +59,23 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
 
             if (variations.length > 0) {
                 variations.forEach(v => {
-                    fonts.push({ ...v, assetId: asset.id, assetName: assetName });
+                    fonts.push({
+                        name: cleanAssetName(v.name),
+                        value: cleanAssetName(v.value),
+                        assetId: asset.id,
+                        assetName: assetName
+                    });
                 });
             } else {
-                fonts.push({ name: assetName, value: assetName, assetId: asset.id, assetName: assetName });
+                const cleanVal = cleanAssetName(assetName);
+                if (cleanVal) {
+                    fonts.push({
+                        name: cleanVal,
+                        value: cleanVal,
+                        assetId: asset.id,
+                        assetName: assetName
+                    });
+                }
             }
         });
         return fonts;
@@ -89,7 +102,12 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
 
             if (selectedElement.fontAssetId || (selectedElement.fontFamily && !selectedElement.monogramType)) {
                 setFontMode('custom');
-                setSelectedFontId(selectedElement.fontAssetId || '');
+                if (selectedElement.fontAssetId) {
+                    setSelectedFontId(String(selectedElement.fontAssetId));
+                } else if (selectedElement.fontFamily) {
+                    const matched = flatCustomFonts.find(f => f.value === selectedElement.fontFamily);
+                    if (matched) setSelectedFontId(matched.assetId);
+                }
             } else {
                 setFontMode('fixed');
                 const shape = MONOGRAM_SHAPES.find(s => s.id === selectedElement.monogramType);
@@ -114,21 +132,14 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
         }
     };
 
-    const handleAddMonogram = (shape?: MonogramShape) => {
+    const handleAddMonogram = () => {
         if (selectedElement && selectedElement.type === 'monogram' && selectedElement.id !== 'draft') {
             const updates: Partial<CanvasElement> = {
                 text: text.substring(0, 3).toUpperCase(),
             };
-            if (shape) {
-                updates.monogramType = shape.id;
-                updates.fontFamily = undefined;
-            } else if (fontMode === 'custom' && selectedFontId) {
-                const matched = flatCustomFonts.find((f: any) => f.value === selectedFontId);
-                if (matched) {
-                    updates.fontFamily = matched.value;
-                    updates.monogramType = undefined;
-                }
-            }
+
+            // Mode is already set by button clicks or font selection
+            // Just update the text
             onUpdateElement(selectedElement.id, updates);
             return;
         }
@@ -139,12 +150,14 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
         const centerY = (canvasH / 2) - 50;
 
         let fontFamily: string | undefined = undefined;
-        let monogramType: MonogramType | undefined = (shape?.id || selectedMonogram?.id || 'Vine') as MonogramType;
+        let fontAssetId: string | undefined = undefined;
+        let monogramType: MonogramType | undefined = selectedMonogram?.id || 'Vine';
 
         if (fontMode === 'custom' && selectedFontId) {
-            const matched = flatCustomFonts.find((f: any) => f.value === selectedFontId);
+            const matched = flatCustomFonts.find((f: any) => String(f.assetId) === String(selectedFontId));
             if (matched) {
                 fontFamily = matched.value;
+                fontAssetId = matched.assetId;
                 monogramType = undefined;
             }
         }
@@ -154,6 +167,7 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
             type: 'monogram',
             monogramType,
             fontFamily,
+            fontAssetId,
             text: text.toUpperCase() || 'ABC',
             x: centerX,
             y: centerY,
@@ -252,7 +266,17 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
                 <Label className="text-[14px] font-bold text-gray-700">Font Source</Label>
                 <div className="grid grid-cols-2 gap-2">
                     <button
-                        onClick={() => setFontMode('fixed')}
+                        onClick={() => {
+                            setFontMode('fixed');
+                            if (selectedElement) {
+                                // Switch to fixed mode: clear custom font, set default monogram
+                                handleUpdate({
+                                    monogramType: selectedMonogram?.id || 'Vine',
+                                    fontFamily: undefined,
+                                    fontAssetId: undefined
+                                });
+                            }
+                        }}
                         className={`px-3 py-2 text-[14px] font-medium rounded-lg transition-all ${fontMode === 'fixed'
                             ? 'bg-indigo-600 text-white shadow-sm'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -261,7 +285,11 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
                         Fixed Fonts
                     </button>
                     <button
-                        onClick={() => setFontMode('custom')}
+                        onClick={() => {
+                            setFontMode('custom');
+                            // Don't auto-update when switching to custom mode
+                            // User needs to select a font group first
+                        }}
                         className={`px-3 py-2 text-[14px] font-medium rounded-lg transition-all ${fontMode === 'custom'
                             ? 'bg-indigo-600 text-white shadow-sm'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -385,6 +413,25 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
                                     value={selectedElement?.maxChars || 3}
                                     onChange={(e) => handleUpdate({ maxChars: parseInt(e.target.value) || 1 })}
                                     className="w-16 h-8 text-[14px] bg-white text-right font-bold"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Default Text Visibility */}
+                        <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
+                                        <EyeOff className="w-3 h-3" /> Hide Default Text on Public
+                                    </Label>
+                                    <p className="text-[9px] text-gray-400 mt-0.5 ml-5">
+                                        Hidden until customer types
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={selectedElement?.hideTextPreview}
+                                    onCheckedChange={(c) => handleUpdate({ hideTextPreview: c })}
+                                    className="scale-75"
                                 />
                             </div>
                         </div>

@@ -1,5 +1,7 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
-import { Type, Image, Settings2, Plus, AlignLeft, UploadCloud, Palette, ChevronDownSquare, MousePointer2, CheckSquare, Hash, Phone, Calendar, Clock, Images, ChevronLeft, Cpu, Trash2, Loader2 } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { Type, Image, Settings2, Plus, AlignLeft, UploadCloud, Palette, ChevronDownSquare, MousePointer2, CheckSquare, Hash, Phone, Calendar, Clock, Images, ChevronLeft, Cpu, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { useDrag, useDrop, DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -44,6 +46,7 @@ interface ToolbarProps {
   onSaveAsset?: (asset: any) => Promise<any>;
   onSelectElement?: (id: string) => void;
   onDeleteElement?: (id: string) => void;
+  onReorderElements?: (oldIndex: number, newIndex: number) => void;
   canvasDimensions?: { width: number; height: number };
   customFetch?: any;
   allowedTools?: string[];
@@ -52,7 +55,121 @@ interface ToolbarProps {
   baseUrl?: string;
 }
 
-export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, userFonts, userGalleries, activeElementPaletteColors, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, canvasDimensions, customFetch, allowedTools, isPublicMode, shop }: ToolbarProps) {
+const DRAG_TYPE = 'TOOLBAR_ELEMENT';
+
+interface SortableElementProps {
+  element: CanvasElement;
+  index: number;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  onMove: (dragIndex: number, hoverIndex: number) => void;
+}
+
+const SortableElement = ({ element, index, isSelected, onSelect, onDelete, onMove }: SortableElementProps) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  const [, drop] = useDrop({
+    accept: DRAG_TYPE,
+    hover(item: any, monitor) {
+      if (!ref.current) return;
+      const dragIndex = item.index;
+      const hoverIndex = index;
+      if (dragIndex === hoverIndex) return;
+
+      const hoverBoundingRect = ref.current?.getBoundingClientRect();
+      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
+      const clientOffset = monitor.getClientOffset();
+      const hoverClientY = clientOffset!.y - hoverBoundingRect.top;
+
+      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) return;
+      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) return;
+
+      onMove(dragIndex, hoverIndex);
+      item.index = hoverIndex;
+    },
+  });
+
+  const [{ isDragging }, drag] = useDrag({
+    type: DRAG_TYPE,
+    item: () => ({ id: element.id, index }),
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  });
+
+  drag(drop(ref));
+
+  return (
+    <div
+      ref={ref}
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+      className={`group flex items-center gap-1 px-1 rounded-xl border-2 transition-all text-left ${isSelected ? 'border-indigo-500 bg-indigo-50/30' : 'border-gray-50 bg-white hover:border-gray-200'
+        }`}
+    >
+      <div className="cursor-grab active:cursor-grabbing p-1 text-gray-300 hover:text-gray-500 shrink-0">
+        <GripVertical className="w-4 h-4" />
+      </div>
+      <button
+        onClick={() => onSelect(element.id)}
+        className="flex-1 flex items-center gap-3 py-3 pr-2 min-w-0"
+      >
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white shadow-sm shrink-0 ${element.type === 'text' ? 'bg-blue-500' :
+          element.type === 'image' ? 'bg-purple-500' :
+            element.type === 'swatch' ? 'bg-orange-500' :
+              element.type === 'monogram' ? 'bg-indigo-600' :
+                element.type === 'file_upload' ? 'bg-emerald-500' :
+                  element.type === 'gallery' ? 'bg-pink-500' :
+                    element.type === 'textarea' ? 'bg-indigo-500' :
+                      element.type === 'dropdown' ? 'bg-cyan-500' :
+                        element.type === 'button' ? 'bg-rose-500' :
+                          element.type === 'checkbox' ? 'bg-amber-500' :
+                            element.type === 'number' ? 'bg-teal-500' :
+                              element.type === 'phone' ? 'bg-sky-500' :
+                                element.type === 'date' ? 'bg-violet-500' :
+                                  element.type === 'time' ? 'bg-fuchsia-500' :
+                                    'bg-gray-400'
+          }`}>
+          {element.type === 'text' ? <Type className="w-5 h-5" /> :
+            element.type === 'image' ? <Image className="w-5 h-5" /> :
+              element.type === 'swatch' ? <Palette className="w-5 h-5" /> :
+                element.type === 'monogram' ? <Type className="w-5 h-5" /> :
+                  element.type === 'file_upload' ? <UploadCloud className="w-5 h-5" /> :
+                    element.type === 'gallery' ? <Images className="w-5 h-5" /> :
+                      element.type === 'textarea' ? <AlignLeft className="w-5 h-5" /> :
+                        element.type === 'dropdown' ? <ChevronDownSquare className="w-5 h-5" /> :
+                          element.type === 'button' ? <MousePointer2 className="w-5 h-5" /> :
+                            element.type === 'checkbox' ? <CheckSquare className="w-5 h-5" /> :
+                              element.type === 'number' ? <Hash className="w-5 h-5" /> :
+                                element.type === 'phone' ? <Phone className="w-5 h-5" /> :
+                                  element.type === 'date' ? <Calendar className="w-5 h-5" /> :
+                                    element.type === 'time' ? <Clock className="w-5 h-5" /> :
+                                      <Settings2 className="w-5 h-5" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-gray-900 flex items-center justify-between gap-2">
+            <span className="truncate">{element.label || (element.type.charAt(0).toUpperCase() + element.type.slice(1))}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); onDelete(element.id); }}
+              className="h-8 w-8 rounded-lg hover:bg-red-50 group/del shrink-0"
+            >
+              <Trash2 className="w-4 h-4 text-gray-400 group-hover/del:text-red-500 transition-colors" />
+            </Button>
+          </div>
+          <div className="text-xs text-gray-400 truncate tracking-wide opacity-80">
+            {element.type === 'text' || element.type === 'field' || element.type === 'textarea' ? (element.text || 'No content') :
+              element.type === 'file_upload' ? `${element.allowedFileTypes?.join(', ') || 'Any file'} • Max ${element.maxFileSize || 10}MB` :
+                'Custom element'}
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+};
+
+export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop, elements, productData, userColors, userOptions, userFonts, userGalleries, activeElementPaletteColors, onRefreshAssets, onSaveAsset, onSelectElement, onDeleteElement, onReorderElements, canvasDimensions, customFetch, allowedTools, isPublicMode, shop }: ToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [activeAddingType, setActiveAddingType] = useState<string | null>(null);
   const [draftElement, setDraftElement] = useState<CanvasElement | null>(null);
@@ -130,7 +247,7 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
 
   return (
     <div className="w-full h-full bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 pb-0 flex flex-col gap-4 custom-scrollbar">
 
         {!effectiveSelected && !showPicker && (
           <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500 h-full">
@@ -160,56 +277,23 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                   <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-xs font-bold">{(elements || []).length}</span>
                 </div>
 
-                <div className="flex flex-col gap-2 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                  {(elements || []).map((element) => (
-                    <button
-                      key={element.id}
-                      onClick={() => onSelectElement?.(element.id)}
-                      className={`group flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${(selectedElement as any)?.id === element.id
-                        ? 'border-indigo-500 bg-indigo-50/30'
-                        : 'border-gray-50 bg-white hover:border-gray-200'}`}
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white shadow-sm ${element.type === 'text' ? 'bg-blue-500' :
-                        element.type === 'image' ? 'bg-purple-500' :
-                          element.type === 'swatch' ? 'bg-orange-500' :
-                            element.type === 'monogram' ? 'bg-indigo-600' :
-                              'bg-gray-400'
-                        }`}>
-                        {element.type === 'text' ? <Type className="w-5 h-5" /> :
-                          element.type === 'image' ? <Image className="w-5 h-5" /> :
-                            element.type === 'swatch' ? <Palette className="w-5 h-5" /> :
-                              element.type === 'monogram' ? <Type className="w-5 h-5" /> :
-                                <Settings2 className="w-5 h-5" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 flex items-center justify-between gap-2">
-                          {element.label || (element.type.charAt(0).toUpperCase() + element.type.slice(1))}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => { e.stopPropagation(); onDeleteElement?.(element.id); }}
-                            className="h-8 w-8 rounded-lg hover:bg-red-50 group/del shrink-0"
-                          >
-                            <Trash2 className="w-4 h-4 text-gray-400 group-hover/del:text-red-500 transition-colors" />
-                          </Button>
-                        </div>
-                        <div className="text-xs text-gray-400 truncate">
-                          {element.type === 'text' || element.type === 'field' || element.type === 'textarea' ? (element.text || 'No content') : 'Custom element'}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <DndProvider backend={HTML5Backend}>
+                  <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-2 custom-scrollbar">
+                    {(elements || []).map((element, idx) => (
+                      <SortableElement
+                        key={element.id}
+                        element={element}
+                        index={idx}
+                        isSelected={(selectedElement as any)?.id === element.id}
+                        onSelect={(id) => onSelectElement?.(id)}
+                        onDelete={(id) => onDeleteElement?.(id)}
+                        onMove={(dragIdx, hoverIdx) => onReorderElements?.(dragIdx, hoverIdx)}
+                      />
+                    ))}
+                  </div>
+                </DndProvider>
 
-                <div className="pt-4 border-t border-gray-100 mt-2">
-                  <Button
-                    onClick={() => setShowPicker(true)}
-                    className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 font-black text-base transition-all"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add More Tools
-                  </Button>
-                </div>
+
               </div>
             )}
           </div>
@@ -351,11 +435,11 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     )}
                     {effectiveSelected.type === 'swatch' && (
                       <SwatchTool
+                        onAddElement={handleOnAddElement}
                         selectedElement={effectiveSelected}
                         onUpdateElement={effectiveUpdateElement}
                         productData={productData}
                         userOptions={userOptions}
-                        userFonts={userFonts}
                         activeElementPaletteColors={activeElementPaletteColors}
                         onRefreshAssets={onRefreshAssets}
                         onSaveAsset={onSaveAsset}
@@ -364,27 +448,27 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                     )}
                     {effectiveSelected.type === 'dropdown' && (
                       <DropdownTool
+                        onAddElement={handleOnAddElement}
                         selectedElement={effectiveSelected}
                         onUpdateElement={effectiveUpdateElement}
                         productData={productData}
                         userOptions={userOptions}
-                        userFonts={userFonts}
                       />
                     )}
                     {effectiveSelected.type === 'button' && (
                       <ButtonTool
+                        onAddElement={handleOnAddElement}
                         selectedElement={effectiveSelected}
                         onUpdateElement={effectiveUpdateElement}
                         userOptions={userOptions}
-                        userFonts={userFonts}
                       />
                     )}
                     {effectiveSelected.type === 'checkbox' && (
                       <CheckboxTool
+                        onAddElement={handleOnAddElement}
                         selectedElement={effectiveSelected}
                         onUpdateElement={effectiveUpdateElement}
                         userOptions={userOptions}
-                        userFonts={userFonts}
                       />
                     )}
                     {effectiveSelected.type === 'number' && (
@@ -392,8 +476,8 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
                         onAddElement={handleOnAddElement}
                         selectedElement={effectiveSelected}
                         onUpdateElement={effectiveUpdateElement}
-                        userFonts={userFonts}
                         userColors={userColors}
+                        userFonts={userFonts}
                       />
                     )}
                     {effectiveSelected.type === 'phone' && (
@@ -455,7 +539,16 @@ export function Toolbar({ onAddElement, selectedElement, onUpdateElement, onCrop
           </div>
         )}
       </div>
-      <div className="p-4 mt-auto">
+      <div className="p-4 mt-auto flex flex-col gap-3">
+        {!effectiveSelected && !showPicker && (elements || []).length > 0 && (
+          <Button
+            onClick={() => setShowPicker(true)}
+            className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md shadow-indigo-100 flex items-center justify-center gap-2 font-bold text-sm transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add More Tools
+          </Button>
+        )}
         <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100/50">
           <div className="flex items-center gap-2 mb-2">
             <Settings2 className="w-4 h-4 text-indigo-600" />

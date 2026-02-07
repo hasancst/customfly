@@ -8,12 +8,18 @@ import { BaseImageModal } from './BaseImageModal';
 import { PublicCustomizationPanel } from './PublicCustomizationPanel';
 import { Header } from './Header';
 import { CanvasElement, ShopifyProduct, PageData } from '../types';
-import { X, Image as ImageIcon, Pencil, UploadCloud } from 'lucide-react';
+import { X, Image as ImageIcon, Undo2, Redo2, Grid3x3, Download, RotateCcw, Ruler, Plus, Minus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Label } from './ui/label';
-import { Badge } from './ui/badge';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
+import { cleanAssetName } from '../utils/fonts';
+import { evaluateVisibility } from '@/utils/logicEvaluator';
+import { getProxiedUrl } from '@/utils/urlUtils';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const parseAssetColors = (value: string) => {
     if (!value) return [];
@@ -44,6 +50,7 @@ export interface DesignerOpenCoreProps {
     productData: ShopifyProduct | null;
     initialPages?: PageData[];
     initialConfig?: any;
+    initialVariantId?: string;
     onSave?: (data: any) => Promise<any>;
     onFetchAssets?: (type: string) => Promise<any>;
     onFetchDesigns?: () => Promise<any>;
@@ -71,6 +78,7 @@ export function DesignerOpenCore({
     productData,
     initialPages = [{ id: 'default', name: 'Side 1', elements: [] }],
     initialConfig = {},
+    initialVariantId,
     onSave,
     onFetchAssets,
     // onFetchDesigns, // Unused
@@ -89,7 +97,18 @@ export function DesignerOpenCore({
 }: DesignerOpenCoreProps) {
     const isPublicModeProp = isPublicMode;
 
-    const [pages, setPages] = useState<PageData[]>(initialPages);
+    const [pages, setPages] = useState<PageData[]>(() => {
+        if (!isPublicMode) return initialPages;
+        return initialPages.map(p => ({
+            ...p,
+            elements: p.elements.map(el => {
+                if ((el.type === 'text' || el.type === 'textarea' || el.type === 'monogram') && el.hideTextPreview) {
+                    return { ...el, text: '' };
+                }
+                return el;
+            })
+        }));
+    });
     const [activePageId, setActivePageId] = useState<string>(initialPages[0]?.id || 'default');
     const [selectedElement, setSelectedElement] = useState<string | null>(null);
     const [history, setHistory] = useState<PageData[][]>([JSON.parse(JSON.stringify(initialPages))]);
@@ -99,7 +118,8 @@ export function DesignerOpenCore({
 
     // Configuration State - Editable by Admin, Read-only for customers
     const [showSafeArea, setShowSafeArea] = useState(initialConfig.showSafeArea ?? true);
-    const [showRulers, setShowRulers] = useState(initialConfig.showRulers ?? false);
+    const [showRulers, setShowRulers] = useState(isPublicMode ? false : (initialConfig.showRulers ?? false));
+    const [showGrid, setShowGrid] = useState(initialConfig.showGrid ?? false);
     const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>(initialConfig.unit || 'cm');
     const [paperSize, setPaperSize] = useState(initialConfig.paperSize || 'Custom');
     const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
@@ -108,6 +128,13 @@ export function DesignerOpenCore({
     const [safeAreaWidth] = useState(initialConfig.safeAreaWidth);
     const [safeAreaHeight] = useState(initialConfig.safeAreaHeight);
     const [safeAreaOffset, setSafeAreaOffset] = useState(initialConfig.safeAreaOffset || { x: 0, y: 0 });
+    const [hideSafeAreaLine, setHideSafeAreaLine] = useState(initialConfig.hideSafeAreaLine ?? false);
+
+    // Toolbar Feature Flags
+    const [enabledGrid, setEnabledGrid] = useState(initialConfig.enabledGrid ?? true);
+    const [enabledUndoRedo, setEnabledUndoRedo] = useState(initialConfig.enabledUndoRedo ?? true);
+    const [enabledDownload, setEnabledDownload] = useState(initialConfig.enabledDownload ?? true);
+    const [enabledReset, setEnabledReset] = useState(initialConfig.enabledReset ?? true);
 
     // Fixed Admin Settings
     const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
@@ -118,7 +145,11 @@ export function DesignerOpenCore({
     const [isSaving, setIsSaving] = useState(false);
     const [isAutoSaving, setIsAutoSaving] = useState(false);
 
-    const [selectedVariantId, setSelectedVariantId] = useState<string>('');
+    const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
+        if (!initialVariantId) return '';
+        // Normalize GIDs if present (gid://shopify/ProductVariant/123 -> 123)
+        return String(initialVariantId).match(/\d+/)?.[0] || String(initialVariantId);
+    });
     const [selectedBaseColorAssetId, setSelectedBaseColorAssetId] = useState<string | null>(initialConfig.assets?.selectedBaseColorAssetId || initialConfig.selectedBaseColorAssetId || null);
     const [selectedElementColorAssetId, setSelectedElementColorAssetId] = useState<string | null>(initialConfig.assets?.colorAssetId || initialConfig.colorAssetId || initialConfig.selectedColorAssetId || null);
     const [selectedFontAssetId, setSelectedFontAssetId] = useState<string | null>(initialConfig.assets?.fontAssetId || initialConfig.fontAssetId || null);
@@ -126,29 +157,187 @@ export function DesignerOpenCore({
     const [selectedGalleryAssetId, setSelectedGalleryAssetId] = useState<string | null>(initialConfig.assets?.galleryAssetId || initialConfig.galleryAssetId || null);
     const [selectedShapeAssetId, setSelectedShapeAssetId] = useState<string | null>(initialConfig.assets?.shapeAssetId || initialConfig.shapeAssetId || null);
 
+    const [isUniqueMode] = useState<boolean>(initialConfig.isUniqueMode || false);
+    const [uniqueDesignBehavior] = useState<'duplicate' | 'empty'>(initialConfig.uniqueDesignBehavior || 'duplicate');
+    const [variantAssets] = useState<Record<string, any>>(initialConfig.variantAssets || {});
+
     const [isCropModalOpen, setIsCropModalOpen] = useState(false);
     const [isBaseImageModalOpen, setIsBaseImageModalOpen] = useState(false);
+
     const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
-    // Initialize selected variant
+
+    // --- Variant Specific Design Logic (Mirrored from DesignerCore) ---
+    const [globalDesigns, setGlobalDesigns] = useState<PageData[]>(initialPages);
+    const [variantDesigns, setVariantDesigns] = useState<Record<string, PageData[]>>(initialConfig.variantDesigns || {});
+    const prevVariantRef = useRef<string | null>(null);
+    const pagesRef = useRef(pages);
+
+    // Keep pagesRef in sync
+    useEffect(() => { pagesRef.current = pages; }, [pages]);
+
+    // Handle Variant Switching - Load admin defaults or user session changes
+    useEffect(() => {
+        // If first run, just set prev and return (or maybe load initial if variant selected?)
+        if (prevVariantRef.current === null && selectedVariantId) {
+            prevVariantRef.current = selectedVariantId;
+            const vKey = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+
+            if (isUniqueMode || variantDesigns[selectedVariantId] || variantDesigns[vKey]) {
+                let design = variantDesigns[selectedVariantId] || variantDesigns[vKey] || (
+                    uniqueDesignBehavior === 'empty'
+                        ? initialPages.map(p => ({ ...p, elements: [] }))
+                        : JSON.parse(JSON.stringify(globalDesigns || initialPages))
+                );
+
+                if (isPublicMode) {
+                    design = design.map(p => ({
+                        ...p,
+                        elements: p.elements.map(el => {
+                            if ((el.type === 'text' || el.type === 'textarea' || el.type === 'monogram') && el.hideTextPreview) {
+                                return { ...el, text: '' };
+                            }
+                            return el;
+                        })
+                    }));
+                }
+                setPages(design);
+
+                // Also initial load assets
+                const assets = variantAssets[selectedVariantId] || variantAssets[vKey];
+                if (assets) {
+                    setSelectedBaseColorAssetId(assets.selectedBaseColorAssetId || null);
+                    setSelectedElementColorAssetId(assets.selectedElementColorAssetId || null);
+                    setSelectedFontAssetId(assets.selectedFontAssetId || null);
+                    setSelectedOptionAssetId(assets.selectedOptionAssetId || null);
+                    setSelectedGalleryAssetId(assets.selectedGalleryAssetId || null);
+                    setSelectedShapeAssetId(assets.selectedShapeAssetId || null);
+                }
+            }
+            return;
+        }
+
+        if (prevVariantRef.current && prevVariantRef.current !== selectedVariantId) {
+            const oldId = prevVariantRef.current;
+            const newId = selectedVariantId;
+            const currentWork = pagesRef.current; // The user's current edits
+
+            const oldVKey = String(oldId).match(/\d+/)?.[0] || String(oldId);
+            const newVKey = String(newId).match(/\d+/)?.[0] || String(newId);
+
+            // 1. Save work from OLD bucket (Memory only for session)
+            if (isUniqueMode || variantDesigns[oldId] || variantDesigns[oldVKey]) {
+                setVariantDesigns(prev => ({ ...prev, [oldId]: currentWork, [oldVKey]: currentWork }));
+            } else {
+                setGlobalDesigns(currentWork);
+            }
+
+            // 2. Load work for NEW bucket
+            const isTargetUnique = isUniqueMode || variantDesigns[newId] || variantDesigns[newVKey];
+
+            if (isTargetUnique) {
+                const newDesign = variantDesigns[newId] || variantDesigns[newVKey] || (
+                    uniqueDesignBehavior === 'empty'
+                        ? initialPages.map(p => ({ ...p, elements: [] }))
+                        : JSON.parse(JSON.stringify(currentWork || globalDesigns || initialPages))
+                );
+                setPages(newDesign);
+
+                // Load assets for this variant
+                const assets = variantAssets[newId] || variantAssets[newVKey];
+                if (assets) {
+                    setSelectedBaseColorAssetId(assets.selectedBaseColorAssetId || null);
+                    setSelectedElementColorAssetId(assets.selectedElementColorAssetId || null);
+                    setSelectedFontAssetId(assets.selectedFontAssetId || null);
+                    setSelectedOptionAssetId(assets.selectedOptionAssetId || null);
+                    setSelectedGalleryAssetId(assets.selectedGalleryAssetId || null);
+                    setSelectedShapeAssetId(assets.selectedShapeAssetId || null);
+                }
+
+                if (!newDesign.find(p => p.id === activePageId)) {
+                    setActivePageId(newDesign[0]?.id || 'default');
+                }
+            } else {
+                const nextGlobal = (variantDesigns[oldId] || variantDesigns[oldVKey] || isUniqueMode) ? globalDesigns : currentWork;
+                setPages(nextGlobal);
+
+                if (!nextGlobal.find(p => p.id === activePageId)) {
+                    setActivePageId(nextGlobal[0]?.id || 'default');
+                }
+            }
+
+            prevVariantRef.current = newId;
+        }
+    }, [selectedVariantId, isUniqueMode, variantAssets, variantDesigns]);
+
+    // Initialize selected variant and validate
     useEffect(() => {
         if (productData?.variants && productData.variants.length > 0) {
-            if (!selectedVariantId) {
-                console.log("[DesignerOpenCore] Auto-selecting first variant:", productData.variants[0].id);
-                setSelectedVariantId(productData.variants[0].id.toString());
+            // Validate if the current selectedVariantId actually exists in the product
+            const normalizedSelected = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+
+            const isValid = productData.variants.some(v => {
+                const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+                return vid === normalizedSelected;
+            });
+
+            if (!selectedVariantId || !isValid) {
+                const firstId = String(productData.variants[0].id).match(/\d+/)?.[0] || String(productData.variants[0].id);
+                setSelectedVariantId(firstId);
             }
         } else if (productData) {
             console.warn("[DesignerOpenCore] productData present but no variants found:", productData);
         }
-    }, [productData, selectedVariantId]);
+    }, [productData]); // Run when productData loads. DO NOT include selectedVariantId to avoid loops, relying on initial mount check.
 
-    useEffect(() => {
-        console.log('DesignerOpenCore Initial Data:', {
-            productData,
-            variants: productData?.variants,
-            initialConfig,
-            variantBaseImages: initialConfig?.variantBaseImages
+    // Robust Base Image Resolution
+    const resolvedBaseImage = useMemo(() => {
+        const activePage = pages.find(p => p.id === activePageId);
+        if (activePage?.baseImage === 'none') return undefined;
+
+        const rawSelectedId = String(selectedVariantId);
+        const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+
+        // Helper to clean "Label|URL"
+        const cleanUrl = (u: any) => {
+            if (typeof u !== 'string') return u;
+            return u.includes('|') ? u.split('|')[1].trim() : u;
+        };
+
+        // 1. Explicit UI Assignment (Designer choice for this variant)
+        let variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
+        variantImage = cleanUrl(variantImage);
+        if (variantImage && variantImage !== 'none') return variantImage;
+
+        // 2. Legacy config variant mockups
+        const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
+        let legacyUrl = typeof vConfig === 'string' ? vConfig : (vConfig?.url || vConfig?.default?.url);
+        legacyUrl = cleanUrl(legacyUrl);
+        if (legacyUrl) return legacyUrl;
+
+        // 3. Shopify Variant Image (AUTOMATIC)
+        const sVariant = productData?.variants?.find((v: any) => {
+            const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+            return vid === vKey || String(v.id) === rawSelectedId;
         });
-    }, [productData]);
+        let sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
+        sVariantImage = cleanUrl(sVariantImage);
+        if (sVariantImage) {
+            // Fix base64 if needed
+            if (!sVariantImage.startsWith('http') && !sVariantImage.startsWith('data:')) return `data:image/jpeg;base64,${sVariantImage}`;
+            return sVariantImage;
+        }
+
+        // 4. Global Page Base Image
+        if (activePage?.baseImage) return cleanUrl(activePage.baseImage);
+
+        // 5. Fallback to Shopify Product main image
+        const sProductImage = productData?.images?.[0];
+        const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+
+        return getProxiedUrl(cleanUrl(finalFallback) || undefined);
+
+    }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseImages, productData]);
+
 
     const addToHistory = useCallback((currentPages: PageData[]) => {
         setHistory(prev => {
@@ -184,7 +373,21 @@ export function DesignerOpenCore({
         setPages(prev => {
             const updated = prev.map(p => {
                 if (p.id === activePageId) {
-                    const newEls = p.elements.map(el => el.id === id ? { ...el, ...updates } : el);
+                    const newEls = p.elements.map(el => {
+                        if (el.id === id) {
+                            // In public mode, if we are updating text, src, or other content, 
+                            // we should ensure the element is visible on the canvas.
+                            const isContentUpdate = updates.text !== undefined || updates.src !== undefined ||
+                                updates.checked !== undefined || updates.numberValue !== undefined;
+
+                            return {
+                                ...el,
+                                ...updates,
+                                isVisible: (isPublicModeProp && isContentUpdate) ? true : (updates.isVisible ?? el.isVisible)
+                            };
+                        }
+                        return el;
+                    });
                     return { ...p, elements: newEls };
                 }
                 return p;
@@ -192,19 +395,36 @@ export function DesignerOpenCore({
             if (!skipHistory) addToHistory(updated);
             return updated;
         });
-    }, [activePageId, addToHistory]);
+    }, [activePageId, addToHistory, isPublicModeProp]);
 
     const deleteElement = useCallback((id: string) => {
         setPages(prev => {
             const updated = prev.map(p => {
-                if (p.id === activePageId) return { ...p, elements: p.elements.filter(el => el.id !== id) };
+                if (p.id === activePageId) {
+                    const el = p.elements.find(e => e.id === id);
+                    const isCustomizableType = el && [
+                        'text', 'monogram', 'field', 'textarea',
+                        'image', 'gallery', 'dropdown', 'button',
+                        'checkbox', 'number', 'time', 'file_upload'
+                    ].includes(el.type);
+
+                    // In public mode, don't hard-delete elements that are customization "slots"
+                    const isGalleryAdded = id.includes('added-');
+                    if (isPublicModeProp && el && (el.label || isCustomizableType) && !isGalleryAdded) {
+                        return {
+                            ...p,
+                            elements: p.elements.map(e => e.id === id ? { ...e, isVisible: false, text: '', src: '' } : e)
+                        };
+                    }
+                    return { ...p, elements: p.elements.filter(el => el.id !== id) };
+                }
                 return p;
             });
             addToHistory(updated);
             return updated;
         });
         setSelectedElement(null);
-    }, [activePageId, addToHistory]);
+    }, [activePageId, addToHistory, isPublicModeProp]);
 
     const duplicateElement = useCallback((id: string) => {
         setPages(prev => {
@@ -417,6 +637,11 @@ export function DesignerOpenCore({
                 shapeAssetId: selectedShapeAssetId,
                 designerLayout,
                 buttonText,
+                showGrid,
+                enabledGrid,
+                enabledUndoRedo,
+                enabledDownload,
+                enabledReset,
                 productOutputSettings: currentSettings
             }
         };
@@ -435,16 +660,82 @@ export function DesignerOpenCore({
         }
     };
 
+    const handleReset = useCallback(() => {
+        if (!window.confirm("Are you sure you want to reset your design? All changes will be lost.")) return;
+        const resetState = JSON.parse(JSON.stringify(initialPages));
+        setPages(resetState);
+        setHistory([resetState]);
+        setHistoryIndex(0);
+        toast.success("Design reset to original template");
+    }, [initialPages]);
+
+    const handleDownload = async () => {
+        const canvasElement = document.getElementById('canvas-paper');
+        if (!canvasElement) {
+            toast.error("Canvas element not found");
+            return;
+        }
+
+        const id = toast.loading("Preparing download...");
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(canvasElement, {
+                useCORS: true,
+                scale: 2,
+                backgroundColor: null,
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `design-${designName || 'custom'}-${Date.now()}.png`;
+            link.href = dataUrl;
+            link.click();
+            toast.success("Download started", { id });
+        } catch (err) {
+            console.error('Download failed:', err);
+            toast.error("Download failed", { id });
+        }
+    };
+
     const currentPages = useMemo(() => {
         const found = pages.find(p => p.id === activePageId);
         return found || pages[0] || { id: 'default', name: 'Side 1', elements: [] };
     }, [pages, activePageId]);
 
     const currentElements = currentPages?.elements || [];
+
+    const logicContext = useMemo(() => {
+        const elementValues: Record<string, any> = {};
+        currentElements.forEach(el => {
+            if (el.type === 'checkbox') elementValues[el.id] = el.checked;
+            else if (el.type === 'number') elementValues[el.id] = el.numberValue;
+            else elementValues[el.id] = el.text || el.src;
+        });
+
+        const selectedVariant = productData?.variants?.find(v => {
+            const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+            const svid = String(selectedVariantId).match(/\d+/)?.[0] || String(selectedVariantId);
+            return vid === svid;
+        });
+
+        return {
+            variantId: String(selectedVariantId),
+            options: {
+                option1: selectedVariant?.option1 || '',
+                option2: selectedVariant?.option2 || '',
+                option3: selectedVariant?.option3 || '',
+            },
+            elementValues
+        };
+    }, [currentElements, selectedVariantId, productData]);
+
     const processedElements = useMemo(() => {
         // Only show elements that are not locked or restricted for customers to see in layers
-        return currentElements;
-    }, [currentElements]);
+        // Also evaluate conditional logic
+        return currentElements.map(el => ({
+            ...el,
+            isHiddenByLogic: !evaluateVisibility(el as any, logicContext)
+        }));
+    }, [currentElements, logicContext]);
 
     const activeBasePaletteColors = useMemo(() => {
         const asset = userColors.find((a: any) => String(a.id) === String(selectedBaseColorAssetId));
@@ -473,18 +764,39 @@ export function DesignerOpenCore({
         return userGalleries.filter(a => !a.config?.productId || String(a.config.productId) === String(productId));
     }, [userGalleries, selectedGalleryAssetId, productId]);
 
-    // Dynamic Font Loading
+    // Dynamic Font Loading - Load ALL fonts that are either in the filtered list OR used by elements
+    const usedFontAssetIds = useMemo(() => {
+        const ids = new Set<string>();
+        pages.forEach(p => {
+            p.elements.forEach(el => {
+                if (el.fontAssetId) ids.add(String(el.fontAssetId));
+            });
+        });
+        return Array.from(ids).sort().join(',');
+    }, [pages]);
+
     useEffect(() => {
-        if (filteredUserFonts.length > 0) {
+        // Collect all fonts that need loading
+        const fontsToLoad = new Set<any>(filteredUserFonts);
+
+        // Also find fonts used by elements that might not be in the filtered list
+        if (usedFontAssetIds) {
+            const ids = usedFontAssetIds.split(',');
+            ids.forEach(id => {
+                const asset = userFonts.find(a => String(a.id) === id);
+                if (asset) fontsToLoad.add(asset);
+            });
+        }
+
+        if (fontsToLoad.size > 0) {
             // 1. Google Fonts
             const googleFamilies = new Set<string>();
-            filteredUserFonts.forEach(f => {
+            fontsToLoad.forEach(f => {
                 if (f.config?.fontType === 'google') {
                     if (f.config?.googleConfig === 'specific' && f.config?.specificFonts) {
                         f.config.specificFonts.split(/[,\n]/).forEach((n: string) => {
                             const trimmed = n.trim();
-                            // Only add if it doesn't look like a custom font (no '|', no data URL, no http)
-                            if (trimmed && !trimmed.includes('|') && !trimmed.includes('data:') && !trimmed.includes('://')) {
+                            if (trimmed && trimmed.length < 100 && !trimmed.includes('|') && !trimmed.includes('data:')) {
                                 googleFamilies.add(trimmed);
                             }
                         });
@@ -503,7 +815,8 @@ export function DesignerOpenCore({
                     link.rel = 'stylesheet';
                     document.head.appendChild(link);
                 }
-                link.href = `https://fonts.googleapis.com/css?family=${Array.from(googleFamilies).map(f => f.replace(/ /g, '+')).join('|')}&display=swap`;
+                const newHref = `https://fonts.googleapis.com/css?family=${Array.from(googleFamilies).map(f => f.replace(/ /g, '+')).join('|')}&display=swap`;
+                if (link.href !== newHref) link.href = newHref;
             }
 
             // 2. Custom @font-face
@@ -515,43 +828,34 @@ export function DesignerOpenCore({
                 document.head.appendChild(style);
             }
             let css = '';
-            filteredUserFonts.forEach(f => {
-                // Single custom font asset
+            fontsToLoad.forEach(f => {
                 if (f.config?.fontType === 'custom' && f.value && !f.value.includes('|')) {
-                    css += `@font-face { font-family: "${f.name}"; src: url("${f.value}"); font-display: swap; }\n`;
+                    css += `@font-face { font-family: "${cleanAssetName(f.name)}"; src: url("${f.value}"); font-display: swap; }\n`;
                 }
 
-                // Font group with multiple custom fonts (Name|Data or Name|URL)
-                if (f.value) {
+                if (f.value && f.value.includes('|')) {
                     const lines = f.value.split('\n');
                     lines.forEach((line: string) => {
                         if (line.includes('|')) {
                             const [name, data] = line.split('|');
-                            // Support both base64 data URLs and S3 URLs
                             if (name && data && (data.trim().startsWith('data:') || data.trim().startsWith('http'))) {
-                                css += `@font-face { font-family: "${name.trim()}"; src: url("${data.trim()}"); font-display: swap; }\n`;
+                                css += `@font-face { font-family: "${cleanAssetName(name.trim())}"; src: url("${data.trim()}"); font-display: swap; }\n`;
                             }
                         }
                     });
                 }
             });
-            style.textContent = css;
+            if (style.textContent !== css) style.textContent = css;
         }
-    }, [filteredUserFonts]);
+    }, [filteredUserFonts, usedFontAssetIds, userFonts]);
 
     const selectedVariant = useMemo(() =>
         (productData?.variants || []).find(v => String(v.id) === String(selectedVariantId)),
         [productData, selectedVariantId]
     );
 
-    const hasVariants = useMemo(() => {
-        if (!productData?.variants || productData.variants.length === 0) return false;
-        if (productData.variants.length > 1) return true;
-        return productData.variants[0].title.toLowerCase() !== 'default title';
-    }, [productData]);
 
     const handleOptionChange = (optionIndex: number, value: string) => {
-        console.log('Handle Option Change:', { optionIndex, value, selectedVariant, allVariants: productData?.variants });
         if (!productData?.variants || productData.variants.length === 0) return;
 
         // Fallback to first variant if none selected to ensure we have a baseline for options
@@ -571,10 +875,8 @@ export function DesignerOpenCore({
         );
 
         if (match) {
-            console.log('Variant Matched:', match.id, match);
             setSelectedVariantId(String(match.id));
         } else {
-            console.log('No exact match. Trying fallback for option index:', optionIndex, 'Value:', value);
             // Fallback: Find first variant that has the NEW option value at the correct position
             // This handles "Linked Options" behavior where switching one option might require changing others
             const fallbackMatch = productData.variants.find(v => {
@@ -583,7 +885,6 @@ export function DesignerOpenCore({
             });
 
             if (fallbackMatch) {
-                console.log('Fallback Variant Matched:', fallbackMatch.id, fallbackMatch);
                 setSelectedVariantId(String(fallbackMatch.id));
             } else {
                 console.warn('No variant found even with fallback for value:', value);
@@ -670,7 +971,6 @@ export function DesignerOpenCore({
     return (
         <div className="fixed inset-0 z-[99999] bg-gray-100 flex flex-col overflow-hidden">
             <Header
-                onUndo={undo} onRedo={redo} canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1}
                 title={productData?.title} onSave={(isTemplate) => handleSave(isTemplate, false)} designName={designName} onDesignNameChange={setDesignName}
                 isSaving={isSaving || isAutoSaving} lastSavedTime={lastSavedTime}
                 productId={productId}
@@ -693,7 +993,7 @@ export function DesignerOpenCore({
                 {isPublicMode ? (
                     <div className="w-[420px] shrink-0 h-full relative z-20 shadow-2xl">
                         <PublicCustomizationPanel
-                            elements={currentElements}
+                            elements={processedElements as any}
                             selectedElement={selectedElement}
                             onSelectElement={setSelectedElement}
                             onUpdateElement={updateElement}
@@ -705,9 +1005,13 @@ export function DesignerOpenCore({
                                 toast.success("Design reset to original template");
                             }}
                             onSave={handleSave}
+                            onDeleteElement={deleteElement}
                             isSaving={isSaving || isAutoSaving}
                             buttonText={buttonText}
                             userGalleries={filteredUserGalleries}
+                            baseUrl={baseUrl}
+                            shop={shop}
+                            onAddElement={addElement}
                         />
                     </div>
                 ) : (
@@ -735,36 +1039,36 @@ export function DesignerOpenCore({
                         isPublicMode={isPublicModeProp}
                     />
                     <div className={`${isPublicModeProp ? 'h-20 border-b-4' : 'h-16 border-b-2'} bg-white border-gray-200 flex items-center px-10 gap-8 relative shrink-0 shadow-xl z-30`}>
-                        <span className={`${isPublicModeProp ? 'text-xl' : 'text-base'} font-black text-indigo-900 uppercase tracking-widest whitespace-nowrap`}>Side: {pages.findIndex(p => p.id === activePageId) + 1}/{pages.length}</span>
+                        {/* Page Navigation on the Left */}
+                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                            {pages.map((page, index) => (
+                                <button
+                                    key={page.id}
+                                    onClick={() => setActivePageId(page.id)}
+                                    className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all border-2 flex items-center gap-3 whitespace-nowrap ${activePageId === page.id
+                                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-md ring-4 ring-indigo-500/10'
+                                            : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600'
+                                        }`}
+                                >
+                                    <div className={`w-2.5 h-2.5 rounded-full ${activePageId === page.id ? 'bg-indigo-500 animate-pulse' : 'bg-gray-200'}`} />
+                                    <span className="uppercase tracking-widest">{page.name || `Side ${index + 1}`}</span>
+                                </button>
+                            ))}
 
-                        {isPublicModeProp && hasVariants && (
-                            <div className="flex items-center gap-3 border-l pl-3 ml-1 flex-1 overflow-hidden">
-                                {productData?.options?.map((option, idx) => (
-                                    <div key={option.name} className="flex items-center gap-2 shrink-0">
-                                        <Label className="text-sm font-medium text-gray-400 whitespace-nowrap uppercase tracking-wider">{option.name}:</Label>
-                                        <Select
-                                            value={(idx === 0 ? selectedVariant?.option1 : idx === 1 ? selectedVariant?.option2 : selectedVariant?.option3) || ""}
-                                            onValueChange={(val) => handleOptionChange(idx, val)}
-                                        >
-                                            <SelectTrigger className="h-12 px-5 py-2 min-w-[100px] text-lg font-bold bg-white border border-gray-100 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-50 transition-all">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="rounded-xl border shadow-xl">
-                                                {option.values?.map(val => (
-                                                    <SelectItem key={val} value={val} className="text-lg font-medium py-2 px-5">{val}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ))}
-                                {selectedVariant && (
-                                    <Badge variant="outline" className="ml-auto text-[10px] font-bold bg-white text-indigo-600 border-indigo-100 px-2 py-0 h-6 shrink-0 flex items-center gap-1">
-                                        <span className="text-[8px] text-gray-400">PRICE:</span> ${selectedVariant.price}
-                                    </Badge>
-                                )}
-                            </div>
-                        )}
+                            {!isPublicModeProp && (
+                                <button
+                                    onClick={addPage}
+                                    className="p-2.5 flex items-center justify-center rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all group shrink-0"
+                                    title="Add Side"
+                                >
+                                    <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                </button>
+                            )}
+                        </div>
 
+                        <div className="flex items-center gap-3">
+                            {/* Base Image Controls stay here */}
+                        </div>
                         {!isPublicModeProp && (
                             <div className="flex items-center gap-3 border-l pl-3">
                                 <button
@@ -783,7 +1087,7 @@ export function DesignerOpenCore({
                                                 setPages(updatedPages);
                                                 addToHistory(updatedPages);
                                             }}
-                                            className="h-7 w-7 rounded-md border bg-white text-gray-400 border-gray-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
+                                            className="h-7 w-7 flex items-center justify-center rounded-md border bg-white text-red-500 border-gray-200 hover:bg-red-50 hover:border-red-200 transition-all"
                                             title="Remove base image"
                                         >
                                             <X className="w-3.5 h-3.5" />
@@ -831,7 +1135,7 @@ export function DesignerOpenCore({
                                                 }}
                                                 className="w-3.5 h-3.5 rounded border-gray-300"
                                             />
-                                            <span className="text-[10px] font-medium text-gray-600">Use as Mask</span>
+                                            <span className="text-[10px] font-medium text-gray-600">Set as Mask</span>
                                         </label>
 
                                         {currentPages.baseImageAsMask && (
@@ -854,32 +1158,111 @@ export function DesignerOpenCore({
                             </div>
                         )}
 
-                        <div className="ml-auto flex items-center gap-2">
-                            {pages.map((page) => (
-                                <div key={page.id} className="group relative flex items-center">
-                                    <button onClick={() => setActivePageId(page.id)} className={`h-7 px-3 rounded-md text-[10px] font-bold border transition-all flex items-center gap-1.5 ${activePageId === page.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>
-                                        {page.baseImage && (
-                                            <img src={page.baseImage} className="w-4 h-4 rounded-sm object-cover border border-white/20" />
-                                        )}
-                                        {page.name}
-                                    </button>
-                                    {!isPublicMode && (
-                                        <button onClick={(e) => { e.stopPropagation(); const n = prompt('Name:', page.name); if (n) renamePage(page.id, n); }} className="p-1 opacity-0 group-hover:opacity-100"><Pencil className="w-2.5 h-2.5" /></button>
-                                    )}
-                                    {!isPublicMode && pages.length > 1 && <button onClick={(e) => { e.stopPropagation(); deletePage(page.id); }} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500"><X className="w-2 h-2" /></button>}
+                        <div className="ml-auto flex items-center gap-6">
+                            {enabledUndoRedo && (
+                                <div className="flex items-center gap-1 border-r pr-4">
+                                    <TooltipProvider delayDuration={150}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button onClick={undo} disabled={historyIndex === 0} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition-colors">
+                                                    <Undo2 className="w-5 h-5 text-gray-700" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button onClick={redo} disabled={historyIndex === history.length - 1} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition-colors">
+                                                    <Redo2 className="w-5 h-5 text-gray-700" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Redo (Ctrl+Y)</TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </div>
-                            ))}
-                            {!isPublicMode && (
-                                <button onClick={addPage} className="h-7 w-7 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-400 hover:text-indigo-600"><UploadCloud className="w-3.5 h-3.5" /></button>
                             )}
+
+                            {/* Icons Group */}
+                            <div className="flex items-center gap-3">
+                                <TooltipProvider delayDuration={150}>
+                                    <div className="flex items-center gap-1 bg-indigo-50/50 rounded-xl px-2 py-1 border border-indigo-100">
+                                        <button
+                                            onClick={() => setZoom(Math.max(10, zoom - 10))}
+                                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-indigo-400 hover:text-indigo-600"
+                                        >
+                                            <Minus className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-[11px] font-black text-indigo-900 min-w-[45px] text-center tracking-tighter">
+                                            {Math.round(zoom)}%
+                                        </span>
+                                        <button
+                                            onClick={() => setZoom(Math.min(200, zoom + 10))}
+                                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-indigo-400 hover:text-indigo-600"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {enabledGrid && (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button onClick={() => setShowGrid(!showGrid)} className={`p-2.5 rounded-xl transition-all ${showGrid ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'hover:bg-gray-100 text-gray-600'}`}>
+                                                        <Grid3x3 className="w-5 h-5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Show Grid</TooltipContent>
+                                            </Tooltip>
+                                        )}
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button onClick={() => setShowRulers(!showRulers)} className={`p-2.5 rounded-xl transition-all ${showRulers ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'hover:bg-gray-100 text-gray-600'}`}>
+                                                    <Ruler className="w-5 h-5" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Show Rulers</TooltipContent>
+                                        </Tooltip>
+
+                                        {enabledDownload && (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button onClick={handleDownload} className="p-2.5 hover:bg-gray-100 rounded-xl text-gray-600 transition-all hover:scale-110">
+                                                        <Download className="w-5 h-5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Download Design</TooltipContent>
+                                            </Tooltip>
+                                        )}
+
+                                        {enabledReset && (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button onClick={handleReset} className="p-2.5 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl transition-all hover:scale-110">
+                                                        <RotateCcw className="w-5 h-5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Reset Design</TooltipContent>
+                                            </Tooltip>
+                                        )}
+
+                                        {!isPublicModeProp && (
+                                            <button onClick={addPage} className="p-2.5 rounded-xl border border-dashed border-gray-300 text-gray-400 hover:border-indigo-400 hover:text-indigo-600 transition-all">
+                                                <Plus className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </TooltipProvider>
+                            </div>
                         </div>
                     </div>
 
                     <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
                         <div
                             ref={zoomContainerRef}
-                            className="flex-1 relative"
+                            className="flex-1 relative flex flex-col"
                         >
+
                             <Canvas
                                 elements={processedElements}
                                 selectedElement={selectedElement}
@@ -892,6 +1275,7 @@ export function DesignerOpenCore({
                                 showSafeArea={showSafeArea}
                                 productVariant={{ color: 'white' } as any}
                                 showRulers={showRulers}
+                                showGrid={showGrid}
                                 unit={unit}
                                 enableBounce={false}
                                 paperSize={paperSize}
@@ -916,54 +1300,7 @@ export function DesignerOpenCore({
                                     setPages(updatedPages);
                                     addToHistory(updatedPages);
                                 }}
-                                baseImage={(() => {
-                                    // Robust ID parsing (handles GIDs like gid://shopify/ProductVariant/123 -> "123")
-                                    const rawSelectedId = String(selectedVariantId);
-                                    const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
-
-                                    // 0. Check current side specific variant mockup
-                                    const pageVariantMockup = currentPages?.variantBaseImages?.[rawSelectedId] || currentPages?.variantBaseImages?.[vKey];
-                                    if (pageVariantMockup && pageVariantMockup !== 'none') return pageVariantMockup;
-
-                                    // 1. Check Admin Configured variant images (Global Config Compatibility)
-                                    // vKey is numeric string, selectedVariantId might be GID string
-                                    const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
-
-                                    // Handle both string URL or object structure { default: { url: '...' } }
-                                    let adminVariantImage = '';
-                                    if (typeof vConfig === 'string') {
-                                        adminVariantImage = vConfig;
-                                    } else if (vConfig) {
-                                        adminVariantImage = vConfig.default?.url || vConfig.url || '';
-                                    }
-
-                                    // 2. Fallback to Shopify variant image from productData
-                                    const sVariant = productData?.variants?.find(v => {
-                                        const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
-                                        return vid === vKey;
-                                    });
-                                    const shopifyImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
-
-                                    // 3. Page default base image
-                                    const defaultImage = currentPages.baseImage;
-
-                                    // 4. Ultimate Fallback to Shopify Product main image
-                                    const sProductImage = productData?.images?.[0];
-                                    const productFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
-
-                                    // Get the final image
-                                    let finalImage = adminVariantImage || shopifyImage || defaultImage || productFallback;
-
-                                    if (!finalImage) return undefined;
-
-                                    // Fix base64 images missing the data URI prefix
-                                    if (typeof finalImage === 'string' && !finalImage.startsWith('http') && !finalImage.startsWith('data:')) {
-                                        // Raw base64 data detected, add proper prefix
-                                        finalImage = `data:image/jpeg;base64,${finalImage}`;
-                                    }
-
-                                    return finalImage;
-                                })()}
+                                baseImage={resolvedBaseImage}
                                 baseImageProperties={currentPages.baseImageProperties as any}
                                 baseImageColor={currentPages.baseImageColor}
                                 baseImageColorEnabled={currentPages.baseImageColorEnabled}
@@ -972,6 +1309,8 @@ export function DesignerOpenCore({
                                 }}
                                 baseImageAsMask={currentPages.baseImageAsMask}
                                 baseImageMaskInvert={currentPages.baseImageMaskInvert}
+                                isPublicMode={isPublicModeProp}
+                                hideSafeAreaLine={hideSafeAreaLine}
                             />
                         </div>
 
@@ -981,9 +1320,13 @@ export function DesignerOpenCore({
 
                 <div className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${showSummary ? 'w-[420px] opacity-100 border-l border-gray-200' : 'w-0 opacity-0'}`}>
                     <Summary
+                        zoom={zoom}
+                        onZoomChange={setZoom}
                         elements={processedElements as any} selectedElement={selectedElement} onSelectElement={setSelectedElement} onDeleteElement={deleteElement}
                         showSafeArea={showSafeArea}
                         onToggleSafeArea={() => setShowSafeArea(!showSafeArea)}
+                        hideSafeAreaLine={hideSafeAreaLine}
+                        onToggleHideSafeAreaLine={() => setHideSafeAreaLine(!hideSafeAreaLine)}
                         safeAreaRadius={safeAreaRadius} onSafeAreaRadiusChange={setSafeAreaRadius}
                         safeAreaOffset={safeAreaOffset} onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
                         shop={shop}
@@ -1040,31 +1383,7 @@ export function DesignerOpenCore({
                         outputSettings={productOutputSettings}
                         onProductOutputSettingsChange={(settings) => setProductOutputSettings(settings)}
                         isPublicMode={isPublicModeProp}
-                        baseImage={(() => {
-                            if (currentPages?.baseImage === 'none') return undefined;
-
-                            const rawSelectedId = String(selectedVariantId);
-                            const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
-
-                            // 1. Explicit UI Assignment
-                            const variantImage = currentPages?.variantBaseImages?.[rawSelectedId] || currentPages?.variantBaseImages?.[vKey];
-                            if (variantImage && variantImage !== 'none') return variantImage;
-
-                            // 2. Shopify Variant Image (AUTOMATIC)
-                            const sVariant = productData?.variants?.find((v: any) => {
-                                const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
-                                return vid === vKey || String(v.id) === rawSelectedId;
-                            });
-                            const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
-                            if (sVariantImage) return sVariantImage;
-
-                            // 3. Global Page Base Image
-                            if (currentPages?.baseImage) return currentPages.baseImage;
-
-                            // 4. Fallback to Shopify Product main image
-                            const sProductImage = productData?.images?.[0];
-                            return (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src) || undefined;
-                        })()}
+                        baseImage={resolvedBaseImage}
                         onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
                         designerLayout={designerLayout}
                         onDesignerLayoutChange={setDesignerLayout}
@@ -1073,6 +1392,15 @@ export function DesignerOpenCore({
                         onUpdateElement={updateElement}
                         onSave={(isTemp, settings) => handleSave(isTemp, false, settings)}
                         isSaving={isSaving || isAutoSaving}
+                        // Toolbar feature flags
+                        enabledGrid={enabledGrid}
+                        onToggleEnabledGrid={() => setEnabledGrid(!enabledGrid)}
+                        enabledUndoRedo={enabledUndoRedo}
+                        onToggleEnabledUndoRedo={() => setEnabledUndoRedo(!enabledUndoRedo)}
+                        enabledDownload={enabledDownload}
+                        onToggleEnabledDownload={() => setEnabledDownload(!enabledDownload)}
+                        enabledReset={enabledReset}
+                        onToggleEnabledReset={() => setEnabledReset(!enabledReset)}
                     />
                 </div>
             </div>

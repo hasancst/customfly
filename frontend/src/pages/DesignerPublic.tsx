@@ -8,19 +8,23 @@ interface DesignerPublicProps {
     shopDomain?: string;
     isPublicMode?: boolean;
     layout?: string;
+    onBack?: () => void;
 }
 
 export default function DesignerPublic({
     productId: propProductId,
     shopDomain,
     isPublicMode = true,
-    layout: _layout
+    layout: _layout,
+    onBack
 }: DesignerPublicProps = {}) {
     const params = useParams();
     const [searchParams] = useSearchParams();
 
     const productId = propProductId || params.productId;
     const shop = shopDomain || searchParams.get('shop') || '';
+    const paramVariant = searchParams.get('variant');
+    console.log("[DesignerPublic] Render parameters:", { productId, shop, variant: paramVariant });
 
     const [configData, setConfigData] = useState<any>(null);
     const [shopifyProduct, setShopifyProduct] = useState<any>(null);
@@ -39,9 +43,6 @@ export default function DesignerPublic({
                 const prodRes = await fetch(`${baseUrl}/imcst_public_api/product/${shop}/${productId}`);
                 if (prodRes.ok) {
                     const data = await prodRes.json();
-                    console.log("[DesignerPublic] Fetched product data:", data);
-                    console.log("[DesignerPublic] Product variants:", data.product?.variants);
-                    console.log("[DesignerPublic] Product options:", data.product?.options);
                     setConfigData(data.config);
                     setInitialDesign(data.design);
                     setShopifyProduct(data.product);
@@ -83,6 +84,7 @@ export default function DesignerPublic({
                 productId={productId}
                 productData={shopifyProduct}
                 initialPages={initialDesign || [{ id: 'default', name: 'Side 1', elements: [] }]}
+                initialVariantId={searchParams.get('variant') || undefined}
                 initialConfig={{ ...configData, buttonText: configData?.buttonText || 'Add to Cart' }}
                 userFonts={assets.fonts}
                 userColors={assets.colors}
@@ -174,6 +176,7 @@ export default function DesignerPublic({
                         throw err;
                     }
                 }}
+                onBack={onBack || (() => window.history.back())}
                 customFetch={window.fetch}
                 shop={shop}
                 baseUrl={(window as any).IMCST_BASE_URL || ''}

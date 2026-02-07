@@ -9,21 +9,21 @@ Dokumen ini untuk tracking progres implementasi fitur dan opsi pada menu Product
 - [ ] Zoom & pan
 
 ## Layer Panel (Summary)
-- [ ] Daftar layer
-- [ ] Lock / unlock
-- [ ] Hide / show
-- [ ] Reorder (naik/turun)
-- [ ] Group / ungroup
+- [x] Daftar layer
+- [x] Lock / unlock
+- [x] Hide / show
+- [x] Reorder (naik/turun - Drag & Drop)
+- [x] Group / ungroup
 
 ## Toolbar — Elemen
 ### Text
 - [ ] Tambah teks
 - [ ] Font family
-- [ ] Ukuran, weight, style
-- [ ] Color picker
-- [ ] Alignment (left/center/right, justify)
-- [ ] Outline / stroke
-- [ ] Curved text / warp
+- [x] UKuran, weight, style
+- [x] Color picker
+- [x] Alignment (left/center/right, justify)
+- [x] Outline / stroke (Solid & Gradient)
+- [x] Curved text / warp / Bridge
 
 ### Image
 - [ ] Upload gambar
@@ -40,17 +40,18 @@ Dokumen ini untuk tracking progres implementasi fitur dan opsi pada menu Product
 - [ ] Boolean ops (union/subtract/intersect)
 
 ### Gallery
-- [ ] Pilih dari library gambar (Assets)
-- [ ] Tag & koleksi
+- [x] Pilih dari library gambar (Assets)
+- [x] Tag & koleksi
+- [x] Multi-Image Selection (Max Images limit)
 
 ### Form Elements
-- [ ] Dropdown
-- [ ] Button
-- [ ] Checkbox
-- [ ] Number
-- [ ] Binding ke opsi produk
-- [ ] Default value & placeholder
-- [ ] Validasi dasar
+- [x] Dropdown
+- [x] Button
+- [x] Checkbox
+- [x] Number / Phone / Date / Time
+- [x] Binding ke opsi produk
+- [x] Default value & placeholder
+- [x] Validasi dasar (min/max characters)
 
 ## Alignment & Arrange
 - [ ] Align (left/right/center/top/middle/bottom)
@@ -62,10 +63,12 @@ Dokumen ini untuk tracking progres implementasi fitur dan opsi pada menu Product
 - [ ] Redo
 - [ ] Step history
 
-## Pages & Artboards
-- [ ] Tambah halaman
+## Pages & Artboards (Side Management)
+- [x] Tambah halaman (plus icon)
 - [ ] Duplikasi halaman
-- [ ] Hapus halaman
+- [x] Hapus halaman (context menu)
+- [x] Rename halaman (context menu)
+- [x] Navigasi Side-by-Side (New UI)
 - [ ] Reorder halaman
 
 ## Templates & Preset

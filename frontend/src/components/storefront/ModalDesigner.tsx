@@ -109,6 +109,7 @@ export function ModalDesigner({ productId, shop, config }: ModalDesignerProps) {
                                 shopDomain={shop}
                                 isPublicMode={true}
                                 layout="modal"
+                                onBack={closeModal}
                             />
                         </div>
                     </div>

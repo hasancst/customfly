@@ -1,5 +1,6 @@
 import React from 'react';
-import { Palette, Link2, Plus, Image as ImageIcon } from 'lucide-react';
+import { Palette, Link2, Plus, Image as ImageIcon, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -36,13 +37,13 @@ interface SwatchToolProps {
     productData: any; // Using any for simplicity, ideally should match ShopifyProduct type
     userOptions?: any[];
     activeElementPaletteColors?: { name: string, value: string }[];
-    userFonts?: any[];
     onRefreshAssets?: () => void;
     onSaveAsset?: (asset: any) => Promise<any>;
+    onAddElement: (element: CanvasElement) => void;
     isPublicMode?: boolean;
 }
 
-export function SwatchTool({ selectedElement, onUpdateElement, productData, userOptions, userFonts, activeElementPaletteColors = [], onRefreshAssets, onSaveAsset, isPublicMode }: SwatchToolProps) {
+export function SwatchTool({ selectedElement, onUpdateElement, productData, userOptions, activeElementPaletteColors = [], onRefreshAssets, onSaveAsset, onAddElement, isPublicMode }: SwatchToolProps) {
     const [newColor, setNewColor] = React.useState('#000000');
     const [newItemName, setNewItemName] = React.useState('');
 
@@ -204,7 +205,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
     return (
         <div className="flex flex-col h-full">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-orange-50/50">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-orange-600" />
                     <span className={`font-bold ${isPublicMode ? 'text-[16px]' : 'text-sm'} text-gray-700`}>Swatch Settings</span>
@@ -213,7 +214,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
 
             <div className="p-4 space-y-6 flex-1 overflow-y-auto">
                 {/* Title and Visibility */}
-                <div className="space-y-3 p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
+                <div className="space-y-3 p-4 bg-white rounded-2xl border border-gray-100">
                     <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold text-gray-400">Title</Label>
                         <Input
@@ -234,6 +235,36 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                             className="scale-75"
                         />
                     </div>
+                    <div className="flex items-center justify-between p-3 bg-white/60 rounded-xl border border-orange-100/50">
+                        <div className="flex flex-col">
+                            <Label className="text-[10px] font-bold text-gray-700">Show Preview in Canvas</Label>
+                            <p className="text-[9px] text-gray-500">Render the swatch picker on the canvas</p>
+                        </div>
+                        <Switch
+                            checked={!!selectedElement.showCanvasPreview}
+                            onCheckedChange={(checked) => onUpdateElement(selectedElement.id, { showCanvasPreview: checked })}
+                            className="scale-75"
+                        />
+                    </div>
+                </div>
+
+                <div className="pt-0">
+                    <Button
+                        onClick={() => {
+                            if (selectedElement?.id === 'draft') {
+                                onAddElement({
+                                    ...selectedElement as any,
+                                    id: `swatch-${Date.now()}`,
+                                });
+                            } else {
+                                toast.success('Swatch option updated');
+                            }
+                        }}
+                        className="w-full h-11 bg-orange-600 hover:bg-orange-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-orange-100 flex items-center justify-center gap-2 border-b-4 border-orange-800 active:border-b-0 active:translate-y-1 transition-all"
+                    >
+                        {selectedElement?.id === 'draft' ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                        {selectedElement?.id === 'draft' ? 'Create Swatch Option' : 'Update Swatch Option'}
+                    </Button>
                 </div>
 
                 {/* Group Options Selector */}
@@ -308,25 +339,7 @@ export function SwatchTool({ selectedElement, onUpdateElement, productData, user
                         </Select>
                     </div>
 
-                    <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-gray-400">Font Group</Label>
-                        <Select
-                            value={selectedElement.fontAssetId || "none"}
-                            onValueChange={(val) => onUpdateElement(selectedElement.id, { fontAssetId: val === "none" ? undefined : val })}
-                        >
-                            <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
-                                <SelectValue placeholder="Global Default" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Global Default</SelectItem>
-                                {userFonts?.map((asset) => (
-                                    <SelectItem key={asset.id} value={asset.id}>
-                                        {asset.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+
 
                     {/* Visual Preview Box */}
                     <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-3">

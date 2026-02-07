@@ -3,8 +3,6 @@ import {
   Layers,
   RotateCcw,
   Trash2,
-  Grid3x3,
-  Ruler,
   ChevronRight,
   Palette,
   Settings,
@@ -13,6 +11,10 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Minus,
+  Plus,
+  Image as ImageIcon,
+  UploadCloud,
 } from 'lucide-react';
 import {
   Select,
@@ -99,6 +101,23 @@ interface SummaryProps {
   isSaving?: boolean;
   hideSafeAreaLine?: boolean;
   onToggleHideSafeAreaLine?: () => void;
+  isVariantLinked?: boolean;
+  onToggleVariantLink?: (linked: boolean) => void;
+  isUniqueMode?: boolean;
+  onToggleUniqueMode?: (val: boolean) => void;
+  uniqueDesignBehavior?: 'duplicate' | 'empty';
+  onUniqueDesignBehaviorChange?: (val: 'duplicate' | 'empty') => void;
+  zoom: number;
+  onZoomChange: (val: number) => void;
+  // Toolbar feature flags
+  enabledGrid?: boolean;
+  onToggleEnabledGrid?: () => void;
+  enabledUndoRedo?: boolean;
+  onToggleEnabledUndoRedo?: () => void;
+  enabledDownload?: boolean;
+  onToggleEnabledDownload?: () => void;
+  enabledReset?: boolean;
+  onToggleEnabledReset?: () => void;
 }
 
 export const Summary: React.FC<SummaryProps> = ({
@@ -149,10 +168,28 @@ export const Summary: React.FC<SummaryProps> = ({
   baseImageAsMask,
   baseImageMaskInvert,
   baseImage,
-  onOpenBaseImageModal,
   onRemoveBaseImage,
+  onOpenBaseImageModal,
+  isVariantLinked = true,
+  onToggleVariantLink,
+  zoom,
+  onZoomChange,
+  enabledGrid = true,
+  onToggleEnabledGrid,
+  enabledUndoRedo = true,
+  onToggleEnabledUndoRedo,
+  enabledDownload = true,
+  onToggleEnabledDownload,
+  enabledReset = true,
+  onToggleEnabledReset,
+  isUniqueMode = false,
+  onToggleUniqueMode,
+  uniqueDesignBehavior = 'duplicate',
+  onUniqueDesignBehaviorChange,
+  buttonText,
 }) => {
   const [isOutputOpen, setIsOutputOpen] = React.useState(false);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = React.useState(false);
 
   const selectedVariant = shopifyVariants.find(v => {
     const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
@@ -215,6 +252,16 @@ export const Summary: React.FC<SummaryProps> = ({
               <div className="flex items-center gap-3 mb-1">
                 <ShoppingBag className="w-4 h-4 text-indigo-600" />
                 <h3 className="text-base font-normal text-gray-900">Product Variant</h3>
+                {!isPublicMode && (
+                  <div className="ml-auto flex items-center gap-2 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-tighter">Unique Designer Mode</span>
+                    <Switch
+                      checked={isUniqueMode}
+                      onCheckedChange={onToggleUniqueMode}
+                      className="scale-[0.6] data-[state=checked]:bg-indigo-600"
+                    />
+                  </div>
+                )}
               </div>
               <div className={isPublicMode ? "space-y-10" : "space-y-1"}>
                 {shopifyOptions.map((option, idx) => (
@@ -231,11 +278,150 @@ export const Summary: React.FC<SummaryProps> = ({
                   </div>
                 ))}
                 {selectedVariant && (
-                  <div className={`flex justify-between items-center ${isPublicMode ? 'pt-8 mt-8' : 'pt-2 mt-1'} border-t border-gray-50`}>
-                    <span className={`${isPublicMode ? 'text-lg' : 'text-xs'} font-normal text-gray-400`}>Current Price</span>
-                    <Badge variant="secondary" className={`bg-indigo-600 text-white hover:bg-indigo-700 border-0 font-normal ${isPublicMode ? 'text-3xl px-6 py-3 rounded-2xl shadow-lg' : 'text-sm px-2 py-0.5'} transition-all`}>${selectedVariant.price}</Badge>
-                  </div>
+                  <>
+                    <div className={`flex justify-between items-center ${isPublicMode ? 'pt-8 mt-8' : 'pt-2 mt-1'} border-t border-gray-50`}>
+                      <span className={`${isPublicMode ? 'text-lg' : 'text-xs'} font-normal text-gray-400`}>Current Price</span>
+                      <Badge variant="secondary" className={`bg-indigo-600 text-white hover:bg-indigo-700 border-0 font-normal ${isPublicMode ? 'text-3xl px-6 py-3 rounded-2xl shadow-lg' : 'text-sm px-2 py-0.5'} transition-all`}>${selectedVariant.price}</Badge>
+                    </div>
+
+                    {!isPublicMode && onToggleVariantLink && !isUniqueMode && (
+                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-50">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] font-medium text-gray-700">Unique Design</Label>
+                          <p className="text-[9px] text-gray-400">Use separate design for this variant</p>
+                        </div>
+                        <Switch
+                          checked={!isVariantLinked}
+                          onCheckedChange={(val) => onToggleVariantLink(!val)}
+                          className="scale-75"
+                        />
+                      </div>
+                    )}
+                    {!isPublicMode && isUniqueMode && (
+                      <div className="pt-2 mt-2 border-t border-gray-50 text-center">
+                        <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest italic">Independent Variant Mode Active</p>
+                      </div>
+                    )}
+                  </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Layers */}
+          <div className="text-card-foreground flex flex-col gap-1 border border-gray-100 rounded-2xl p-5 bg-white">
+            <div className="flex items-center gap-3 mb-2">
+              <Layers className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-base font-normal text-gray-900">Layers</h3>
+              <span className="ml-auto text-sm font-medium text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{elements?.length || 0}</span>
+            </div>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
+              {elements.filter(el => !isPublicMode || !(el as any).isHiddenByLogic).length === 0 ? (
+                <div className="py-10 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <p className="text-sm text-gray-400 font-medium">No elements yet</p>
+                </div>
+              ) : elements.filter(el => !isPublicMode || !(el as any).isHiddenByLogic).map((el) => (
+                <div key={el.id} onClick={() => onSelectElement(el.id)} className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${selectedElement === el.id ? 'bg-indigo-50 border-indigo-200 ring-4 ring-indigo-500/10' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
+                  <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
+                    {el.type === 'text' ? (
+                      <span className="font-black text-xl text-indigo-400">T</span>
+                    ) : (el.type === 'image' || el.type === 'gallery') ? (
+                      el.src ? (
+                        <img src={el.src?.includes('|') ? el.src.split('|')[1].trim() : el.src} className="w-full h-full object-cover rounded-lg" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5 text-gray-300" />
+                      )
+                    ) : el.type === 'file_upload' ? (
+                      <UploadCloud className="w-6 h-6 text-emerald-500" />
+                    ) : (
+                      <Palette className="w-6 h-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[15px] font-medium text-gray-900 truncate leading-tight mb-0.5">{el.label && !(['image', 'text'].includes(el.label.toLowerCase())) ? el.label : (el.placeholder || el.type)}</div>
+                    <div className="text-xs text-gray-400 truncate tracking-wide opacity-80">
+                      {el.type === 'text' || el.type === 'field' || el.type === 'textarea' ? (el.text || 'No content') :
+                        el.type === 'file_upload' ? `${el.allowedFileTypes?.join(', ') || 'Any file'} • Max ${el.maxFileSize || 10}MB` :
+                          el.type}
+                    </div>
+                  </div>
+                  {el.locked && <Badge variant="secondary" className="h-5 text-[9px] font-black bg-gray-100 text-gray-500 hover:bg-gray-100 border-0 tracking-widest">LOCKED</Badge>}
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateElement?.(el.id, { hideLabel: !el.hideLabel });
+                      }}
+                      className={`p-2 rounded-lg transition-all ${el.hideLabel ? 'text-gray-300 hover:text-gray-500 hover:bg-gray-50' : 'text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                      title={el.hideLabel ? "Hidden in Public" : "Visible in Public"}
+                    >
+                      {el.hideLabel ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onDeleteElement(el.id); }} className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-5 h-5" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Add to Cart button for Public Mode - Located below Layers */}
+          {isPublicMode && (
+            <div className="pt-2">
+              <Button
+                onClick={() => onSave?.(false)}
+                disabled={isSaving}
+                className="w-full h-16 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-lg shadow-xl shadow-indigo-100 transition-all active:scale-[0.98] animate-in fade-in slide-in-from-bottom-4 duration-500"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-5 h-5 mr-3" />
+                    {buttonText || 'Add to Cart'}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Canvas Controls (Zoom) */}
+          {!isPublicMode && (
+            <div className="text-card-foreground flex flex-col gap-1 border border-gray-100 rounded-2xl p-5 bg-white">
+              <div className="flex items-center gap-3 mb-2">
+                <Settings className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-base font-normal text-gray-900">Canvas Controls</h3>
+              </div>
+
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2 border border-gray-100">
+                <button
+                  onClick={() => onZoomChange(Math.max(10, zoom - 10))}
+                  className="p-2 hover:bg-white hover:text-indigo-600 rounded-lg transition-all text-gray-400 group/zoom-out"
+                  type="button"
+                >
+                  <Minus className="w-4 h-4 transition-transform group-active/zoom-out:scale-90" />
+                </button>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Zoom Level</span>
+                  <span className="text-sm font-black text-indigo-900 tracking-tighter">
+                    {Math.round(zoom)}%
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => onZoomChange(Math.min(200, zoom + 10))}
+                  className="p-2 hover:bg-white hover:text-indigo-600 rounded-lg transition-all text-gray-400 group/zoom-in"
+                  type="button"
+                >
+                  <Plus className="w-4 h-4 transition-transform group-active/zoom-in:scale-90" />
+                </button>
+              </div>
+
+              <div className="mt-2 text-[9px] text-gray-400 text-center font-medium italic">
+                Tip: Ctrl + Scroll to zoom in/out
               </div>
             </div>
           )}
@@ -374,145 +560,174 @@ export const Summary: React.FC<SummaryProps> = ({
               </div>
             </div>
           )}
-          {/* Layers */}
-          <div className="text-card-foreground flex flex-col gap-1 border border-gray-100 rounded-2xl p-5 bg-white">
-            <div className="flex items-center gap-3 mb-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
-              <h3 className="text-base font-normal text-gray-900">Layers</h3>
-              <span className="ml-auto text-sm font-medium text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{elements?.length || 0}</span>
-            </div>
-            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
-              {elements.length === 0 ? (
-                <div className="py-10 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                  <p className="text-sm text-gray-400 font-medium">No elements yet</p>
-                </div>
-              ) : (
-                elements.map((el) => (
-                  <div key={el.id} onClick={() => onSelectElement(el.id)} className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${selectedElement === el.id ? 'bg-indigo-50 border-indigo-200 ring-4 ring-indigo-500/10' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
-                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
-                      {el.type === 'text' ? <span className="font-black text-xl text-indigo-400">T</span> : el.type === 'image' ? <img src={el.src} className="w-full h-full object-cover rounded-lg" /> : <Palette className="w-6 h-6 text-gray-400" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[15px] font-medium text-gray-900 truncate leading-tight mb-0.5">{el.label && !(['image', 'text'].includes(el.label.toLowerCase())) ? el.label : (el.placeholder || el.type)}</div>
-                      <div className="text-xs font-normal text-gray-500 truncate tracking-wide opacity-80">{(el.type === 'text' || el.type === 'textarea') ? el.text : el.type}</div>
-                    </div>
-                    {el.locked && <Badge variant="secondary" className="h-5 text-[9px] font-black bg-gray-100 text-gray-500 hover:bg-gray-100 border-0 tracking-widest">LOCKED</Badge>}
-                    <div className="ml-auto flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onUpdateElement?.(el.id, { hideLabel: !el.hideLabel });
-                        }}
-                        className={`p-2 rounded-lg transition-all ${el.hideLabel ? 'text-gray-300 hover:text-gray-500 hover:bg-gray-50' : 'text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                        title={el.hideLabel ? "Hidden in Public" : "Visible in Public"}
-                      >
-                        {el.hideLabel ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); onDeleteElement(el.id); }} className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-5 h-5" /></button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
 
-          {/* Canvas Controls */}
-          {/* Reset Design */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onReset}
-            className="w-full h-9 rounded-xl text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-100 bg-white transition-all tracking-wider gap-2 shadow-sm"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset Design
-          </Button>
-
-          {/* Rulers & Dimensions */}
+          {/* Workspace Settings */}
           {!isPublicMode && (
-            <div className="text-card-foreground flex flex-col gap-1 border border-gray-100 rounded-2xl p-5 bg-white">
-              <div className="flex items-center gap-3 mb-2">
-                <Ruler className="w-4 h-4 text-indigo-600" />
-                <h3 className="text-base font-normal text-gray-900">Rulers</h3>
-                <Switch checked={showRulers} onCheckedChange={onToggleRulers} className="scale-75 ml-auto" />
-              </div>
+            <div className="text-card-foreground flex flex-col gap-1 border border-gray-100 rounded-2xl p-5 bg-white overflow-hidden">
+              <button
+                onClick={() => setIsWorkspaceOpen(!isWorkspaceOpen)}
+                className="w-full flex items-center justify-between hover:bg-gray-50 transition-colors p-2 -m-2 rounded-xl"
+                type="button"
+              >
+                <div className="flex items-center gap-3">
+                  <Settings className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-base font-normal text-gray-900">Workspace Settings</h3>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isWorkspaceOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-              {showRulers && (
-                <div className="space-y-4 pt-1">
-                  {/* Unit */}
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-medium text-gray-400">Unit</Label>
-                    <Select value={unit} onValueChange={(val: any) => onUnitChange(val)}>
-                      <SelectTrigger className="h-9 rounded-xl bg-gray-50 border-gray-100 text-xs font-medium"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-xl">
-                        <SelectItem value="cm">cm</SelectItem>
-                        <SelectItem value="mm">mm</SelectItem>
-                        <SelectItem value="inch">inch</SelectItem>
-                      </SelectContent>
-                    </Select>
+              {isWorkspaceOpen && (
+                <div className="space-y-6 mt-6 pt-4 border-t border-gray-50">
+                  {/* 0. Independent Mode Behavior */}
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Unique Design Logic</Label>
+                    <div className="space-y-4 pt-1">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-medium text-gray-400">Creation Behavior</Label>
+                        <Select value={uniqueDesignBehavior} onValueChange={(val: any) => onUniqueDesignBehaviorChange?.(val)}>
+                          <SelectTrigger className="h-9 rounded-xl bg-gray-50 border-gray-100 text-xs font-medium"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl shadow-xl">
+                            <SelectItem value="duplicate">Duplicate Current Design</SelectItem>
+                            <SelectItem value="empty">Start with Empty Canvas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[9px] text-gray-400 italic">Determines the content when a variant is unlinked or unique mode is enabled.</p>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Paper Size */}
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-medium text-gray-400">Canvas Size</Label>
-                    <Select value={paperSize} onValueChange={onPaperSizeChange}>
-                      <SelectTrigger className="h-9 rounded-xl bg-gray-50 border-gray-100 text-xs font-medium"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-xl">
-                        <SelectItem value="Default">Default (1000 × 1000 px)</SelectItem>
-                        <SelectItem value="A4">A4 (210 × 297 mm)</SelectItem>
-                        <SelectItem value="A5">A5 (148 × 210 mm)</SelectItem>
-                        <SelectItem value="Letter">Letter (216 × 279 mm)</SelectItem>
-                        <SelectItem value="Custom">Custom Size</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {paperSize === 'Custom' && (
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <Input type="number" value={customPaperDimensions.width} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, width: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder="W (mm)" />
-                        <Input type="number" value={customPaperDimensions.height} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, height: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder="H (mm)" />
+                  {/* 1. Canvas Dimensions */}
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dimensions</Label>
+                    <div className="space-y-4 pt-1">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-medium text-gray-400">Canvas Size</Label>
+                        <Select value={paperSize} onValueChange={onPaperSizeChange}>
+                          <SelectTrigger className="h-9 rounded-xl bg-gray-50 border-gray-100 text-xs font-medium"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl shadow-xl">
+                            <SelectItem value="Default">Default (1000 × 1000 px)</SelectItem>
+                            <SelectItem value="A4">A4 (210 × 297 mm)</SelectItem>
+                            <SelectItem value="A5">A5 (148 × 210 mm)</SelectItem>
+                            <SelectItem value="Letter">Letter (216 × 279 mm)</SelectItem>
+                            <SelectItem value="Custom">Custom Size</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {paperSize === 'Custom' && (
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <Input type="number" value={customPaperDimensions.width} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, width: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder="W (mm)" />
+                            <Input type="number" value={customPaperDimensions.height} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, height: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder="H (mm)" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Visual Guides (Rulers & Safe Area) */}
+                  <div className="space-y-3 pt-2 border-t border-gray-50">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Visual Guides</Label>
+
+                    {/* Rulers Toggle */}
+                    <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                      <div className="space-y-0.5">
+                        <Label className="text-[11px] font-medium text-gray-700">Rulers</Label>
+                        <p className="text-[9px] text-gray-400">Measurement guides</p>
+                      </div>
+                      <Switch checked={showRulers} onCheckedChange={onToggleRulers} className="scale-75" />
+                    </div>
+
+                    {/* Unit (Only show if rulers on) */}
+                    {showRulers && (
+                      <div className="pl-6 space-y-1 pb-2">
+                        <Label className="text-[10px] font-medium text-gray-400">Unit</Label>
+                        <Select value={unit} onValueChange={(val: any) => onUnitChange(val)}>
+                          <SelectTrigger className="h-8 rounded-lg bg-gray-50 border-gray-100 text-[11px]"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl shadow-xl">
+                            <SelectItem value="cm">cm</SelectItem>
+                            <SelectItem value="mm">mm</SelectItem>
+                            <SelectItem value="inch">inch</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
+
+                    {/* Safe Area Toggle */}
+                    <div className="flex items-center justify-between pl-4 border-l-2 border-green-50">
+                      <div className="space-y-0.5">
+                        <Label className="text-[11px] font-medium text-gray-700">Safe Area</Label>
+                        <p className="text-[9px] text-gray-400">Printing boundaries</p>
+                      </div>
+                      <Switch checked={showSafeArea} onCheckedChange={onToggleSafeArea} className="scale-75" />
+                    </div>
+
+                    {/* Safe Area Settings */}
+                    {showSafeArea && (
+                      <div className="pl-6 space-y-4 pb-2 pt-1">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] font-medium text-gray-400">Hide Guide Line</Label>
+                          <Switch checked={hideSafeAreaLine} onCheckedChange={() => onToggleHideSafeAreaLine?.()} className="scale-75" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <Label className="text-[10px] font-medium text-gray-400">Roundness</Label>
+                            <span className="text-[10px] font-medium text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md">{Math.round((safeAreaRadius / 500) * 100)}%</span>
+                          </div>
+                          <Slider value={[safeAreaRadius]} max={500} step={10} onValueChange={(val) => onSafeAreaRadiusChange(val[0])} className="py-2" />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[9px] text-gray-400 font-medium pt-1 bg-gray-50 p-2 rounded-lg">
+                          <div className="flex gap-3">
+                            <span>X: <span className="text-gray-600">{Math.round(safeAreaOffset.x)}</span></span>
+                            <span>Y: <span className="text-gray-600">{Math.round(safeAreaOffset.y)}</span></span>
+                          </div>
+                          <button onClick={onResetSafeAreaOffset} className="text-indigo-600 hover:text-indigo-700 font-medium hover:underline">Reset Offset</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Public Controls Group */}
+                  <div className="space-y-3 pt-2 border-t border-gray-50">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Public Controls</Label>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                        <Label className="text-[11px] font-medium text-gray-700">Enable Grid Button</Label>
+                        <Switch checked={enabledGrid} onCheckedChange={onToggleEnabledGrid} className="scale-75" />
+                      </div>
+
+                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                        <Label className="text-[11px] font-medium text-gray-700">Enable Undo/Redo</Label>
+                        <Switch checked={enabledUndoRedo} onCheckedChange={onToggleEnabledUndoRedo} className="scale-75" />
+                      </div>
+
+                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                        <Label className="text-[11px] font-medium text-gray-700">Enable Download</Label>
+                        <Switch checked={enabledDownload} onCheckedChange={onToggleEnabledDownload} className="scale-75" />
+                      </div>
+
+                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                        <Label className="text-[11px] font-medium text-gray-700">Enable Reset</Label>
+                        <Switch checked={enabledReset} onCheckedChange={onToggleEnabledReset} className="scale-75" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Utilities */}
+                  <div className="pt-4 border-t border-gray-50 mt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onReset}
+                      className="w-full h-9 rounded-xl text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-100 bg-white transition-all tracking-wider gap-2 shadow-sm"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Reset Template Design
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
           )}
-
-          {/* Safe Area */}
-          <div className="text-card-foreground flex flex-col gap-1 border border-gray-100 rounded-2xl p-5 bg-white">
-            <div className="flex items-center gap-3 mb-2">
-              <Grid3x3 className="w-4 h-4 text-indigo-600" />
-              <h3 className="text-base font-normal text-gray-900">Safe Area</h3>
-              <Switch checked={showSafeArea} onCheckedChange={onToggleSafeArea} className="scale-75 ml-auto" />
-            </div>
-
-            {showSafeArea && !isPublicMode && (
-              <div className="space-y-4 pt-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-medium text-gray-500 flex items-center gap-2">
-                    <Eye className="w-3 h-3" /> Hide Guide Line
-                  </Label>
-                  <Switch checked={hideSafeAreaLine} onCheckedChange={() => onToggleHideSafeAreaLine?.()} className="scale-75" />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label className="text-[10px] font-medium text-gray-400">Roundness</Label>
-                    <span className="text-[10px] font-medium text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md">{Math.round((safeAreaRadius / 500) * 100)}%</span>
-                  </div>
-                  <Slider value={[safeAreaRadius]} max={500} step={10} onValueChange={(val) => onSafeAreaRadiusChange(val[0])} className="py-2" />
-                </div>
-
-
-
-                <div className="flex items-center justify-between text-[9px] text-gray-400 font-medium pt-1 bg-gray-50 p-2 rounded-lg">
-                  <div className="flex gap-3">
-                    <span>X: <span className="text-gray-600">{Math.round(safeAreaOffset.x)}</span></span>
-                    <span>Y: <span className="text-gray-600">{Math.round(safeAreaOffset.y)}</span></span>
-                  </div>
-                  <button onClick={onResetSafeAreaOffset} className="text-indigo-600 hover:text-indigo-700 font-medium hover:underline">Reset Offset</button>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Product Output Settings */}
           {!isPublicMode && (

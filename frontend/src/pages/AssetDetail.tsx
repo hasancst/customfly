@@ -835,8 +835,14 @@ export default function AssetDetail() {
                                             prefix="$"
                                         />
                                     )}
+
+
+
                                 </BlockStack>
                             )}
+
+
+
                         </BlockStack>
                     </Card>
                 </Layout.Section>
@@ -1617,6 +1623,44 @@ export default function AssetDetail() {
                                     />
                                 </div>
                             </BlockStack>
+                        )}
+
+                        {/* Display Queued Options in Modal */}
+                        {asset.type === 'option' && queuedOptions.length > 0 && (
+                            <div className="border-t pt-4 mt-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <Text variant="headingSm" as="h3">Queued Items ({queuedOptions.length})</Text>
+                                    <Button size="slim" tone="critical" variant="plain" onClick={() => setQueuedOptions([])}>Clear All</Button>
+                                </div>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {queuedOptions.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                            <div className="flex items-center gap-3">
+                                                {item.type === 'color' && (
+                                                    <div className="w-8 h-8 rounded border border-gray-300" style={{ backgroundColor: item.value }} />
+                                                )}
+                                                {item.type === 'image' && (
+                                                    <div className="w-8 h-8 rounded border border-gray-300 overflow-hidden">
+                                                        <img src={item.value} alt={item.name} className="w-full h-full object-cover" />
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <Text variant="bodyMd" fontWeight="semibold" as="span">{item.name}</Text>
+                                                    <Text variant="bodySm" tone="subdued" as="p">
+                                                        {item.type === 'text' ? 'Text Only' : item.type === 'color' ? item.value : 'Image'}
+                                                    </Text>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                icon={DeleteIcon}
+                                                variant="plain"
+                                                tone="critical"
+                                                onClick={() => setQueuedOptions(queuedOptions.filter((_, i) => i !== idx))}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </BlockStack>
                 </Modal.Section>

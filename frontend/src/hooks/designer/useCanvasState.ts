@@ -125,6 +125,22 @@ export const useCanvasState = (initialPages: PageData[]) => {
         addToHistory(updated);
     }, [pages, addToHistory]);
 
+    const reorderElements = useCallback((oldIndex: number, newIndex: number) => {
+        setPages(prev => {
+            const updated = prev.map(p => {
+                if (p.id === activePageId) {
+                    const newEls = [...p.elements];
+                    const [removed] = newEls.splice(oldIndex, 1);
+                    newEls.splice(newIndex, 0, removed);
+                    return { ...p, elements: newEls };
+                }
+                return p;
+            });
+            addToHistory(updated);
+            return updated;
+        });
+    }, [activePageId, addToHistory]);
+
     return {
         pages,
         setPages,
@@ -137,6 +153,7 @@ export const useCanvasState = (initialPages: PageData[]) => {
         addElement,
         deleteElement,
         duplicateElement,
+        reorderElements,
         addPage,
         deletePage,
         renamePage,

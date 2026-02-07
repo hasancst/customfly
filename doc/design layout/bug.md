@@ -117,6 +117,17 @@ Masalah teknis yang diselesaikan di sisi antarmuka pelanggan (Storefront Designe
 19. **Output Settings Volatility (Reset on Reload)**
     - **Symptom:** Pilihan format (seperti PDF/AI) atau DPI kembali ke default (PNG/300) setiap kali halaman di-refresh.
     - **Resolution:** Implementasi **Auto-Save Persistence**. Setiap perubahan pada menu Output Settings sekarang langsung memicu proses sinkronisasi ke database, menjaga preferensi desainer tetap utuh.
+21. **Stacked Monogram Visual Alignment & Sizing**
+    - **Symptom:** Huruf A dan S pada monogram tipe 'Stacked' terlihat terlalu kecil, renggang, dan tidak simetris terhadap huruf utama di kanan.
+    - **Resolution:** Iterasi presisi pada `DraggableElement.tsx`. Meningkatkan `fontSize` secara drastis (hingga 149) dan menyesuaikan koordinat Y secara spesifik (A: 45%, S: 51%) untuk mencapai efek "overlapping". Ditambahkan penyesuaian **Selection Bounding Box** (`-inset-[30%]`) khusus untuk tipe Stacked agar handles kontrol tidak menutupi huruf.
+    - **File:** `DraggableElement.tsx`
+
+22. **Public Designer Close Button**
+    - **Symptom:** Ikon "X" di pojok desainer publik tidak merespon saat diklik.
+    - **Resolution:** Implementasi prop `onBack` yang diwariskan dari kontainer (Modal/Wizard) ke desainer inti. Secara default sekarang menjalankan `window.history.back()` jika tidak ada handler khusus.
+23. **Add to Cart Visibility & UX**
+    - **Symptom:** Tombol "Add to Cart" di panel kiri sering terlewati oleh pelanggan.
+    - **Resolution:** Relokasi tombol ke Sidebar Summary (kanan) tepat di bawah daftar layers untuk alur review-to-purchase yang lebih intuitif.
 
 ---
-*Terakhir diperbarui: 4 Februari 2026 (Export Fidelity & Vector Mastery)*
+*Terakhir diperbarui: 7 Februari 2026 (Designer Close Fix, Add to Cart Relocation)*

@@ -3,14 +3,9 @@ import { CanvasElement } from '../types';
 import { Input } from './ui/input';
 import {
   MapPin,
-  Calendar,
-  Phone,
   Trash2,
   Copy,
-  UploadCloud,
-  ChevronDown,
-  CheckCircle2,
-  Info,
+  UploadCloud
 } from 'lucide-react';
 import { IMAGE_PRESETS } from '../constants/filters';
 
@@ -56,7 +51,7 @@ const BridgeText = ({
     if (!tempCtx) return;
 
     const fontSizeRaw = fontSize * 2; // Render at 2x for better quality
-    tempCtx.font = `${element.fontWeight || 400} ${fontSizeRaw}px ${element.fontFamily || 'Inter'}`;
+    tempCtx.font = `${element.fontWeight || 400} ${fontSizeRaw}px ${element.fontFamily || 'Inter'} `;
     const text = element.text || '';
     const metrics = tempCtx.measureText(text);
 
@@ -67,7 +62,7 @@ const BridgeText = ({
     tempCanvas.height = textHeight || 50;
 
     // Draw text
-    tempCtx.font = `${element.fontWeight || 400} ${fontSizeRaw}px ${element.fontFamily || 'Inter'}`;
+    tempCtx.font = `${element.fontWeight || 400} ${fontSizeRaw}px ${element.fontFamily || 'Inter'} `;
 
     if (element.fillType === 'gradient' && element.gradient) {
       const { from, to } = element.gradient;
@@ -191,9 +186,22 @@ export const DraggableElement = memo(({
   useEffect(() => {
     // Determine target mode or shape type
     const isCurvedOrBridge = element.isCurved || element.bridge;
+    const isNumber = element.type === 'number';
 
-    // Condition to run this effect: Must be Text element, and either shrink mode OR curved/bridge
-    if (element.type !== 'text' || (!isCurvedOrBridge && element.textMode !== 'shrink') || !elementRef.current) {
+    // Condition to run this effect: 
+    // - Text element with shrink mode OR curved/bridge
+    // - Number element (always uses shrink-like behavior)
+    if (element.type === 'text') {
+      if (!isCurvedOrBridge && element.textMode !== 'shrink') {
+        if (!isResizing && !isDragging) setTextScale({ x: 1, y: 1 });
+        return;
+      }
+    } else if (!isNumber) {
+      if (!isResizing && !isDragging) setTextScale({ x: 1, y: 1 });
+      return;
+    }
+
+    if (!elementRef.current) {
       if (!isResizing && !isDragging) setTextScale({ x: 1, y: 1 });
       return;
     }
@@ -551,7 +559,7 @@ export const DraggableElement = memo(({
     if (!element.strokeWidth || element.strokeWidth <= 0) return {};
     const scaledWidth = element.strokeWidth * (zoom / 100);
     return {
-      WebkitTextStroke: `${scaledWidth}px ${element.strokeColor || '#000000'}`,
+      WebkitTextStroke: `${scaledWidth}px ${element.strokeColor || '#000000'} `,
       paintOrder: 'stroke fill'
     };
   };
@@ -560,7 +568,7 @@ export const DraggableElement = memo(({
     if (element.fillType !== 'gradient' || !element.gradient) return {};
     const { from, to } = element.gradient;
     return {
-      backgroundImage: `linear-gradient(135deg, ${from}, ${to})`,
+      backgroundImage: `linear - gradient(135deg, ${from}, ${to})`,
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
       backgroundClip: 'text',
@@ -584,12 +592,12 @@ export const DraggableElement = memo(({
     const adj = element.imageFilters;
     if (adj) {
       const parts = [];
-      if (adj.brightness !== undefined && adj.brightness !== 100) parts.push(`brightness(${adj.brightness}%)`);
-      if (adj.contrast !== undefined && adj.contrast !== 100) parts.push(`contrast(${adj.contrast}%)`);
-      if (adj.saturate !== undefined && adj.saturate !== 100) parts.push(`saturate(${adj.saturate}%)`);
-      if (adj.hueRotate !== undefined && adj.hueRotate !== 0) parts.push(`hue-rotate(${adj.hueRotate}deg)`);
-      if (adj.sepia !== undefined && adj.sepia !== 0) parts.push(`sepia(${adj.sepia}%)`);
-      if (adj.grayscale !== undefined && adj.grayscale !== 0) parts.push(`grayscale(${adj.grayscale}%)`);
+      if (adj.brightness !== undefined && adj.brightness !== 100) parts.push(`brightness(${adj.brightness} %)`);
+      if (adj.contrast !== undefined && adj.contrast !== 100) parts.push(`contrast(${adj.contrast} %)`);
+      if (adj.saturate !== undefined && adj.saturate !== 100) parts.push(`saturate(${adj.saturate} %)`);
+      if (adj.hueRotate !== undefined && adj.hueRotate !== 0) parts.push(`hue - rotate(${adj.hueRotate}deg)`);
+      if (adj.sepia !== undefined && adj.sepia !== 0) parts.push(`sepia(${adj.sepia} %)`);
+      if (adj.grayscale !== undefined && adj.grayscale !== 0) parts.push(`grayscale(${adj.grayscale} %)`);
 
       if (parts.length > 0) {
         baseFilter = (baseFilter === 'none' || !baseFilter ? '' : baseFilter) + ' ' + parts.join(' ');
@@ -624,8 +632,8 @@ export const DraggableElement = memo(({
     const endX = centerX + chordHalf;
     const curveY = isSmile ? (centerY + dy / 2) : (centerY - dy / 2);
 
-    const pathId = `curve-path-${element.id}`;
-    const d = `M ${startX},${curveY} A ${radius} ${radius} 0 0 ${isSmile ? 1 : 0} ${endX},${curveY}`;
+    const pathId = `curve - path - ${element.id} `;
+    const d = `M ${startX},${curveY} A ${radius} ${radius} 0 0 ${isSmile ? 1 : 0} ${endX},${curveY} `;
 
     return {
       radius,
@@ -685,7 +693,7 @@ export const DraggableElement = memo(({
                   <path id={pathId} d={d} />
                   {element.fillType === 'gradient' && element.gradient && (
                     <linearGradient
-                      id={`gradient-${element.id}`}
+                      id={`gradient - ${element.id} `}
                       x1="0%" y1="0%" x2="100%" y2="100%"
                     >
                       <stop offset="0%" stopColor={element.gradient.from} />
@@ -707,7 +715,7 @@ export const DraggableElement = memo(({
                   fontSize={fontSize}
                   fontFamily={element.fontFamily || 'Inter'}
                   fontWeight={element.fontWeight || 400}
-                  fill={element.fillType === 'gradient' ? `url(#gradient-${element.id})` : (element.color || '#000000')}
+                  fill={element.fillType === 'gradient' ? `url(#gradient - ${element.id})` : (element.color || '#000000')}
                   stroke={element.strokeWidth && element.strokeWidth > 0 ? (element.strokeColor || '#000000') : 'none'}
                   strokeWidth={element.strokeWidth ? element.strokeWidth : 0}
                   strokeLinejoin="round"
@@ -718,7 +726,7 @@ export const DraggableElement = memo(({
                   style={{ pointerEvents: 'auto', cursor: 'move' }}
                 >
                   <textPath
-                    href={`#${pathId}`}
+                    href={`#${pathId} `}
                     startOffset="50%"
                   >
                     {text}
@@ -774,15 +782,16 @@ export const DraggableElement = memo(({
       case 'image':
         if (!element.src) {
           return (
-            <div className={`w-full h-full flex flex-col items-center justify-center bg-indigo-50/20 border-2 border-dashed border-indigo-200/50 rounded-2xl gap-2 p-4 animate-pulse`}>
-              <div className="w-12 h-12 rounded-2xl bg-indigo-100/50 flex items-center justify-center">
-                <UploadCloud className="w-6 h-6 text-indigo-500" />
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50/40 to-purple-50/40 border-2 border-dashed border-indigo-300/50 rounded-2xl gap-3 p-4 transition-all duration-300 hover:border-indigo-400 hover:from-indigo-100/40 hover:to-purple-100/40 shadow-inner overflow-hidden">
+              <div className="w-14 h-14 rounded-full bg-white/80 shadow-sm flex items-center justify-center border border-white/100 pointer-events-none mb-1">
+                <UploadCloud className="w-7 h-7 text-indigo-500" />
               </div>
-              <div className="flex flex-col items-center">
-                <p className="text-[10px] font-bold text-indigo-900 uppercase tracking-tight text-center truncate max-w-full">
-                  {element.label || 'Image Area'}
+              <div className="flex flex-col items-center gap-1.5 pointer-events-none">
+                <p className="text-[11px] font-black text-indigo-900 uppercase tracking-widest text-center truncate max-w-full px-2">
+                  {element.label || 'Upload Your Image'}
                 </p>
-                <p className="text-[8px] text-indigo-500/60 font-medium text-center">Click to upload image</p>
+                <div className="h-[2px] w-6 bg-indigo-400/40 rounded-full" />
+                <p className="text-[8px] text-indigo-500/70 font-bold text-center uppercase tracking-tighter">Click tool to add</p>
               </div>
             </div>
           );
@@ -791,7 +800,7 @@ export const DraggableElement = memo(({
           <div className="relative w-full h-full">
             <ProcessedImage
               id={element.id}
-              src={element.src}
+              src={element.src || ''}
               removeBg={!!element.removeBg}
               removeBgType={(element.removeBgType as any) || 'js'}
               deep={element.removeBgDeep || 0}
@@ -811,44 +820,173 @@ export const DraggableElement = memo(({
           </div>
         );
 
-      case 'field':
+      case 'gallery':
+        const SYSTEM_DEFAULT_DUMMY = 'https://img.icons8.com/fluency/512/image-gallery.png';
+        const isDummy = !element.src ||
+          element.src === SYSTEM_DEFAULT_DUMMY ||
+          element.src.includes('icons8.com') ||
+          element.src.includes('placeholder') ||
+          element.src.includes('image-gallery.png');
+
+        if (isDummy && isPublicMode) {
+          return null;
+        }
+
         return (
-          <div style={{ width: '100%', userSelect: 'none' }}>
-            {element.showLabel !== false && element.label && <label className="text-xs font-medium text-gray-500 mb-1 block">{element.label}</label>}
-            <Input placeholder={element.placeholder || 'Type here...'} className="rounded-lg pointer-events-none" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }} />
+          <div className="relative w-full h-full">
+            <ProcessedImage
+              id={element.id}
+              src={element.src || SYSTEM_DEFAULT_DUMMY}
+              removeBg={!!element.removeBg}
+              removeBgType={(element.removeBgType as any) || 'js'}
+              deep={element.removeBgDeep || 0}
+              mode={element.removeBgMode || 'light'}
+              width={localState.width}
+              height={localState.height}
+              zoom={zoom}
+              filter={filterString}
+              crop={element.crop}
+              maskShape={element.maskShape}
+              maskViewBox={element.maskViewBox}
+              isEngraved={element.isEngraved}
+              engraveThreshold={element.engraveThreshold}
+              engraveColor={element.engraveColor}
+              engraveInvert={element.engraveInvert}
+            />
+            {isDummy && !isPublicMode && (
+              <div className="absolute inset-0 bg-purple-600/10 flex items-center justify-center pointer-events-none">
+                <div className="bg-white/90 backdrop-blur-sm py-1 px-2 rounded-md border border-purple-100 shadow-sm flex items-center gap-1.5 overflow-hidden">
+                  <span className="text-[8px] font-bold text-purple-700 uppercase truncate">Gallery Placeholder</span>
+                </div>
+              </div>
+            )}
           </div>
         );
 
-      case 'swatch':
+      case 'field':
+        const fieldStyle = {
+          fontSize: (element.fontSize || 14) * (zoom / 100),
+          fontFamily: element.fontFamily || 'Inter',
+          fontWeight: element.fontWeight || 400,
+          fontStyle: element.italic ? 'italic' : 'normal',
+          color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
+          ...getGradientStyle(),
+          ...getStrokeStyle(),
+        };
+
+        return (
+          <div style={{ width: '100%', userSelect: 'none' }}>
+            {!element.hideLabel && element.label && <label className="text-xs font-medium text-gray-500 mb-1 block">{element.label}</label>}
+            <Input
+              placeholder={element.placeholder || 'Type here...'}
+              className="rounded-lg pointer-events-none bg-transparent"
+              style={{
+                height: 40 * (zoom / 100),
+                ...fieldStyle
+              }}
+            />
+          </div>
+        );
+
+      case 'swatch': {
+        const hasImages = element.swatchColors?.some(val => {
+          const v = val.split('|')[1] || val;
+          return v.startsWith('http') || v.includes('.jpg') || v.includes('.png') || v.includes('.svg') || v.includes('webp');
+        });
+
+        if (!element.showCanvasPreview && !hasImages) {
+          return null;
+        }
+
         return (
           <div className="flex flex-wrap gap-2">
-            {element.swatchColors?.map((color, i) => (
-              <div key={i} className="w-8 h-8 rounded-full border border-gray-200" style={{ backgroundColor: color }} />
-            ))}
+            {element.swatchColors?.map((rawVal, i) => {
+              const parts = rawVal.split('|');
+              const name = parts[0];
+              const value = parts[1] || parts[0];
+              const isImage = value.startsWith('http') || value.includes('.jpg') || value.includes('.png') || value.includes('.svg') || value.includes('webp');
+
+              if (!element.showCanvasPreview && !isImage) return null;
+
+              return (
+                <div
+                  key={i}
+                  className={`w - 8 h - 8 rounded - full border border - gray - 200 overflow - hidden flex items - center justify - center`}
+                  style={{ backgroundColor: isImage ? '#f3f4f6' : value }}
+                >
+                  {isImage ? (
+                    <img src={value} alt={name} className="w-full h-full object-cover" />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         );
+      }
 
       case 'phone':
+        const phoneStyle = {
+          fontSize: (element.fontSize || 14) * (zoom / 100),
+          fontFamily: element.fontFamily || 'Inter',
+          fontWeight: element.fontWeight || 500,
+          fontStyle: element.italic ? 'italic' : 'normal',
+          color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
+          ...getGradientStyle(),
+          ...getStrokeStyle(),
+        };
+
         return (
           <div style={{ width: '100%', userSelect: 'none' }}>
-            {element.label && <label className="text-xs font-medium text-gray-700 mb-1 block">{element.label}</label>}
+            {!element.hideLabel && element.label && <label className="text-xs font-medium text-gray-700 mb-1 block">{element.label}</label>}
             <div className="flex gap-2">
-              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 border border-gray-300" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }}>
-                <Phone className="w-3 h-3" />
+              <div
+                className="flex items-center gap-2 bg-transparent rounded-lg px-3 border border-gray-300"
+                style={{
+                  height: 40 * (zoom / 100),
+                  ...phoneStyle
+                }}
+              >
                 <span className="font-medium">{element.countryCode}</span>
               </div>
-              <Input placeholder="(555) 123-4567" className="rounded-lg flex-1 pointer-events-none" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }} />
+              <Input
+                value={element.text || ''}
+                placeholder="(555) 123-4567"
+                readOnly
+                className="rounded-lg flex-1 pointer-events-none bg-transparent"
+                style={{
+                  height: 40 * (zoom / 100),
+                  ...phoneStyle
+                }}
+              />
             </div>
           </div>
         );
 
       case 'date':
+        const dateStyle = {
+          fontSize: (element.fontSize || 14) * (zoom / 100),
+          fontFamily: element.fontFamily || 'Inter',
+          fontWeight: element.fontWeight || 500,
+          fontStyle: element.italic ? 'italic' : 'normal',
+          color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
+          ...getGradientStyle(),
+          ...getStrokeStyle(),
+        };
+
         return (
           <div style={{ width: '100%', userSelect: 'none' }}>
-            {element.label && <label className="text-xs font-medium text-gray-700 mb-1 block">{element.label}</label>}
+            {!element.hideLabel && element.label && <label className="text-xs font-medium text-gray-700 mb-1 block">{element.label}</label>}
             <div className="relative">
-              <Input placeholder="MM/DD/YYYY" className="rounded-lg pr-10 pointer-events-none" style={{ height: 40 * (zoom / 100), fontSize: (element.fontSize || 14) * (zoom / 100) }} />
-              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                value={element.text || ''}
+                readOnly
+                placeholder="MM/DD/YYYY"
+                className="rounded-lg pointer-events-none bg-transparent"
+                style={{
+                  height: 40 * (zoom / 100),
+                  ...dateStyle
+                }}
+              />
             </div>
           </div>
         );
@@ -856,7 +994,7 @@ export const DraggableElement = memo(({
       case 'map':
         return (
           <div style={{ width: '100%', userSelect: 'none' }}>
-            {element.label && <label className="text-xs font-medium text-gray-700 mb-2 block">{element.label}</label>}
+            {!element.hideLabel && element.label && <label className="text-xs font-medium text-gray-700 mb-2 block">{element.label}</label>}
             <div className="w-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-300 relative overflow-hidden" style={{ height: 120 * (zoom / 100) }}>
               <MapPin className="w-6 h-6 text-gray-400 z-10" />
               <div className="absolute inset-0 opacity-20 bg-[url('https://maps.googleapis.com/maps/api/staticmap?center=-6.2,106.8&zoom=13&size=400x400')] bg-cover" />
@@ -865,11 +1003,151 @@ export const DraggableElement = memo(({
         );
 
       case 'monogram':
+        const monogramText = element.text || 'ABC';
+        const monogramType = element.monogramType || 'Vine';
+        const customFont = element.fontFamily;
+
+        const monogramTextProps = {
+          fill: element.fillType === 'gradient' ? `url(#gradient - ${element.id})` : (element.color || '#000000'),
+          stroke: element.strokeWidth && element.strokeWidth > 0 ? (element.strokeColor || '#000000') : 'none',
+          strokeWidth: element.strokeWidth || 0,
+          strokeLinejoin: "round" as any,
+          paintOrder: "stroke fill" as any,
+        };
+
+        const renderDefs = () => (
+          <defs>
+            {element.fillType === 'gradient' && element.gradient && (
+              <linearGradient id={`gradient - ${element.id} `} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={element.gradient.from} />
+                <stop offset="100%" stopColor={element.gradient.to} />
+              </linearGradient>
+            )}
+          </defs>
+        );
+
+        // If a custom font is selected, use it for everything
+        if (customFont) {
+          return (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', aspectRatio: '1/1' }}>
+                {renderDefs()}
+                <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={customFont} {...monogramTextProps}>
+                  {monogramText}
+                </text>
+              </svg>
+            </div>
+          );
+        }
+
+        // Special handling for Standard Split Fonts (Diamond, Circle, Round, Scallop)
+        const splitFamilies = ['Diamond', 'Circle', 'Round', 'Scallop'];
+        if (splitFamilies.includes(monogramType)) {
+          const chars = monogramText.substring(0, 3).split('');
+          const isDiamond = monogramType === 'Diamond';
+          const isCircle = monogramType === 'Circle';
+
+          // Diamond is already tight (34/66). 
+          // Circle (Master Circle) now also made tight to match the pillow reference.
+          let leftX = "22%";
+          let rightX = "78%";
+          let midSize = "95";
+
+          if (isDiamond) {
+            leftX = "34%";
+            rightX = "66%";
+          } else if (isCircle) {
+            leftX = "25%";
+            rightX = "75%";
+            midSize = "100";
+          }
+
+          return (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', aspectRatio: '1/1' }}>
+                {renderDefs()}
+                {chars[0] && (
+                  <text x={leftX} y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={`${monogramType} -Left`} {...monogramTextProps}>
+                    {chars[0]}
+                  </text>
+                )}
+                {chars[1] && (
+                  <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize={midSize} fontFamily={`${monogramType} -Mid`} {...monogramTextProps}>
+                    {chars[1]}
+                  </text>
+                )}
+                {chars[2] && (
+                  <text x={rightX} y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={`${monogramType} -Right`} {...monogramTextProps}>
+                    {chars[2]}
+                  </text>
+                )}
+              </svg>
+            </div>
+          );
+        }
+
+        // Special handling for Stacked
+        if (monogramType === 'Stacked') {
+          const chars = monogramText.substring(0, 3).split('');
+          return (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', aspectRatio: '1/1' }}>
+                {renderDefs()}
+                {chars[0] && (
+                  <text x="19%" y="45%" dominantBaseline="middle" textAnchor="middle" fontSize="149" fontFamily="Stacked-Top-Left" {...monogramTextProps}>
+                    {chars[0]}
+                  </text>
+                )}
+                {chars[1] && (
+                  <text x="19%" y="51%" dominantBaseline="middle" textAnchor="middle" fontSize="149" fontFamily="Stacked-Bottom-Left" {...monogramTextProps}>
+                    {chars[1]}
+                  </text>
+                )}
+                {chars[2] && (
+                  <text x="75%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="160" fontFamily="Stacked-Tall-Right" {...monogramTextProps}>
+                    {chars[2]}
+                  </text>
+                )}
+              </svg>
+            </div>
+          );
+        }
+
+        // Default or Vine
+        const chars = monogramText.substring(0, 3).split('');
+        const isVine = monogramType === 'Vine';
+
+        if (isVine && chars.length > 1) {
+          return (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', aspectRatio: '1/1' }}>
+                {renderDefs()}
+                {chars[0] && (
+                  <text x="20%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="65" fontFamily={monogramType} {...monogramTextProps}>
+                    {chars[0]}
+                  </text>
+                )}
+                {chars[1] && (
+                  <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="100" fontFamily={monogramType} {...monogramTextProps}>
+                    {chars[1]}
+                  </text>
+                )}
+                {chars[2] && (
+                  <text x="80%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="65" fontFamily={monogramType} {...monogramTextProps}>
+                    {chars[2]}
+                  </text>
+                )}
+              </svg>
+            </div>
+          );
+        }
+
         return (
           <div className="w-full h-full flex items-center justify-center">
-            <svg width="100%" height="100%" viewBox="0 0 100 100">
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="60" fontFamily={element.fontFamily || 'Vine'} fill={element.color || '#000000'}>
-                {element.text || 'ABC'}
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', aspectRatio: '1/1' }}>
+              {renderDefs()}
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={monogramType} {...monogramTextProps}>
+                {monogramText}
               </text>
             </svg>
           </div>
@@ -885,12 +1163,39 @@ export const DraggableElement = memo(({
         );
 
       case 'dropdown':
+      case 'checkbox':
+      case 'button':
+        return null;
+
+      case 'number':
         return (
-          <div className="w-full">
-            {element.label && <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">{element.label}</label>}
-            <div className="border border-gray-200 rounded-lg px-3 py-2 flex justify-between items-center bg-white shadow-sm">
-              <span className="text-xs text-gray-400">{element.placeholder || 'Select...'}</span>
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: localState.fontSize * (zoom / 100),
+            fontFamily: element.fontFamily || 'Inter',
+            fontWeight: element.fontWeight || 700,
+            fontStyle: element.italic ? 'italic' : 'normal',
+            color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
+            whiteSpace: 'nowrap',
+            userSelect: 'none',
+            overflow: 'visible',
+            ...getGradientStyle(),
+            ...getStrokeStyle(),
+          }}>
+            <div
+              ref={contentRef}
+              style={{
+                transform: `scale(${textScale.x}, ${textScale.y})`,
+                transformOrigin: 'center center',
+                width: 'fit-content',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {element.numberPrefix || ''}{element.text || element.defaultValue || '0'}{element.numberSuffix || ''}
             </div>
           </div>
         );
@@ -898,7 +1203,20 @@ export const DraggableElement = memo(({
       case 'time':
         return (
           <div style={{ width: '100%', userSelect: 'none' }}>
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: localState.fontSize * (zoom / 100), color: element.color || '#000000' }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: localState.fontSize * (zoom / 100),
+              fontFamily: element.fontFamily || 'Inter',
+              fontWeight: element.fontWeight || 700,
+              fontStyle: element.italic ? 'italic' : 'normal',
+              color: element.fillType === 'gradient' ? 'transparent' : (element.color || '#000000'),
+              ...getGradientStyle(),
+              ...getStrokeStyle(),
+            }}>
               {element.text || '12:00'}
             </div>
           </div>
@@ -959,7 +1277,7 @@ export const DraggableElement = memo(({
       ref={elementRef}
       onPointerDown={handlePointerDown}
       onClick={(e) => e.stopPropagation()}
-      className={`absolute draggable-element ${isResizing || isRotating ? 'cursor-not-allowed' : (element.lockMove ? 'cursor-default' : 'cursor-move')}`}
+      className={`absolute draggable - element ${isResizing || isRotating ? 'cursor-not-allowed' : (element.lockMove ? 'cursor-default' : 'cursor-move')} `}
       style={{
         left: localState.x * (zoom / 100),
         top: localState.y * (zoom / 100),
@@ -974,56 +1292,62 @@ export const DraggableElement = memo(({
     >
       {content}
 
-      {isSelected && (
-        <>
-          <div
-            className={`absolute -inset-[3px] border-[2.5px] border-indigo-600 pointer-events-none z-[999] ${element.isCurved ? 'rounded-xl opacity-40' : 'rounded-sm'}`}
-            style={{ display: 'block' }}
-          />
+      {isSelected && (() => {
+        const isStacked = element.type === 'monogram' && element.monogramType === 'Stacked';
+        const selectionClass = isStacked ? '-inset-[30%]' : '-inset-[3px]';
+        const handlesInsetClass = isStacked ? '-inset-[30%]' : 'inset-0';
 
-          {element.isCurved && curveGeometry && (
-            <div className="absolute inset-0 pointer-events-none z-[999] flex items-center justify-center">
-              <svg width={curveGeometry.containerWidth} height={curveGeometry.containerHeight} style={{ overflow: 'visible' }}>
-                <path d={curveGeometry.d} fill="none" stroke="#4f46e5" strokeWidth={2} strokeDasharray="5 3" opacity={0.8} />
-              </svg>
-            </div>
-          )}
+        return (
+          <>
+            <div
+              className={`absolute border - [2.5px] border - indigo - 600 pointer - events - none z - [999] ${selectionClass} ${element.isCurved ? 'rounded-xl opacity-40' : 'rounded-sm'} `}
+              style={{ display: 'block' }}
+            />
 
-          {!isDragging && (
-            <div className="absolute inset-0 pointer-events-none">
-              {!element.lockDelete && (
-                <div onPointerDown={(e) => { e.stopPropagation(); onDelete(); }} className="absolute w-8 h-8 bg-white border-2 border-red-500 text-red-500 rounded-full flex items-center justify-center top-0 left-0 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer shadow-md">
-                  <Trash2 className="w-4 h-4" />
-                </div>
-              )}
-              {!element.lockRotate && (
-                <div onPointerDown={(e) => { e.stopPropagation(); startRotating(e); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full flex items-center justify-center top-0 right-0 translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-alias shadow-md">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                </div>
-              )}
-              {!element.lockDuplicate && (
-                <div onPointerDown={(e) => { e.stopPropagation(); onDuplicate(); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full flex items-center justify-center bottom-0 left-0 -translate-x-1/2 translate-y-1/2 pointer-events-auto cursor-pointer shadow-md">
-                  <Copy className="w-4 h-4" />
-                </div>
-              )}
-              {!element.lockResize && (
-                <div onPointerDown={(e) => { e.stopPropagation(); startResizing(e, 'se'); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-sm flex items-center justify-center bottom-0 right-0 translate-x-1/2 translate-y-1/2 pointer-events-auto cursor-nwse-resize shadow-md">
-                  <div className="w-3 h-3 border-r-2 border-b-2 border-current" />
-                </div>
-              )}
+            {element.isCurved && curveGeometry && (
+              <div className="absolute inset-0 pointer-events-none z-[999] flex items-center justify-center">
+                <svg width={curveGeometry.containerWidth} height={curveGeometry.containerHeight} style={{ overflow: 'visible' }}>
+                  <path d={curveGeometry.d} fill="none" stroke="#4f46e5" strokeWidth={2} strokeDasharray="5 3" opacity={0.8} />
+                </svg>
+              </div>
+            )}
 
-              {!element.lockResize && (
-                <>
-                  <div onPointerDown={(e) => startResizing(e, 'n')} className="absolute h-4 left-4 right-4 top-0 -translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]" />
-                  <div onPointerDown={(e) => startResizing(e, 's')} className="absolute h-4 left-4 right-4 bottom-0 translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]" />
-                  <div onPointerDown={(e) => startResizing(e, 'w')} className="absolute w-4 top-4 bottom-4 left-0 -translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]" />
-                  <div onPointerDown={(e) => startResizing(e, 'e')} className="absolute w-4 top-4 bottom-4 right-0 translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]" />
-                </>
-              )}
-            </div>
-          )}
-        </>
-      )}
+            {!isDragging && (
+              <div className={`absolute pointer - events - none ${handlesInsetClass} `}>
+                {!element.lockDelete && (
+                  <div onPointerDown={(e) => { e.stopPropagation(); onDelete(); }} className="absolute w-8 h-8 bg-white border-2 border-red-500 text-red-500 rounded-full flex items-center justify-center top-0 left-0 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer shadow-md">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                )}
+                {!element.lockRotate && (
+                  <div onPointerDown={(e) => { e.stopPropagation(); startRotating(e); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full flex items-center justify-center top-0 right-0 translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-alias shadow-md">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  </div>
+                )}
+                {!element.lockDuplicate && (
+                  <div onPointerDown={(e) => { e.stopPropagation(); onDuplicate(); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full flex items-center justify-center bottom-0 left-0 -translate-x-1/2 translate-y-1/2 pointer-events-auto cursor-pointer shadow-md">
+                    <Copy className="w-4 h-4" />
+                  </div>
+                )}
+                {!element.lockResize && (
+                  <div onPointerDown={(e) => { e.stopPropagation(); startResizing(e, 'se'); }} className="absolute w-8 h-8 bg-white border-2 border-indigo-600 text-indigo-600 rounded-sm flex items-center justify-center bottom-0 right-0 translate-x-1/2 translate-y-1/2 pointer-events-auto cursor-nwse-resize shadow-md">
+                    <div className="w-3 h-3 border-r-2 border-b-2 border-current" />
+                  </div>
+                )}
+
+                {!element.lockResize && (
+                  <>
+                    <div onPointerDown={(e) => startResizing(e, 'n')} className="absolute h-4 left-4 right-4 top-0 -translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]" />
+                    <div onPointerDown={(e) => startResizing(e, 's')} className="absolute h-4 left-4 right-4 bottom-0 translate-y-1/2 cursor-ns-resize pointer-events-auto z-[998]" />
+                    <div onPointerDown={(e) => startResizing(e, 'w')} className="absolute w-4 top-4 bottom-4 left-0 -translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]" />
+                    <div onPointerDown={(e) => startResizing(e, 'e')} className="absolute w-4 top-4 bottom-4 right-0 translate-x-1/2 cursor-ew-resize pointer-events-auto z-[998]" />
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 });

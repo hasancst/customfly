@@ -67,6 +67,13 @@ model MerchantConfig {
   galleryAssetId        String?
   optionAssetId         String?
   shapeAssetId          String?
+  
+  // Toolbar feature flags
+  enabledGrid           Boolean? @default(true)
+  enabledUndoRedo       Boolean? @default(true)
+  enabledDownload       Boolean? @default(true)
+  enabledReset          Boolean? @default(true)
+  showGrid              Boolean? @default(false)
 
   @@unique([shop, shopifyProductId])
 }
