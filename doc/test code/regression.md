@@ -245,4 +245,11 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
     - [x] **Verification**: Verify that non-branding settings (e.g., Rulers, Units) are now identical across all products.
 
 ---
-*Terakhir diperbarui: 8 Februari 2026 (Global Branding Inheritance, Save Fixes, Cache Busting)*
+### H. Mockup Visibility & Theme Integration (New)
+- [x] **Theme Element Isolation**: Verifikasi bahwa desainer tidak menyembunyikan gambarnya sendiri saat mencoba menyembunyikan media asli Shopify (Dawn/Sense theme compatibility).
+- [x] **Placeholder Filtering**: Pastikan gambar dari Merchant Config selalu menang atas placeholder (`placehold.co`) yang mungkin tersimpan di data desain lama.
+- [x] **Cache Reliability**: Verifikasi parameter `?t=timestamp` berhasil memicu pembaruan data fresh dari database (cache busting).
+- [x] **Forced Visibility**: Pastikan base image menggunakan `!important` pada `display`, `opacity`, dan `visibility` untuk mencegah override dari CSS tema eksternal.
+
+---
+*Terakhir diperbarui: 8 Februari 2026 (Mockup Visibility Fix, Theme Integration Isolation)*

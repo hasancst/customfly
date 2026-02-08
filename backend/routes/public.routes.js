@@ -116,7 +116,14 @@ router.get(["/loader.js", "/storefront.js"], async (req, res) => {
 router.get("/product/:shop/:shopifyProductId", async (req, res) => {
     try {
         const { shop, shopifyProductId } = req.params;
+        const { t } = req.query;
         const cacheKey = `pub_prod_${shop}_${shopifyProductId}`;
+
+        // Force clear cache if timestamp provided
+        if (t) {
+            cache.del(cacheKey);
+        }
+
         const cached = cache.get(cacheKey);
         if (cached) return res.json(cached);
 
@@ -127,15 +134,17 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
         if (!config) {
             config = globalConfig;
         } else if (globalConfig) {
-            // Inheritance: Force Global Branding
-            config.headerTitle = globalConfig.headerTitle;
-            config.buttonText = globalConfig.buttonText;
-            config.buttonStyle = globalConfig.buttonStyle;
-            console.log(`[Config] Applied Global Branding for ${shopifyProductId}`);
+            // Soft Inheritance: Only use global if specific field is missing/empty
+            if (!config.headerTitle) config.headerTitle = globalConfig.headerTitle;
+            if (!config.buttonText) config.buttonText = globalConfig.buttonText;
+            if (!config.buttonStyle || Object.keys(config.buttonStyle).length === 0) {
+                config.buttonStyle = globalConfig.buttonStyle;
+            }
+            console.log(`[Config] Applied Global Fallbacks (if missing) for ${shopifyProductId}`);
         }
 
         let initialDesign = await prisma.savedDesign.findFirst({
-            where: { shop, shopifyProductId: String(shopifyProductId) },
+            where: { shop, shopifyProductId: String(shopifyProductId), isTemplate: true },
             orderBy: { updatedAt: 'desc' }
         }) || await prisma.savedDesign.findFirst({
             where: { shop, shopifyProductId: 'GLOBAL', isTemplate: true },
@@ -194,13 +203,25 @@ router.get("/public/config/:shopifyProductId", async (req, res) => {
         let config = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId } });
         const globalConfig = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId: 'GLOBAL' } });
 
-        if (!config) {
+        // If no specific config exists for this product, and it's not a request for GLOBAL itself,
+        // then this product is not configured for customization.
+        if (!config && shopifyProductId !== 'GLOBAL') {
+            return res.json({});
+        }
+
+        // If specific config exists, apply global branding overrides
+        if (config && globalConfig && shopifyProductId !== 'GLOBAL') {
+            // Soft Inheritance: Only use global if specific field is missing/empty
+            if (!config.headerTitle) config.headerTitle = globalConfig.headerTitle;
+            if (!config.buttonText) config.buttonText = globalConfig.buttonText;
+            if (!config.buttonStyle || Object.keys(config.buttonStyle).length === 0) {
+                config.buttonStyle = globalConfig.buttonStyle;
+            }
+        }
+
+        // If specific config is missing but it's a GLOBAL request, use globalConfig
+        if (!config && shopifyProductId === 'GLOBAL') {
             config = globalConfig;
-        } else if (globalConfig) {
-            // Inheritance: Force Global Branding
-            config.headerTitle = globalConfig.headerTitle;
-            config.buttonText = globalConfig.buttonText;
-            config.buttonStyle = globalConfig.buttonStyle;
         }
 
         if (!config) return res.json({});

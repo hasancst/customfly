@@ -450,11 +450,14 @@ export function DesignerCore({
         // 4. Global Page Base Image (Designer default background)
         if (activePage?.baseImage) return getProxiedUrl(activePage.baseImage);
 
-        // 5. Shopify Product Image (Ultimate Fallback)
+        // 5. Config Fallback
+        if (initialConfig?.baseImage) return getProxiedUrl(initialConfig.baseImage);
+
+        // 6. Shopify Product Image (Ultimate Fallback)
         const sProductImage = productData?.images?.[0];
         const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
 
-        return getProxiedUrl(finalFallback || undefined);
+        return getProxiedUrl(finalFallback || '');
     }, [activePage, selectedVariantId, initialConfig, productData]);
 
     // Initialize selected variant

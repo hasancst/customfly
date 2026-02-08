@@ -95,7 +95,23 @@ app.use("/imcst_api", assetPublicRoutes);  // /public/assets/... and /remove-bg
 app.use("/imcst_public_api", publicRoutes); // Storefront APIs
 
 // 4. Admin Auth Routes
-app.get(shopify.config.auth.path, validateShopParam, shopify.auth.begin());
+app.get(shopify.config.auth.path, validateShopParam, async (req, res, next) => {
+    const { shop, host, embedded } = req.query;
+
+    console.log('[Auth Handler] shop:', shop, 'host:', host, 'embedded:', embedded);
+
+    // If this is an embedded request, redirect to exitiframe first
+    if (embedded === '1' || host) {
+        console.log('[Auth Handler] Redirecting to exitiframe');
+        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_API_KEY}&scope=${process.env.SCOPES}&redirect_uri=${encodeURIComponent(process.env.SHOPIFY_APP_URL + '/api/auth/callback')}`;
+
+        return res.redirect(`/exitiframe?redirectUri=${encodeURIComponent(authUrl)}&shop=${shop}&host=${host || ''}`);
+    }
+
+    console.log('[Auth Handler] Using default Shopify auth');
+    // Otherwise use default Shopify auth
+    return shopify.auth.begin()(req, res, next);
+});
 app.get(
     shopify.config.auth.callbackPath,
     shopify.auth.callback(),
@@ -111,6 +127,58 @@ app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolat
 
 // --- Storefront Loader Support ---
 app.get("/loader.js", publicRoutes); // Handled by public.routes.js
+
+// --- Exit Iframe Helper ---
+app.get("/exitiframe", (req, res) => {
+    const { redirectUri, shop, host } = req.query;
+
+    if (!redirectUri) return res.status(400).send("Missing redirectUri");
+
+    const apiKey = process.env.SHOPIFY_API_KEY;
+
+    res.status(200).set("Content-Type", "text/html").send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting...</title>
+    <script src="https://unpkg.com/@shopify/app-bridge@3"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var redirectUri = "${redirectUri}";
+            var host = "${host || ''}";
+            var apiKey = "${apiKey || ''}";
+
+            if (window.top === window.self) {
+                // Not in an iframe, redirect normally
+                window.location.href = redirectUri;
+            } else {
+                // In an iframe, use App Bridge or fallback
+                if (apiKey && host) {
+                    var AppBridge = window['app-bridge'];
+                    var createApp = AppBridge.default;
+                    var Redirect = AppBridge.actions.Redirect;
+                    var app = createApp({
+                        apiKey: apiKey,
+                        host: host,
+                        forceRedirect: true
+                    });
+                    var redirect = Redirect.create(app);
+                    redirect.dispatch(Redirect.Action.REMOTE, redirectUri);
+                } else {
+                    window.open(redirectUri, '_top');
+                }
+            }
+        });
+    </script>
+</head>
+<body>
+    <p>Redirecting to Shopify...</p>
+</body>
+</html>
+    `);
+});
 
 // --- Serve Frontend ---
 
@@ -146,6 +214,32 @@ app.get(/^\/public/, async (req, res) => {
 });
 
 app.use(shopify.cspHeaders());
+app.use((req, res, next) => {
+    // Extend CSP to allow being framed by Shopify and framing Shopify
+    const existingCsp = res.getHeader('Content-Security-Policy');
+    if (existingCsp) {
+        let newCsp = existingCsp;
+
+        // Fix frame-src (what we frame)
+        if (!newCsp.includes('frame-src')) {
+            newCsp += " frame-src 'self' https://*.shopify.com https://*.myshopify.com https://admin.shopify.com;";
+        } else {
+            // Replace existing frame-src or append if needed (simple replacement for now)
+            newCsp = newCsp.replace("frame-src", "frame-src https://*.shopify.com https://*.myshopify.com https://admin.shopify.com");
+        }
+
+        // Fix frame-ancestors (who frames us) - Critical for embedded apps
+        // Shopify library usually handles this, but we ensure it's correct
+        if (!newCsp.includes('frame-ancestors')) {
+            newCsp += " frame-ancestors https://*.shopify.com https://*.myshopify.com https://admin.shopify.com;";
+        } else {
+            newCsp = newCsp.replace("frame-ancestors", "frame-ancestors https://*.shopify.com https://*.myshopify.com https://admin.shopify.com");
+        }
+
+        res.setHeader('Content-Security-Policy', newCsp);
+    }
+    next();
+});
 
 // Admin Page Catch-all
 app.use(shopify.ensureInstalledOnShop(), async (req, res) => {

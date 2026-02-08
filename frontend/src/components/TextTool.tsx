@@ -167,7 +167,7 @@ const MONOGRAM_SHAPES: MonogramShape[] = [
 
 interface TextToolProps {
   onAddElement: (element: CanvasElement) => void;
-  selectedElement?: CanvasElement;
+  selectedElement?: CanvasElement | undefined;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   canvasDimensions?: { width: number; height: number };
   userFonts?: any[];

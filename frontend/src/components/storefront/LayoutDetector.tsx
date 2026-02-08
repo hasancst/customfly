@@ -64,7 +64,13 @@ export function LayoutDetector({ productId, shop }: LayoutDetectorProps) {
         );
     }
 
-    const layout = config?.designerLayout || 'modal';
+    const layout = config?.designerLayout;
+
+    // If no layout is defined, it means the product is not configured for customization
+    if (!layout) {
+        console.log('[IMCST] Product not configured for customization, skipping layout.');
+        return null;
+    }
 
     switch (layout) {
         case 'inline':

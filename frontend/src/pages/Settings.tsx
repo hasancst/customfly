@@ -125,7 +125,7 @@ export default function Settings() {
                                         label="Default Designer Layout"
                                         options={[
                                             { label: 'Redirect (New Page)', value: 'redirect' },
-                                            { label: 'Inline (Below Add to Cart)', value: 'inline' },
+                                            { label: 'Direct Customize (On Page)', value: 'inline' },
                                             { label: 'Popup Modal', value: 'modal' },
                                             { label: 'Wizard (Step by Step)', value: 'wizard' }
                                         ]}

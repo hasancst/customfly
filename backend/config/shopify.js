@@ -49,9 +49,14 @@ export const shopify = shopifyApp({
         path: "/api/webhooks",
     },
     sessionStorage: loggingStorage,
-    isEmbeddedApp: true,
+    isEmbeddedApp: false, // Open in new tab to avoid iframe auth issues
     useOnlineTokens: false,
-    exitIframePath: "/exitiframe",
+    hooks: {
+        afterAuth: async ({ session }) => {
+            console.log("[Auth] Completed for shop:", session.shop);
+            shopify.registerWebhooks({ session });
+        },
+    },
 });
 
 export default shopify;

@@ -72,6 +72,11 @@ router.post("/config", async (req, res) => {
             if (allowedFields.includes(key)) cleanData[key] = configData[key];
         });
 
+        // Ensure mandatory printArea is present for creation
+        if (!cleanData.printArea) {
+            cleanData.printArea = {};
+        }
+
         const config = await prisma.merchantConfig.upsert({
             where: {
                 shop_shopifyProductId: {

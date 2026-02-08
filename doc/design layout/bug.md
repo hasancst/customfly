@@ -129,5 +129,9 @@ Masalah teknis yang diselesaikan di sisi antarmuka pelanggan (Storefront Designe
     - **Symptom:** Tombol "Add to Cart" di panel kiri sering terlewati oleh pelanggan.
     - **Resolution:** Relokasi tombol ke Sidebar Summary (kanan) tepat di bawah daftar layers untuk alur review-to-purchase yang lebih intuitif.
 
+24. **Mockup Image Visibility (Direct Customize Mode)**
+    - **Symptom:** Gambar mockup produk tidak tampil (blank putih) di storefront meskipun data ter-load.
+    - **Resolution:** Menghindari konflik dengan tema Shopify (Dawn/Sense) dengan menambahkan pengecekan `canvasRoot.contains(el)` saat menyembunyikan media asli. Menambahkan `!important` pada properti CSS `display`, `opacity`, dan `visibility` pada base image untuk mencegah override paksa dari tema.
+
 ---
-*Terakhir diperbarui: 7 Februari 2026 (Designer Close Fix, Add to Cart Relocation)*
+*Terakhir diperbarui: 8 Februari 2026 (Mockup Visibility Fix, Theme Integration Isolation)*

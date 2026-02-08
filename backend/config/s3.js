@@ -24,22 +24,34 @@ export const getCDNUrl = (s3Url) => {
 
     if (!s3Url || typeof s3Url !== 'string') return s3Url;
 
+    // DEBUG: Log transformation
+    const original = s3Url;
+
     if (isEnabled && cdnUrl) {
         const cdnBase = cdnUrl.replace(/\/$/, "");
 
         if (publicUrl) {
             const cleanPublicUrl = publicUrl.replace(/\/$/, "");
             if (s3Url.includes(cleanPublicUrl)) {
-                return s3Url.replace(cleanPublicUrl, cdnBase);
+                const result = s3Url.replace(cleanPublicUrl, cdnBase);
+                console.log('[getCDNUrl] Transformed:', { original, result, cleanPublicUrl, cdnBase });
+                return result;
             }
         }
 
         // Fallback for Linode endpoint if publicUrl didn't match
         if (s3Url.includes('linodeobjects.com')) {
             const regex = /https:\/\/[^/]+\.linodeobjects\.com/;
-            return s3Url.replace(regex, cdnBase);
+            const result = s3Url.replace(regex, cdnBase);
+            console.log('[getCDNUrl] Linode fallback:', { original, result, cdnBase });
+            return result;
         }
     }
+
+    if (original.includes('linodeobjects.com')) {
+        console.log('[getCDNUrl] No transform (CDN disabled):', { original, isEnabled, cdnUrl });
+    }
+
     return s3Url;
 };
 

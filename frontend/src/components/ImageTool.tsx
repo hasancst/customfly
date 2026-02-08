@@ -25,7 +25,7 @@ import { getProxiedUrl } from '@/utils/urlUtils';
 
 interface ImageToolProps {
   onAddElement: (element: CanvasElement) => void;
-  selectedElement?: CanvasElement;
+  selectedElement?: CanvasElement | undefined;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   onCrop?: () => void;
   canvasDimensions?: { width: number; height: number };

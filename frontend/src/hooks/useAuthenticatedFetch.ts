@@ -25,6 +25,14 @@ export function useAuthenticatedFetch() {
             console.warn("[AUTH] App Bridge not available");
         }
 
+        const currentSearch = window.location.search;
+        const params = new URLSearchParams(currentSearch);
+        const fallbackToken = params.get('id_token') || '';
+        if (!token && fallbackToken) {
+            token = fallbackToken;
+            console.log('[AUTH] Using id_token fallback from URL');
+        }
+
         const headers = {
             ...(options?.headers || {}),
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -45,8 +53,6 @@ export function useAuthenticatedFetch() {
         }
 
         // Append current window query params (host, shop, etc) to the URI
-        const currentSearch = window.location.search;
-        const params = new URLSearchParams(currentSearch);
         const cleanParams = new URLSearchParams();
 
         params.forEach((value, key) => {
@@ -82,15 +88,30 @@ export function useAuthenticatedFetch() {
         });
 
         // Handle potential re-authorization from the backend
-        if (response.headers.get("X-Shopify-API-Request-Failure-Reauthorize") === "1" || response.status === 401) {
+        if (response.headers.get("X-Shopify-API-Request-Failure-Reauthorize") === "1" || response.status === 401 || response.status === 403) {
             const authUrlHeader = response.headers.get("X-Shopify-API-Request-Failure-Reauthorize-Url");
+            const currentParams = new URLSearchParams(window.location.search);
+            const host = currentParams.get('host');
+
             if (authUrlHeader && !authUrlHeader.includes('shop=undefined')) {
                 console.log('[AUTH] Redirecting via header:', authUrlHeader);
-                window.location.href = authUrlHeader;
+
+                // Add host and embedded to the header URL if missing
+                const url = new URL(authUrlHeader, window.location.origin);
+                if (host && !url.searchParams.has('host')) url.searchParams.set('host', host);
+                if (!url.searchParams.has('embedded')) url.searchParams.set('embedded', '1');
+
+                window.location.href = url.pathname + url.search;
             } else {
                 const rawShop = params.get('shop');
+                const rawHost = params.get('host');
                 const shop = (rawShop && rawShop !== 'undefined' && rawShop !== 'null') ? rawShop : shopFromToken;
-                const authUrl = shop ? `/api/auth?shop=${shop}` : "/api/auth";
+                const hostVal = (rawHost && rawHost !== 'undefined' && rawHost !== 'null') ? rawHost : (host || '');
+
+                let authUrl = `/api/auth?embedded=1`;
+                if (shop) authUrl += `&shop=${shop}`;
+                if (hostVal) authUrl += `&host=${hostVal}`;
+
                 console.warn('[AUTH] Manual redirect triggered. Shop source:', { rawShop, shopFromToken });
                 console.log('[AUTH] Redirecting to:', authUrl);
                 window.location.href = authUrl;

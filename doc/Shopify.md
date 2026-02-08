@@ -24,10 +24,11 @@ This document centralizes information regarding Shopify app configuration, authe
 ## 🍪 SameSite Cookie & OAuth Issues
 
 ### Current Situation
-If experiencing persistent `same_site_cookies` errors or OAuth loops:
+If experiencing persistent `same_site_cookies` errors, OAuth loops, or `accounts.shopify.com refused to connect`:
 1.  Browsers block third-party cookies in iframes (Shopify Admin context).
 2.  The OAuth flow may attempt to set cookies after callback, which fails in the embedded context.
-3.  Successful OAuth might fail session storage, creating a redirect loop:
+3.  **Detailed Fix**: See [Troubleshooting Auth](./troubleshooting_auth.md) for the "Refused to Connect" solution.
+4.  Successful OAuth might fail session storage, creating a redirect loop:
     `/api/auth` → `Shopify OAuth` → `/api/auth/callback` → (fails to set cookie) → `redirects back to /api/auth` (LOOP).
 
 ### Proposed Solutions

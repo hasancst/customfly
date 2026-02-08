@@ -8,8 +8,8 @@ import { DraggableElement } from './DraggableElement';
 
 interface CanvasProps {
   elements: CanvasElement[];
-  selectedElement: string | null;
-  onSelectElement: (id: string | null) => void;
+  selectedElement: CanvasElement | null;
+  onSelectElement: (element: CanvasElement | null) => void;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>, skipHistory?: boolean) => void;
   onDeleteElement: (id: string) => void;
   onDuplicateElement: (id: string) => void;
@@ -39,7 +39,6 @@ interface CanvasProps {
   isPublicMode?: boolean;
   safeAreaShape?: 'rectangle' | 'circle';
   hideSafeAreaLine?: boolean;
-  onZoomChange?: (zoom: number) => void;
   showGrid?: boolean;
 }
 
@@ -64,7 +63,6 @@ export function Canvas({
   safeAreaWidth,
   safeAreaHeight,
   safeAreaOffset,
-  onZoomChange,
   onUpdateSafeAreaOffset,
   onUpdateSafeAreaWidth,
   onUpdateSafeAreaHeight,
@@ -306,8 +304,8 @@ export function Canvas({
                       <DraggableElement
                         key={element.id}
                         element={element}
-                        isSelected={selectedElement === element.id}
-                        onSelect={() => onSelectElement(element.id)}
+                        isSelected={selectedElement?.id === element.id}
+                        onSelect={() => onSelectElement(element)}
                         onUpdate={(updates: Partial<CanvasElement>, skipHistory?: boolean) => onUpdateElement(element.id, updates, skipHistory)}
                         onDelete={() => onDeleteElement(element.id)}
                         onDuplicate={() => onDuplicateElement(element.id)}
@@ -322,13 +320,19 @@ export function Canvas({
 
 
             {/* 4. MOCKUP IMAGE LAYER */}
-            {baseImage && (
-              <div
-                className="absolute inset-0 flex items-center justify-center pointer-events-none imcst-base-image"
-                style={{
-                  zIndex: 20
-                }}
-              >
+            <div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none imcst-base-image"
+              style={{
+                zIndex: 20,
+                visibility: 'visible !important' as any,
+                opacity: '1 !important' as any
+              }}
+            >
+              {!baseImage ? (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <p className="text-red-600 font-bold bg-white/80 p-2 rounded">DEBUG: NO BASE IMAGE</p>
+                </div>
+              ) : (
                 <motion.div
                   drag
                   dragMomentum={false}
@@ -339,33 +343,66 @@ export function Canvas({
                       y: (baseImageProperties?.y || 0) + info.delta.y / zoomMult,
                     });
                   }}
-                  className="relative cursor-move pointer-events-auto"
+                  className="absolute cursor-move pointer-events-auto"
                   style={{
-                    x: (baseImageProperties?.x || 0) * (validZoom / 100),
-                    y: (baseImageProperties?.y || 0) * (validZoom / 100),
-                    scale: (baseImageProperties?.scale || 1),
+                    width: 'fit-content',
+                    height: 'fit-content',
+                    maxWidth: currentWidth,
+                    maxHeight: currentHeight,
+                    left: '50%',
+                    top: '50%',
+                    transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageProperties?.scale || 1})`,
+                    zIndex: 20,
+                    pointerEvents: 'auto',
+                    display: 'block !important' as any,
+                    visibility: 'visible !important' as any,
+                    opacity: '1 !important' as any
                   }}
                 >
+
                   <img
-                    src={baseImage === 'none' ? undefined : baseImage}
-                    crossOrigin="anonymous"
+                    key={baseImage}
+                    src={(() => {
+                      if (!baseImage || baseImage === 'none') {
+                        return '';
+                      }
+                      if (!baseImage.startsWith('http')) return baseImage;
+                      let finalUrl = baseImage;
+                      if (!finalUrl.includes('proxy-image?url=')) {
+                        if (finalUrl.includes('linodeobjects.com') || finalUrl.includes('amazonaws.com')) {
+                          finalUrl = `${(window as any).IMCST_BASE_URL || ''}/imcst_public_api/proxy-image?url=${encodeURIComponent(finalUrl)}`;
+                        } else {
+                          const connector = finalUrl.includes('?') ? '&' : '?';
+                          finalUrl = `${finalUrl}${connector}imcst_cors=1`;
+                        }
+                      }
+                      return finalUrl;
+                    })()}
+                    crossOrigin={baseImage?.startsWith('http') ? "anonymous" : undefined}
                     onLoad={(e) => {
                       const img = e.currentTarget;
-                      if (!baseImageProperties?.width) {
+                      if (!baseImageProperties?.width || baseImageProperties.width === 0) {
                         onUpdateBaseImage({ width: img.naturalWidth, height: img.naturalHeight });
                       }
                       setIsBaseImageLoaded(true);
                     }}
+                    onError={(e) => {
+                      console.error("[IMCST] Mockup image failed to load:", baseImage);
+                    }}
                     style={{
-                      width: (baseImageProperties?.width || 0) * (validZoom / 100),
-                      height: (baseImageProperties?.height || 0) * (validZoom / 100),
-                      display: baseImage === 'none' ? 'none' : 'block',
-                      maxWidth: 'none',
+                      width: (baseImageProperties?.width || 600) * (validZoom / 100),
+                      height: (baseImageProperties?.height || 600) * (validZoom / 100),
+                      display: 'block !important' as any,
+                      position: 'relative',
+                      zIndex: 1,
+                      opacity: '1 !important' as any,
+                      visibility: 'visible !important' as any,
+                      objectFit: 'contain'
                     }}
                     draggable={false}
                   />
 
-                  {/* Color Overlay: Now applied to TRANSPARENT area as per user's request */}
+                  {/* Color Overlay: Re-enabled */}
                   {baseImageColorEnabled && baseImageColor && (
                     <div
                       className="absolute inset-0 pointer-events-none"
@@ -386,8 +423,8 @@ export function Canvas({
                     />
                   )}
                 </motion.div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Safe Area Controls (only show in Admin / non-public) */}
             {showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (

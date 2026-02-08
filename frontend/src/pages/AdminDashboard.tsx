@@ -368,13 +368,13 @@ export default function AdminDashboard() {
                                 </Tooltip>
                             )}
                             {customProducts.some(p => p.id === product.id) && (
-                                <div style={{ minWidth: '120px' }}>
+                                <div style={{ minWidth: '120px' }} onClick={(e) => e.stopPropagation()}>
                                     <Select
                                         label="Layout"
                                         labelHidden
                                         options={[
                                             { label: 'Redirect', value: 'redirect' },
-                                            { label: 'Inline', value: 'inline' },
+                                            { label: 'Direct Customize', value: 'inline' },
                                             { label: 'Modal', value: 'modal' },
                                             { label: 'Wizard', value: 'wizard' },
                                         ]}
