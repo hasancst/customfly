@@ -55,6 +55,7 @@ interface HeaderProps {
   pricingConfigComponent?: React.ReactNode;
   handle?: string;
   shop?: string;
+  headerTitle?: string;
 }
 
 export function Header({
@@ -84,6 +85,7 @@ export function Header({
   pricingConfigComponent,
   handle,
   shop,
+  headerTitle,
 }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -197,7 +199,7 @@ export function Header({
               <div className="flex flex-col justify-center">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-medium text-gray-900 leading-none">
-                    {title || "Product Builder"}
+                    {isPublicMode ? (headerTitle || "Product Customizer") : (title || "Product Builder")}
                   </h3>
                   {handle && effectiveShop && (
                     <Tooltip>

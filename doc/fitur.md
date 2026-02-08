@@ -82,6 +82,7 @@ Dokumen ini untuk tracking progres implementasi fitur dan opsi pada menu Product
 - [ ] Visibilitas kondisional elemen
 - [ ] Field wajib (required)
 - [ ] Validasi input
+- [x] Global Branding Inheritance (Header Title & Button Text)
 
 ## Pricing (di Designer)
 - [ ] Harga berbasis area/warna/kompleksitas
@@ -108,7 +109,8 @@ Dokumen ini untuk tracking progres implementasi fitur dan opsi pada menu Product
 - [ ] Kustomisasi shortcuts
 
 ## Save & Load
-- [ ] Simpan desain (admin)
+- [x] Simpan desain (admin) - Global & Product Specific
+- [x] Auto-save settings on change
 - [ ] Muat desain terbaru
 - [ ] Versi / riwayat desain
 

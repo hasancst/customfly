@@ -120,11 +120,19 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
         const cached = cache.get(cacheKey);
         if (cached) return res.json(cached);
 
-        let config = await prisma.merchantConfig.findFirst({
-            where: { shop, shopifyProductId }
-        }) || await prisma.merchantConfig.findFirst({
-            where: { shop, shopifyProductId: 'GLOBAL' }
-        });
+        // Fetch specific and global to allow inheritance
+        let config = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId } });
+        const globalConfig = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId: 'GLOBAL' } });
+
+        if (!config) {
+            config = globalConfig;
+        } else if (globalConfig) {
+            // Inheritance: Force Global Branding
+            config.headerTitle = globalConfig.headerTitle;
+            config.buttonText = globalConfig.buttonText;
+            config.buttonStyle = globalConfig.buttonStyle;
+            console.log(`[Config] Applied Global Branding for ${shopifyProductId}`);
+        }
 
         let initialDesign = await prisma.savedDesign.findFirst({
             where: { shop, shopifyProductId: String(shopifyProductId) },
@@ -171,16 +179,29 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
 // Product Config for Storefront
 router.get("/public/config/:shopifyProductId", async (req, res) => {
     try {
-        const { shop } = req.query;
+        const { shop, t } = req.query;
         const { shopifyProductId } = req.params;
+
+        // Force clear cache if timestamp provided
+        if (t) {
+            const key1 = `pub_prod_${shop}_${shopifyProductId}`;
+            cache.del(key1);
+        }
 
         if (!shop) return res.status(400).json({ error: "Shop parameter required" });
 
-        const config = await prisma.merchantConfig.findFirst({
-            where: { shop, shopifyProductId }
-        }) || await prisma.merchantConfig.findFirst({
-            where: { shop, shopifyProductId: 'GLOBAL' }
-        });
+        // Fetch specific and global to allow inheritance
+        let config = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId } });
+        const globalConfig = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId: 'GLOBAL' } });
+
+        if (!config) {
+            config = globalConfig;
+        } else if (globalConfig) {
+            // Inheritance: Force Global Branding
+            config.headerTitle = globalConfig.headerTitle;
+            config.buttonText = globalConfig.buttonText;
+            config.buttonStyle = globalConfig.buttonStyle;
+        }
 
         if (!config) return res.json({});
 

@@ -139,6 +139,7 @@ export function DesignerOpenCore({
     // Fixed Admin Settings
     const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
     const [buttonText, setButtonText] = useState(initialConfig.buttonText || 'Design It');
+    const [headerTitle, setHeaderTitle] = useState(initialConfig.headerTitle || 'Product Customizer');
     const [productOutputSettings, setProductOutputSettings] = useState(initialConfig.productOutputSettings || null);
 
     const [designName, setDesignName] = useState('');
@@ -975,6 +976,7 @@ export function DesignerOpenCore({
                 isSaving={isSaving || isAutoSaving} lastSavedTime={lastSavedTime}
                 productId={productId}
                 isPublicMode={isPublicModeProp} buttonText={buttonText}
+                headerTitle={headerTitle}
                 savedDesigns={savedDesigns} allDesigns={allDesigns}
                 onDeleteDesign={onDeleteDesign} onClearAllDesigns={onClearAllDesigns}
                 onLoadDesign={(design, _mode) => {
@@ -1046,8 +1048,8 @@ export function DesignerOpenCore({
                                     key={page.id}
                                     onClick={() => setActivePageId(page.id)}
                                     className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all border-2 flex items-center gap-3 whitespace-nowrap ${activePageId === page.id
-                                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-md ring-4 ring-indigo-500/10'
-                                            : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600'
+                                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-md ring-4 ring-indigo-500/10'
+                                        : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600'
                                         }`}
                                 >
                                     <div className={`w-2.5 h-2.5 rounded-full ${activePageId === page.id ? 'bg-indigo-500 animate-pulse' : 'bg-gray-200'}`} />

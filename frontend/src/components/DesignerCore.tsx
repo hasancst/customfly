@@ -138,7 +138,6 @@ export function DesignerCore({
     const [paperSize, setPaperSize] = useState<string>(initialConfig.paperSize || 'Custom');
     const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
     const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
-    const [buttonText, setButtonText] = useState(initialConfig.buttonText || 'Design It');
     const [outputSettings, setOutputSettings] = useState<any>(initialConfig.outputSettings || null);
     const [showGrid] = useState(initialConfig.showGrid ?? false);
 
@@ -515,7 +514,6 @@ export function DesignerCore({
                     paperSize,
                     customPaperDimensions,
                     designerLayout,
-                    buttonText,
                     outputSettings: outputSettingsOverride || outputSettings,
                     showGrid,
                     enabledGrid,
@@ -680,7 +678,6 @@ export function DesignerCore({
                     onToggleSummary={() => setShowSummary(!showSummary)}
                     onClose={onBack}
                     isPublicMode={isPublicMode}
-                    buttonText={buttonText}
                     lastSavedTime={lastSavedTime}
                     productId={productId}
                     pricingConfigComponent={pricingConfigComponent}
@@ -959,8 +956,6 @@ export function DesignerCore({
                             onSelectedShapeAssetIdChange={setSelectedShapeAssetId}
                             designerLayout={designerLayout}
                             onDesignerLayoutChange={setDesignerLayout}
-                            buttonText={buttonText}
-                            onButtonTextChange={setButtonText}
                             outputSettings={outputSettings}
                             onProductOutputSettingsChange={(newSettings) => setOutputSettings((prev: any) => ({ ...prev, ...newSettings }))}
                             onSave={(isT, settings) => handleSave(isT, false, settings)}

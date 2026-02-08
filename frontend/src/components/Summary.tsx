@@ -94,6 +94,8 @@ interface SummaryProps {
   onDesignerLayoutChange?: (val: string) => void;
   buttonText?: string;
   onButtonTextChange?: (val: string) => void;
+  headerTitle?: string;
+  onHeaderTitleChange?: (val: string) => void;
   shop?: string;
   onUpdateElement?: (id: string, updates: Partial<CanvasElement>) => void;
   onSave?: (isTemplate: boolean, outputSettingsOverride?: any) => void;
@@ -118,6 +120,7 @@ interface SummaryProps {
   onToggleEnabledDownload?: () => void;
   enabledReset?: boolean;
   onToggleEnabledReset?: () => void;
+  isGlobalSettings?: boolean;
 }
 
 export const Summary: React.FC<SummaryProps> = ({
@@ -187,6 +190,10 @@ export const Summary: React.FC<SummaryProps> = ({
   uniqueDesignBehavior = 'duplicate',
   onUniqueDesignBehaviorChange,
   buttonText,
+  onButtonTextChange,
+  headerTitle,
+  onHeaderTitleChange,
+  isGlobalSettings = false,
 }) => {
   const [isOutputOpen, setIsOutputOpen] = React.useState(false);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = React.useState(false);
@@ -602,7 +609,10 @@ export const Summary: React.FC<SummaryProps> = ({
                     <div className="space-y-4 pt-1">
                       <div className="space-y-1">
                         <Label className="text-[10px] font-medium text-gray-400">Canvas Size</Label>
-                        <Select value={paperSize} onValueChange={onPaperSizeChange}>
+                        <Select value={paperSize} onValueChange={(val) => {
+                          onPaperSizeChange(val);
+                          onSave?.(false);
+                        }}>
                           <SelectTrigger className="h-9 rounded-xl bg-gray-50 border-gray-100 text-xs font-medium"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl shadow-xl">
                             <SelectItem value="Default">Default (1000 × 1000 px)</SelectItem>
@@ -632,14 +642,20 @@ export const Summary: React.FC<SummaryProps> = ({
                         <Label className="text-[11px] font-medium text-gray-700">Rulers</Label>
                         <p className="text-[9px] text-gray-400">Measurement guides</p>
                       </div>
-                      <Switch checked={showRulers} onCheckedChange={onToggleRulers} className="scale-75" />
+                      <Switch checked={showRulers} onCheckedChange={() => {
+                        onToggleRulers();
+                        onSave?.(false);
+                      }} className="scale-75" />
                     </div>
 
                     {/* Unit (Only show if rulers on) */}
                     {showRulers && (
                       <div className="pl-6 space-y-1 pb-2">
                         <Label className="text-[10px] font-medium text-gray-400">Unit</Label>
-                        <Select value={unit} onValueChange={(val: any) => onUnitChange(val)}>
+                        <Select value={unit} onValueChange={(val: any) => {
+                          onUnitChange(val);
+                          onSave?.(false);
+                        }}>
                           <SelectTrigger className="h-8 rounded-lg bg-gray-50 border-gray-100 text-[11px]"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl shadow-xl">
                             <SelectItem value="cm">cm</SelectItem>
@@ -656,7 +672,10 @@ export const Summary: React.FC<SummaryProps> = ({
                         <Label className="text-[11px] font-medium text-gray-700">Safe Area</Label>
                         <p className="text-[9px] text-gray-400">Printing boundaries</p>
                       </div>
-                      <Switch checked={showSafeArea} onCheckedChange={onToggleSafeArea} className="scale-75" />
+                      <Switch checked={showSafeArea} onCheckedChange={() => {
+                        onToggleSafeArea();
+                        onSave?.(false);
+                      }} className="scale-75" />
                     </div>
 
                     {/* Safe Area Settings */}
@@ -664,7 +683,10 @@ export const Summary: React.FC<SummaryProps> = ({
                       <div className="pl-6 space-y-4 pb-2 pt-1">
                         <div className="flex items-center justify-between">
                           <Label className="text-[10px] font-medium text-gray-400">Hide Guide Line</Label>
-                          <Switch checked={hideSafeAreaLine} onCheckedChange={() => onToggleHideSafeAreaLine?.()} className="scale-75" />
+                          <Switch checked={hideSafeAreaLine} onCheckedChange={() => {
+                            onToggleHideSafeAreaLine?.();
+                            onSave?.(false);
+                          }} className="scale-75" />
                         </div>
 
                         <div className="space-y-2">
@@ -672,7 +694,7 @@ export const Summary: React.FC<SummaryProps> = ({
                             <Label className="text-[10px] font-medium text-gray-400">Roundness</Label>
                             <span className="text-[10px] font-medium text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md">{Math.round((safeAreaRadius / 500) * 100)}%</span>
                           </div>
-                          <Slider value={[safeAreaRadius]} max={500} step={10} onValueChange={(val) => onSafeAreaRadiusChange(val[0])} className="py-2" />
+                          <Slider value={[safeAreaRadius]} max={500} step={10} onValueChange={(val) => onSafeAreaRadiusChange(val[0])} onValueCommit={() => onSave?.(false)} className="py-2" />
                         </div>
 
                         <div className="flex items-center justify-between text-[9px] text-gray-400 font-medium pt-1 bg-gray-50 p-2 rounded-lg">
@@ -680,40 +702,97 @@ export const Summary: React.FC<SummaryProps> = ({
                             <span>X: <span className="text-gray-600">{Math.round(safeAreaOffset.x)}</span></span>
                             <span>Y: <span className="text-gray-600">{Math.round(safeAreaOffset.y)}</span></span>
                           </div>
-                          <button onClick={onResetSafeAreaOffset} className="text-indigo-600 hover:text-indigo-700 font-medium hover:underline">Reset Offset</button>
+                          <button onClick={() => {
+                            onResetSafeAreaOffset();
+                            onSave?.(false);
+                          }} className="text-indigo-600 hover:text-indigo-700 font-medium hover:underline">Reset Offset</button>
                         </div>
                       </div>
                     )}
                   </div>
 
                   {/* 3. Public Controls Group */}
-                  <div className="space-y-3 pt-2 border-t border-gray-50">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Public Controls</Label>
+                  {(isGlobalSettings || !isPublicMode) && (
+                    <div className="space-y-3 pt-2 border-t border-gray-50">
+                      <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Public Controls</Label>
 
-                    <div className="grid grid-cols-1 gap-3">
-                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
-                        <Label className="text-[11px] font-medium text-gray-700">Enable Grid Button</Label>
-                        <Switch checked={enabledGrid} onCheckedChange={onToggleEnabledGrid} className="scale-75" />
-                      </div>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                          <Label className="text-[11px] font-medium text-gray-700">Enable Grid Button</Label>
+                          <Switch checked={enabledGrid} onCheckedChange={() => {
+                            onToggleEnabledGrid?.();
+                            onSave?.(false);
+                          }} className="scale-75" />
+                        </div>
 
-                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
-                        <Label className="text-[11px] font-medium text-gray-700">Enable Undo/Redo</Label>
-                        <Switch checked={enabledUndoRedo} onCheckedChange={onToggleEnabledUndoRedo} className="scale-75" />
-                      </div>
+                        <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                          <Label className="text-[11px] font-medium text-gray-700">Enable Undo/Redo</Label>
+                          <Switch checked={enabledUndoRedo} onCheckedChange={() => {
+                            onToggleEnabledUndoRedo?.();
+                            onSave?.(false);
+                          }} className="scale-75" />
+                        </div>
 
-                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
-                        <Label className="text-[11px] font-medium text-gray-700">Enable Download</Label>
-                        <Switch checked={enabledDownload} onCheckedChange={onToggleEnabledDownload} className="scale-75" />
-                      </div>
+                        <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                          <Label className="text-[11px] font-medium text-gray-700">Enable Download</Label>
+                          <Switch checked={enabledDownload} onCheckedChange={() => {
+                            onToggleEnabledDownload?.();
+                            onSave?.(false);
+                          }} className="scale-75" />
+                        </div>
 
-                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
-                        <Label className="text-[11px] font-medium text-gray-700">Enable Reset</Label>
-                        <Switch checked={enabledReset} onCheckedChange={onToggleEnabledReset} className="scale-75" />
+                        <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                          <Label className="text-sm font-medium text-gray-700">Enable Reset</Label>
+                          <Switch checked={enabledReset} onCheckedChange={() => {
+                            onToggleEnabledReset?.();
+                            onSave?.(false);
+                          }} className="scale-75" />
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* 4. Utilities */}
+                  {/* 4. Public Designer UI Labels - GLOBAL SETTINGS ONLY */}
+                  {isGlobalSettings && (
+                    <div className="space-y-4 pt-4 border-t border-gray-50">
+                      <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Public UI Labels</Label>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-[11px] font-medium text-gray-700">"Design It" Button Text</Label>
+                          <Input
+                            value={buttonText || ""}
+                            onChange={(e) => onButtonTextChange?.(e.target.value)}
+                            onBlur={() => onSave?.(false)}
+                            placeholder="Design It"
+                            className="h-10 rounded-xl bg-gray-50 border-gray-100 text-sm"
+                          />
+                          <p className="text-[9px] text-gray-400">The text on the button that opens the designer.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-[11px] font-medium text-gray-700">Designer Header Title</Label>
+                          <Input
+                            value={headerTitle || ""}
+                            onChange={(e) => {
+                              console.log("Header Title Change:", e.target.value);
+                              onHeaderTitleChange?.(e.target.value);
+                            }}
+                            onBlur={() => {
+                              console.log("Header Title Blur - triggering save");
+                              onSave?.(false);
+                            }}
+                            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                            placeholder="Product Customizer"
+                            className="h-10 rounded-xl bg-gray-50 border-gray-100 text-sm"
+                          />
+                          <p className="text-[9px] text-gray-400">The title shown at the top of the designer modal.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Utilities */}
                   <div className="pt-4 border-t border-gray-50 mt-2">
                     <Button
                       variant="ghost"

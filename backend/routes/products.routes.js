@@ -60,7 +60,7 @@ router.post("/config", async (req, res) => {
             'showRulers', 'showSafeArea', 'unit', 'baseImageAsMask', 'safeAreaHeight',
             'safeAreaRadius', 'safeAreaWidth', 'variantBaseImages', 'buttonStyle',
             'selectedBaseColorAssetId',
-            'buttonText', 'designerLayout', 'enabledTools', 'inlineSettings',
+            'buttonText', 'headerTitle', 'designerLayout', 'enabledTools', 'inlineSettings',
             'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
             'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId',
             // Toolbar feature flags
@@ -377,6 +377,154 @@ router.get("/collections", async (req, res) => {
             title: e.node.title
         })));
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- GLOBAL DESIGN ENDPOINTS ---
+
+// Get Global Design
+router.get("/global_design", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+
+        const config = await prisma.merchantConfig.findUnique({
+            where: {
+                shop_shopifyProductId: {
+                    shop,
+                    shopifyProductId: 'GLOBAL'
+                }
+            }
+        });
+
+        const design = await prisma.savedDesign.findFirst({
+            where: { shop, shopifyProductId: 'GLOBAL', isTemplate: true },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        res.json({
+            config: config ? transformDesignUrls(config) : {},
+            designJson: design ? transformDesignUrls(design.designJson) : null
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Save Global Design
+router.post("/global_design", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+        const { designJson, config } = req.body;
+
+        console.log(`[GlobalSave] Shop: ${shop}, Config keys: ${config ? Object.keys(config).join(',') : 'none'}`);
+
+        // 1. Save Config
+        const allowedFields = [
+            'printArea', 'baseImage', 'masks', 'baseImageColor', 'baseImageColorEnabled',
+            'baseImageProperties', 'selectedColorAssetId', 'customPaperDimensions',
+            'paperSize', 'safeAreaOffset', 'safeAreaPadding', 'safeAreaShape',
+            'showRulers', 'showSafeArea', 'unit', 'baseImageAsMask', 'safeAreaHeight',
+            'safeAreaRadius', 'safeAreaWidth', 'variantBaseImages', 'buttonStyle',
+            'selectedBaseColorAssetId',
+            'buttonText', 'headerTitle', 'designerLayout', 'enabledTools', 'inlineSettings',
+            'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
+            'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId',
+            'enabledGrid', 'enabledUndoRedo', 'enabledDownload', 'enabledReset', 'showGrid'
+        ];
+
+        const cleanConfig = {};
+        if (config) {
+            Object.keys(config).forEach(key => {
+                if (allowedFields.includes(key)) cleanConfig[key] = config[key];
+            });
+        }
+
+        // Fix for missing mandatory printArea
+        if (!cleanConfig.printArea) {
+            cleanConfig.printArea = {};
+        }
+
+        console.log(`[GlobalSave] CleanConfig:`, JSON.stringify(cleanConfig, null, 2));
+
+        try {
+            await prisma.merchantConfig.upsert({
+                where: { shop_shopifyProductId: { shop, shopifyProductId: 'GLOBAL' } },
+                update: cleanConfig,
+                create: { shop, shopifyProductId: 'GLOBAL', ...cleanConfig }
+            });
+        } catch (dbErr) {
+            console.error("[GlobalSave] DB Config Error:", dbErr);
+            throw dbErr;
+        }
+
+        // 2. Save Design Template
+        if (designJson) {
+            const existingTemplate = await prisma.savedDesign.findFirst({
+                where: { shop, shopifyProductId: 'GLOBAL', isTemplate: true },
+                orderBy: { updatedAt: 'desc' }
+            });
+
+            if (existingTemplate) {
+                await prisma.savedDesign.update({
+                    where: { id: existingTemplate.id },
+                    data: { designJson }
+                });
+            } else {
+                await prisma.savedDesign.create({
+                    data: {
+                        shop,
+                        shopifyProductId: 'GLOBAL',
+                        isTemplate: true,
+                        name: 'GLOBAL_TEMPLATE',
+                        designJson
+                    }
+                });
+            }
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Global save error:", error);
+        res.status(500).json({ error: error.message, stack: error.stack });
+    }
+});
+
+// Apply Global Settings to All Products
+router.post("/global_design/apply_all", async (req, res) => {
+    try {
+        const shop = res.locals.shopify.session.shop;
+
+        // Get global config
+        const globalConfig = await prisma.merchantConfig.findUnique({
+            where: { shop_shopifyProductId: { shop, shopifyProductId: 'GLOBAL' } }
+        });
+
+        if (!globalConfig) {
+            return res.status(404).json({ error: "Global configuration not found" });
+        }
+
+        // Get all products from Shopify to ensure we have current list
+        // Or just update all existing MerchantConfigs?
+        // Usually "Apply to all" means overwrite existing product-specific configs with global ones.
+
+        const configs = await prisma.merchantConfig.findMany({
+            where: { shop, NOT: { shopifyProductId: 'GLOBAL' } }
+        });
+
+        const { id, createdAt, updatedAt, shopifyProductId, ...dataToCopy } = globalConfig;
+
+        // Update all existing configs
+        await Promise.all(configs.map(c =>
+            prisma.merchantConfig.update({
+                where: { id: c.id },
+                data: dataToCopy
+            })
+        ));
+
+        res.json({ success: true, updatedCount: configs.length });
+    } catch (error) {
+        console.error("Apply all error:", error);
         res.status(500).json({ error: error.message });
     }
 });

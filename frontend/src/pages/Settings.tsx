@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Page, Layout, Card, Text, FormLayout, TextField, Select, InlineStack, Banner, Box, Checkbox, Badge, Button } from '@shopify/polaris';
+import { Page, Layout, Card, Text, FormLayout, TextField, Select, InlineStack, Box, Checkbox, Badge, Button, Toast } from '@shopify/polaris';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
 export default function Settings() {
     const fetch = useAuthenticatedFetch();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [toastActive, setToastActive] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
 
     // Form Stats
     const [buttonText, setButtonText] = useState('Design It');
@@ -54,7 +55,7 @@ export default function Settings() {
             });
             if (response.ok) {
                 setToastMessage('Global settings saved successfully!');
-                setTimeout(() => setToastMessage(null), 3000);
+                setToastActive(true);
             }
         } catch (error) {
             console.error('Failed to save shop config:', error);
@@ -90,12 +91,8 @@ export default function Settings() {
             }}
         >
             <Layout>
-                {toastMessage && (
-                    <Layout.Section>
-                        <Banner tone="success" onDismiss={() => setToastMessage(null)}>
-                            <p>{toastMessage}</p>
-                        </Banner>
-                    </Layout.Section>
+                {toastActive && (
+                    <Toast content={toastMessage} onDismiss={() => setToastActive(false)} />
                 )}
 
                 <Layout.Section>

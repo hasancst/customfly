@@ -78,7 +78,7 @@ export function ModalDesigner({ productId, shop, config }: ModalDesignerProps) {
                         <div className="px-4 sm:px-8 py-3 border-b flex justify-between items-center bg-white/95 backdrop-blur-sm z-10 sticky top-0 shadow-sm">
                             <div className="flex items-baseline gap-3">
                                 <h1 className="font-black text-xl sm:text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
-                                    Product Customizer
+                                    {config?.headerTitle || 'Product Customizer'}
                                 </h1>
                                 <span className="hidden sm:inline-block h-4 w-[1px] bg-gray-200"></span>
                                 <p className="hidden sm:inline-block text-xs text-gray-400 font-bold uppercase tracking-widest leading-none">

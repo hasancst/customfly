@@ -225,5 +225,24 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
         - [x] **Management (Admin Only)**: Klik icon "More" pada side aktif, muncul opsi Rename dan Delete.
         - [x] **Add Side (Admin Only)**: Tombol "Add New Side" (Plus icon) berada di sebelah daftar tombol side.
 
+
 ---
-*Terakhir diperbarui: 7 Februari 2026 (Side Management Public, Add to Cart Location Fix, Close Icon Fix)*
+
+### G. Global Settings & Branding (New)
+- [x] **Global Configuration Persistence**:
+    - [x] **Save Operation**: Verify clicking "Save Settings" triggers a successful API call (200 OK) and shows a success toast.
+    - [x] **Circular Structure Fix**: Confirm that saving does NOT cause a JSON serialization error (browser console clean).
+    - [x] **Input Triggers**: Change a setting (e.g., Header Title, Safe Area) → Click outside (blur) → Confirm "Settings Saved" appears automatically.
+- [x] **Branding Inheritance (Runtime Override)**:
+    - [x] **Admin Setup**: Set "Designer Header Title" to "My Custom Shop" and "Button Text" to "Start Designing" in Global Settings.
+    - [x] **Product Isolation**: Go to a specific product that already has a saved design (and default titles).
+    - [x] **Public Frontend**: Open that product in the storefront.
+    - [x] **Verification**: Confirm the title is "My Custom Shop" (Global) and NOT "Product Customizer" (Local Default).
+    - [x] **Cache Busting**: Update branding in Admin → Refresh Frontend → Changes appear immediately (timestamp busting).
+- [x] **Apply API**:
+    - [x] **Action**: Click "Apply to All Products".
+    - [x] **Result**: Success toast appears.
+    - [x] **Verification**: Verify that non-branding settings (e.g., Rulers, Units) are now identical across all products.
+
+---
+*Terakhir diperbarui: 8 Februari 2026 (Global Branding Inheritance, Save Fixes, Cache Busting)*

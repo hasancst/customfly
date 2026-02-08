@@ -18,7 +18,8 @@ export function LayoutDetector({ productId, shop }: LayoutDetectorProps) {
         async function fetchConfig() {
             try {
                 const baseUrl = (window as any).IMCST_BASE_URL || '';
-                const fetchUrl = `${baseUrl}/imcst_public_api/public/config/${productId}?shop=${shop}`;
+                // Add timestamp to force cache refresh on client side
+                const fetchUrl = `${baseUrl}/imcst_public_api/public/config/${productId}?shop=${shop}&t=${Date.now()}`;
                 console.log('[IMCST] Fetching config:', fetchUrl);
 
                 const response = await fetch(fetchUrl);

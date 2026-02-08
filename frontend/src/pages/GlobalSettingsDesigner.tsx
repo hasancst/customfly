@@ -10,7 +10,7 @@ import { BaseImageModal } from '../components/BaseImageModal';
 import { CanvasElement, PageData } from '../types';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 import { ChevronLeft, Image as ImageIcon, UploadCloud, Save, Copy, DollarSign } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
     Dialog,
@@ -113,6 +113,8 @@ export default function GlobalSettingsDesigner() {
     const [productVariant] = useState({ color: 'white', size: 'M', material: 'cotton' });
     const [enableBounce] = useState(false);
     const [outputSettings, setOutputSettings] = useState<any>(null);
+    const [buttonText, setButtonText] = useState('Design It');
+    const [headerTitle, setHeaderTitle] = useState('Product Customizer');
 
     const fetch = useAuthenticatedFetch();
     const shopifyApp = useAppBridge();
@@ -153,7 +155,6 @@ export default function GlobalSettingsDesigner() {
     useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
     // Load Global Config
-    // Load Global Config
     useEffect(() => {
         const loadGlobalConfig = async () => {
             try {
@@ -188,6 +189,8 @@ export default function GlobalSettingsDesigner() {
                             if (config.showSafeArea !== undefined) setShowSafeArea(config.showSafeArea);
                             if (config.outputSettings) setOutputSettings(config.outputSettings);
                             if (config.selectedColorAssetId) setSelectedColorAssetId(config.selectedColorAssetId);
+                            if (config.buttonText) setButtonText(config.buttonText);
+                            if (config.headerTitle) setHeaderTitle(config.headerTitle);
                         }
                     } catch (parseErr) {
                         console.error("[GlobalSettings] JSON Parse Error:", parseErr);
@@ -251,7 +254,7 @@ export default function GlobalSettingsDesigner() {
                     const el = p.elements.find(e => e.id === id);
                     if (el) {
                         const nextZ = Math.max(0, ...p.elements.map(e => e.zIndex)) + 1;
-                        const newEl = { ...el, id: `${el.type} -${Date.now()} `, x: el.x + 20, y: el.y + 20, zIndex: nextZ };
+                        const newEl = { ...el, id: `${el.type}-${Date.now()}`, x: el.x + 20, y: el.y + 20, zIndex: nextZ };
                         return { ...p, elements: [...p.elements, newEl] };
                     }
                 }
@@ -278,13 +281,15 @@ export default function GlobalSettingsDesigner() {
         setSelectedElement(element.id);
     }, [activePageId, addToHistory]);
 
-    const saveGlobalConfig = async () => {
+    const saveGlobalConfig = useCallback(async (outputSettingsOverride?: any) => {
         setIsSaving(true);
+        console.log("Saving Global Config...", { headerTitle, buttonText, outputSettingsOverride, outputSettings });
+
         try {
             const config = {
                 safeAreaPadding, safeAreaRadius, safeAreaWidth, safeAreaHeight, safeAreaOffset,
                 paperSize, customPaperDimensions, unit, showRulers, showSafeArea,
-                outputSettings, selectedColorAssetId
+                outputSettings: outputSettingsOverride || outputSettings, selectedColorAssetId, buttonText, headerTitle
             };
 
             const res = await fetch('/imcst_api/global_design', {
@@ -296,15 +301,25 @@ export default function GlobalSettingsDesigner() {
                 })
             });
 
-            if (res.ok) toast.success('Global Settings Saved');
-            else toast.error('Failed to save settings');
+            const data = await res.json();
+            console.log("Save response:", data);
+
+            if (res.ok) {
+                toast.success('Global Settings Saved');
+            } else {
+                toast.error('Failed to save settings: ' + (data.error || 'Unknown error'));
+            }
         } catch (err) {
-            console.error(err);
+            console.error("Save error:", err);
             toast.error('Error saving settings');
         } finally {
             setIsSaving(false);
         }
-    };
+    }, [
+        pages, safeAreaPadding, safeAreaRadius, safeAreaWidth, safeAreaHeight, safeAreaOffset,
+        paperSize, customPaperDimensions, unit, showRulers, showSafeArea,
+        outputSettings, selectedColorAssetId, buttonText, headerTitle
+    ]);
 
     const applyToAllProducts = async () => {
         if (!confirm('Are you sure you want to apply these settings to ALL products? This will overwrite their default configuration if they don\'t have specific overrides.')) return;
@@ -337,8 +352,8 @@ export default function GlobalSettingsDesigner() {
     };
 
     const addPage = () => {
-        const newId = `page - ${Date.now()} `;
-        setPages(prev => [...prev, { id: newId, name: `Side ${prev.length + 1} `, elements: [], baseImage: DUMMY_BASE_IMAGE }]);
+        const newId = `page-${Date.now()}`;
+        setPages(prev => [...prev, { id: newId, name: `Side ${prev.length + 1}`, elements: [], baseImage: DUMMY_BASE_IMAGE }]);
         setActivePageId(newId);
     };
 
@@ -375,7 +390,7 @@ export default function GlobalSettingsDesigner() {
                         <Copy className="w-4 h-4 mr-2" />
                         Apply to All Products
                     </Button>
-                    <Button onClick={saveGlobalConfig} disabled={isSaving} className="bg-indigo-600 text-white hover:bg-indigo-700">
+                    <Button onClick={() => saveGlobalConfig()} disabled={isSaving} className="bg-indigo-600 text-white hover:bg-indigo-700">
                         <Save className="w-4 h-4 mr-2" />
                         Save Settings
                     </Button>
@@ -383,12 +398,14 @@ export default function GlobalSettingsDesigner() {
             </div>
 
             <div className="flex flex-1 overflow-hidden">
-                <Toolbar
-                    onAddElement={addElement} selectedElement={currentElements.find(el => el.id === selectedElement)}
-                    onUpdateElement={updateElement} onDeleteElement={deleteElement} onCrop={() => setIsCropModalOpen(true)}
-                    elements={currentElements} productData={productData} userColors={userColors} userOptions={userOptions}
-                    onRefreshAssets={fetchAssets} onSaveAsset={async () => null} onSelectElement={setSelectedElement} canvasDimensions={getCanvasDimensions()}
-                />
+                <div className="w-80 bg-white border-r border-gray-200 z-40 flex flex-col shrink-0">
+                    <Toolbar
+                        onAddElement={addElement} selectedElement={currentElements.find(el => el.id === selectedElement)}
+                        onUpdateElement={updateElement} onDeleteElement={deleteElement} onCrop={() => setIsCropModalOpen(true)}
+                        elements={currentElements} productData={productData} userColors={userColors} userOptions={userOptions}
+                        onRefreshAssets={fetchAssets} onSaveAsset={async () => null} onSelectElement={setSelectedElement} canvasDimensions={getCanvasDimensions()}
+                    />
+                </div>
                 <div className="flex-1 flex flex-col relative overflow-hidden">
                     <ContextualToolbar
                         selectedElement={currentElements.find(el => el.id === selectedElement)} onUpdateElement={updateElement}
@@ -400,7 +417,7 @@ export default function GlobalSettingsDesigner() {
                         <span className="text-xs font-bold text-gray-500">SIDES:</span>
                         <div className="flex items-center gap-2">
                             {pages.map(p => (
-                                <button key={p.id} onClick={() => setActivePageId(p.id)} className={`px - 3 py - 1 text - xs rounded border ${activePageId === p.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-gray-200'} `}>
+                                <button key={p.id} onClick={() => setActivePageId(p.id)} className={`px-3 py-1 text-xs rounded border ${activePageId === p.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-gray-200'}`}>
                                     {p.name}
                                 </button>
                             ))}
@@ -423,7 +440,7 @@ export default function GlobalSettingsDesigner() {
                             onDuplicateElement={duplicateElement}
                             zoom={zoom}
                             showSafeArea={showSafeArea}
-                            productVariant={productVariant}
+                            productVariant={productVariant as any}
                             showRulers={showRulers}
                             unit={unit}
                             enableBounce={enableBounce}
@@ -449,7 +466,7 @@ export default function GlobalSettingsDesigner() {
                     </div>
                 </div>
 
-                <div className={`transition - all duration - 300 w - 80 bg - white border - l z - 40 flex flex - col ${showSummary ? 'translate-x-0' : 'translate-x-full w-0 border-l-0'} `}>
+                <div className={`transition-all duration-300 w-80 bg-white border-l z-40 flex flex-col ${showSummary ? 'translate-x-0' : 'translate-x-full w-0 border-l-0'}`}>
                     <Summary
                         showSummary={showSummary}
                         onToggleSummary={() => setShowSummary(!showSummary)}
@@ -461,7 +478,7 @@ export default function GlobalSettingsDesigner() {
                         zoom={zoom}
                         onZoomChange={setZoom}
                         showSafeArea={showSafeArea}
-                        onToggleSafeArea={setShowSafeArea}
+                        onToggleSafeArea={() => setShowSafeArea(!showSafeArea)}
                         safeAreaPadding={safeAreaPadding}
                         onSafeAreaPaddingChange={setSafeAreaPadding}
                         safeAreaRadius={safeAreaRadius}
@@ -469,7 +486,7 @@ export default function GlobalSettingsDesigner() {
                         safeAreaOffset={safeAreaOffset}
                         onResetSafeAreaOffset={() => setSafeAreaOffset({ x: 0, y: 0 })}
                         showRulers={showRulers}
-                        onToggleRulers={setShowRulers}
+                        onToggleRulers={() => setShowRulers(!showRulers)}
                         unit={unit}
                         onUnitChange={setUnit}
                         paperSize={paperSize}
@@ -489,9 +506,17 @@ export default function GlobalSettingsDesigner() {
                         onToggleBaseImageAsMask={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageAsMask: v } : p))}
                         outputSettings={outputSettings}
                         onProductOutputSettingsChange={setOutputSettings}
+                        buttonText={buttonText}
+                        onButtonTextChange={setButtonText}
+                        headerTitle={headerTitle}
+                        onHeaderTitleChange={setHeaderTitle}
+                        isGlobalSettings={true}
+                        onSave={(_, settings) => saveGlobalConfig(settings)}
                     />
                 </div>
             </div>
+
+            <Toaster richColors closeButton />
 
             <ImageCropModal
                 isOpen={isCropModalOpen}

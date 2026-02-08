@@ -56,6 +56,7 @@ model MerchantConfig {
   variantBaseImages     Json?
   buttonStyle           Json?
   buttonText            String   @default("Design It")
+  headerTitle           String   @default("Product Customizer")
   designerLayout        String   @default("redirect")
   enabledTools          Json?
   inlineSettings        Json?
