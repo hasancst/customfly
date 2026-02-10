@@ -8,8 +8,8 @@ import { DraggableElement } from './DraggableElement';
 
 interface CanvasProps {
   elements: CanvasElement[];
-  selectedElement: CanvasElement | null;
-  onSelectElement: (element: CanvasElement | null) => void;
+  selectedElement: string | null;
+  onSelectElement: (id: string | null) => void;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>, skipHistory?: boolean) => void;
   onDeleteElement: (id: string) => void;
   onDuplicateElement: (id: string) => void;
@@ -37,9 +37,10 @@ interface CanvasProps {
   baseImageProperties: { x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } };
   onUpdateBaseImage: (props: Partial<{ x: number; y: number; scale: number; width?: number; height?: number; crop?: { x: number; y: number; width: number; height: number } }>) => void;
   isPublicMode?: boolean;
-  safeAreaShape?: 'rectangle' | 'circle';
   hideSafeAreaLine?: boolean;
   showGrid?: boolean;
+  baseImageScale?: number;
+  baseImageColorMode?: 'opaque' | 'transparent';
 }
 
 export function Canvas({
@@ -75,6 +76,8 @@ export function Canvas({
   onUpdateBaseImage,
   isPublicMode = false,
   hideSafeAreaLine = false,
+  baseImageScale = 80,
+  baseImageColorMode = 'transparent',
 }: CanvasProps) {
   const [isBaseImageLoaded, setIsBaseImageLoaded] = useState(false);
 
@@ -227,11 +230,12 @@ export function Canvas({
           {/* Paper Canvas */}
           <div
             id="canvas-paper"
-            className="relative bg-white shadow-md overflow-hidden"
+            className="relative bg-white shadow-md overflow-hidden transform-gpu"
             style={{
               width: currentWidth || 1000,
               height: currentHeight || 1000,
               backgroundColor: (productColors || {})[productVariant?.color || 'white'] || '#ffffff',
+              transform: 'translateZ(0)' // Force hardware acceleration for masks
             }}
             onPointerDown={() => onSelectElement(null)}
             onClick={() => onSelectElement(null)}
@@ -239,10 +243,12 @@ export function Canvas({
             {/* 2. DESIGN ELEMENTS LAYER */}
             {(() => {
               const zoomMult = (validZoom / 100);
-              const maskW = (baseImageProperties?.width || 0) * (baseImageProperties?.scale || 1) * zoomMult;
-              const maskH = (baseImageProperties?.height || 0) * (baseImageProperties?.scale || 1) * zoomMult;
-              const maskX = (currentWidth - maskW) / 2 + (baseImageProperties?.x || 0) * zoomMult;
-              const maskY = (currentHeight - maskH) / 2 + (baseImageProperties?.y || 0) * zoomMult;
+              const effectiveScale = baseImageProperties?.scale ?? (baseImageScale / 100);
+              // Use Math.round to avoid subpixel gaps in mask rendering
+              const maskW = Math.round((baseImageProperties?.width || 0) * effectiveScale * zoomMult);
+              const maskH = Math.round((baseImageProperties?.height || 0) * effectiveScale * zoomMult);
+              const maskX = Math.round((currentWidth - maskW) / 2 + (baseImageProperties?.x || 0) * zoomMult);
+              const maskY = Math.round((currentHeight - maskH) / 2 + (baseImageProperties?.y || 0) * zoomMult);
 
               const maskStyle: React.CSSProperties = (baseImageAsMask && baseImage && isBaseImageLoaded) ? {
                 WebkitMaskImage: baseImageMaskInvert
@@ -253,16 +259,16 @@ export function Canvas({
                   : `linear-gradient(black, black), url("${baseImage}")`,
                 WebkitMaskSize: baseImageMaskInvert
                   ? `${maskW}px ${maskH}px`
-                  : `100% 100%, ${maskW}px ${maskH}px`,
+                  : `101% 101%, ${maskW}px ${maskH}px`, // Slight 101% to overlap edges of container
                 maskSize: baseImageMaskInvert
                   ? `${maskW}px ${maskH}px`
-                  : `100% 100%, ${maskW}px ${maskH}px`,
+                  : `101% 101%, ${maskW}px ${maskH}px`,
                 WebkitMaskPosition: baseImageMaskInvert
                   ? `${maskX}px ${maskY}px`
-                  : `0 0, ${maskX}px ${maskY}px`,
+                  : `center, ${maskX}px ${maskY}px`,
                 maskPosition: baseImageMaskInvert
                   ? `${maskX}px ${maskY}px`
-                  : `0 0, ${maskX}px ${maskY}px`,
+                  : `center, ${maskX}px ${maskY}px`,
                 WebkitMaskRepeat: 'no-repeat',
                 maskRepeat: 'no-repeat',
                 WebkitMaskComposite: baseImageMaskInvert ? 'source-over' : 'destination-out',
@@ -304,8 +310,8 @@ export function Canvas({
                       <DraggableElement
                         key={element.id}
                         element={element}
-                        isSelected={selectedElement?.id === element.id}
-                        onSelect={() => onSelectElement(element)}
+                        isSelected={selectedElement === element.id}
+                        onSelect={() => onSelectElement(element.id)}
                         onUpdate={(updates: Partial<CanvasElement>, skipHistory?: boolean) => onUpdateElement(element.id, updates, skipHistory)}
                         onDelete={() => onDeleteElement(element.id)}
                         onDuplicate={() => onDuplicateElement(element.id)}
@@ -328,104 +334,109 @@ export function Canvas({
                 opacity: '1 !important' as any
               }}
             >
-              {!baseImage ? (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <p className="text-red-600 font-bold bg-white/80 p-2 rounded">DEBUG: NO BASE IMAGE</p>
-                </div>
-              ) : (
-                <motion.div
-                  drag
-                  dragMomentum={false}
-                  onDrag={(_e, info) => {
-                    const zoomMult = (validZoom / 100);
-                    onUpdateBaseImage({
-                      x: (baseImageProperties?.x || 0) + info.delta.x / zoomMult,
-                      y: (baseImageProperties?.y || 0) + info.delta.y / zoomMult,
-                    });
-                  }}
-                  className="absolute cursor-move pointer-events-auto"
+              <motion.div
+                drag
+                dragMomentum={false}
+                onDrag={(_e, info) => {
+                  const zoomMult = (validZoom / 100);
+                  onUpdateBaseImage({
+                    x: (baseImageProperties?.x || 0) + info.delta.x / zoomMult,
+                    y: (baseImageProperties?.y || 0) + info.delta.y / zoomMult,
+                  });
+                }}
+                className="absolute cursor-move pointer-events-auto"
+                style={{
+                  width: 'fit-content',
+                  height: 'fit-content',
+                  maxWidth: currentWidth,
+                  maxHeight: currentHeight,
+                  left: '50%',
+                  top: '50%',
+                  transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageProperties?.scale || 1})`,
+                  zIndex: 20,
+                  pointerEvents: 'auto',
+                  display: 'block !important' as any,
+                  visibility: 'visible !important' as any,
+                  opacity: '1 !important' as any
+                }}
+              >
+
+                {/* Base Image Container */}
+                <div
+                  className="relative"
                   style={{
-                    width: 'fit-content',
-                    height: 'fit-content',
-                    maxWidth: currentWidth,
-                    maxHeight: currentHeight,
-                    left: '50%',
-                    top: '50%',
-                    transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageProperties?.scale || 1})`,
-                    zIndex: 20,
-                    pointerEvents: 'auto',
-                    display: 'block !important' as any,
-                    visibility: 'visible !important' as any,
-                    opacity: '1 !important' as any
+                    width: (baseImageProperties?.width || 600) * (validZoom / 100),
+                    height: (baseImageProperties?.height || 600) * (validZoom / 100),
                   }}
                 >
-
                   <img
-                    key={baseImage}
+                    key={baseImage || 'system-default'}
                     src={(() => {
                       if (!baseImage || baseImage === 'none') {
-                        return '';
+                        return '/images/system-placeholder.png';
                       }
                       if (!baseImage.startsWith('http')) return baseImage;
-
                       let finalUrl = baseImage;
-
-                      // Only proxy S3/Linode URLs - Shopify CDN works directly
                       if (!finalUrl.includes('proxy-image?url=')) {
                         if (finalUrl.includes('linodeobjects.com') || finalUrl.includes('amazonaws.com')) {
                           finalUrl = `${(window as any).IMCST_BASE_URL || ''}/imcst_public_api/proxy-image?url=${encodeURIComponent(finalUrl)}`;
                         }
-                        // Shopify CDN and other URLs work directly - no modification needed
                       }
-
                       return finalUrl;
                     })()}
                     crossOrigin={baseImage?.startsWith('http') ? "anonymous" : undefined}
-                    onLoad={(e) => {
-                      const img = e.currentTarget;
-                      if (!baseImageProperties?.width || baseImageProperties.width === 0) {
+                    onLoad={(event) => {
+                      const img = event.currentTarget;
+                      if (img.naturalWidth > 0 && (img.naturalWidth !== baseImageProperties?.width || img.naturalHeight !== baseImageProperties?.height)) {
                         onUpdateBaseImage({ width: img.naturalWidth, height: img.naturalHeight });
                       }
                       setIsBaseImageLoaded(true);
                     }}
-                    onError={(e) => {
+                    onError={(_e) => {
                       console.error("[IMCST] Mockup image failed to load:", baseImage);
                     }}
                     style={{
-                      width: (baseImageProperties?.width || 600) * (validZoom / 100),
-                      height: (baseImageProperties?.height || 600) * (validZoom / 100),
-                      display: 'block !important' as any,
+                      width: '100%',
+                      height: '100%',
+                      display: 'block',
                       position: 'relative',
                       zIndex: 1,
-                      opacity: '1 !important' as any,
-                      visibility: 'visible !important' as any,
                       objectFit: 'contain'
                     }}
                     draggable={false}
                   />
 
-                  {/* Color Overlay: Re-enabled */}
+                  {/* Color Overlay */}
                   {baseImageColorEnabled && baseImageColor && (
                     <div
                       className="absolute inset-0 pointer-events-none"
                       style={{
+                        zIndex: 2,
                         backgroundColor: baseImageColor,
-                        WebkitMaskImage: `linear-gradient(black, black), url("${baseImage}")`,
-                        maskImage: `linear-gradient(black, black), url("${baseImage}")`,
-                        WebkitMaskSize: '100% 100%, 100% 100%',
-                        maskSize: '100% 100%, 100% 100%',
+                        WebkitMaskImage: baseImageColorMode === 'transparent'
+                          ? `linear-gradient(black, black), url("${baseImage}")`
+                          : `url("${baseImage}")`,
+                        maskImage: baseImageColorMode === 'transparent'
+                          ? `linear-gradient(black, black), url("${baseImage}")`
+                          : `url("${baseImage}")`,
+                        WebkitMaskSize: baseImageColorMode === 'transparent'
+                          ? `100% 100%, contain`
+                          : `contain`,
+                        maskSize: baseImageColorMode === 'transparent'
+                          ? `100% 100%, contain`
+                          : `contain`,
                         WebkitMaskRepeat: 'no-repeat',
                         maskRepeat: 'no-repeat',
                         WebkitMaskPosition: 'center',
                         maskPosition: 'center',
-                        WebkitMaskComposite: 'destination-out',
-                        maskComposite: 'subtract',
+                        WebkitMaskComposite: baseImageColorMode === 'transparent' ? 'destination-out' : 'source-over',
+                        maskComposite: baseImageColorMode === 'transparent' ? 'subtract' : 'add',
                         mixBlendMode: 'normal'
                       }}
                     />
                   )}
-                </motion.div>
-              )}
+                </div>
+              </motion.div>
             </div>
 
             {/* Safe Area Controls (only show in Admin / non-public) */}

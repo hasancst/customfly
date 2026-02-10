@@ -525,8 +525,8 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
             >
                 <Canvas
                     elements={activePage?.elements || []}
-                    selectedElement={selectedElement}
-                    onSelectElement={(el) => setSelectedElement(el?.id || null)}
+                    selectedElement={selectedElementId}
+                    onSelectElement={(id) => setSelectedElement(id)}
                     onUpdateElement={updateElement}
                     onDeleteElement={deleteElement}
                     onDuplicateElement={duplicateElement}
@@ -555,8 +555,10 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     })()}
                     baseImageColor={activePage?.baseImageColor || config?.baseImageColor}
                     baseImageColorEnabled={activePage?.baseImageColorEnabled || config?.baseImageColorEnabled}
+                    baseImageColorMode={activePage?.baseImageColorMode || config?.baseImageColorMode}
                     baseImageAsMask={activePage?.baseImageAsMask || config?.baseImageAsMask}
                     baseImageMaskInvert={activePage?.baseImageMaskInvert || config?.baseImageMaskInvert}
+                    baseImageScale={config?.baseImageScale}
                     baseImageProperties={{
                         x: 0,
                         y: 0,

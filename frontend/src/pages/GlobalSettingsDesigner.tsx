@@ -40,13 +40,13 @@ const parseAssetColors = (value: string) => {
 const DUMMY_PRODUCT = {
     id: 'global_dummy',
     title: 'Global Default Settings',
-    variants: [{ id: 'dummy_variant', title: 'Default Variant', price: '0.00', image: 'https://placehold.co/600x600?text=T-Shirt+Mockup' }],
+    variants: [{ id: 'dummy_variant', title: 'Default Variant', price: '0.00', image: '/images/system-placeholder.png' }],
     options: [{ name: 'Size', position: 1, values: ['S', 'M', 'L'] }],
-    images: ['https://placehold.co/600x600?text=T-Shirt+Mockup']
+    images: ['/images/system-placeholder.png']
 };
 
 // Dummy Base Image (Placeholder)
-const DUMMY_BASE_IMAGE = 'https://placehold.co/600x600?text=T-Shirt+Mockup';
+const DUMMY_BASE_IMAGE = '/images/system-placeholder.png';
 
 const DEFAULT_ELEMENTS: CanvasElement[] = [
     {
@@ -83,7 +83,6 @@ export default function GlobalSettingsDesigner() {
     const [pages, setPages] = useState<PageData[]>([{ id: 'default', name: 'Front', elements: DEFAULT_ELEMENTS, baseImage: DUMMY_BASE_IMAGE }]);
     const [activePageId, setActivePageId] = useState<string>('default');
     const [selectedElement, setSelectedElement] = useState<string | null>(null);
-    const [history, setHistory] = useState<PageData[][]>([[{ id: 'default', name: 'Front', elements: DEFAULT_ELEMENTS, baseImage: DUMMY_BASE_IMAGE }]]);
     const [historyIndex, setHistoryIndex] = useState(0);
     const [zoom, setZoom] = useState(50);
     const [showSummary, setShowSummary] = useState(true);
@@ -115,6 +114,10 @@ export default function GlobalSettingsDesigner() {
     const [outputSettings, setOutputSettings] = useState<any>(null);
     const [buttonText, setButtonText] = useState('Design It');
     const [headerTitle, setHeaderTitle] = useState('Product Customizer');
+    const [baseImageScale, setBaseImageScale] = useState(80);
+    const [baseImageColorMode, setBaseImageColorMode] = useState<'opaque' | 'transparent'>('transparent');
+    const [enabledDownload, setEnabledDownload] = useState(true);
+    const [enabledReset, setEnabledReset] = useState(true);
 
     const fetch = useAuthenticatedFetch();
     const shopifyApp = useAppBridge();
@@ -127,13 +130,7 @@ export default function GlobalSettingsDesigner() {
         }
     }, [shopifyApp]);
 
-    const addToHistory = useCallback((currentPages: PageData[]) => {
-        setHistory((prev: PageData[][]) => {
-            const newHistory = prev.slice(0, historyIndex + 1);
-            newHistory.push(JSON.parse(JSON.stringify(currentPages)));
-            if (newHistory.length > 50) newHistory.shift();
-            return newHistory;
-        });
+    const addToHistory = useCallback(() => {
         setHistoryIndex((prev: number) => prev + 1);
     }, [historyIndex]);
 
@@ -172,7 +169,6 @@ export default function GlobalSettingsDesigner() {
                         if (data && data.designJson) {
                             setPages(data.designJson);
                             setActivePageId(data.designJson[0].id);
-                            setHistory([data.designJson]);
                             setHistoryIndex(0);
                         }
                         if (data && data.config) {
@@ -191,6 +187,10 @@ export default function GlobalSettingsDesigner() {
                             if (config.selectedColorAssetId) setSelectedColorAssetId(config.selectedColorAssetId);
                             if (config.buttonText) setButtonText(config.buttonText);
                             if (config.headerTitle) setHeaderTitle(config.headerTitle);
+                            if (config.baseImageScale !== undefined) setBaseImageScale(config.baseImageScale);
+                            if (config.baseImageColorMode) setBaseImageColorMode(config.baseImageColorMode);
+                            if (config.enabledDownload !== undefined) setEnabledDownload(config.enabledDownload);
+                            if (config.enabledReset !== undefined) setEnabledReset(config.enabledReset);
                         }
                     } catch (parseErr) {
                         console.error("[GlobalSettings] JSON Parse Error:", parseErr);
@@ -230,7 +230,7 @@ export default function GlobalSettingsDesigner() {
                 }
                 return p;
             });
-            if (!skipHistory) addToHistory(updated);
+            if (!skipHistory) addToHistory();
             return updated;
         });
     }, [activePageId, addToHistory]);
@@ -241,7 +241,7 @@ export default function GlobalSettingsDesigner() {
                 if (p.id === activePageId) return { ...p, elements: p.elements.filter(el => el.id !== id) };
                 return p;
             });
-            addToHistory(updated);
+            addToHistory();
             return updated;
         });
         setSelectedElement(null);
@@ -260,7 +260,7 @@ export default function GlobalSettingsDesigner() {
                 }
                 return p;
             });
-            addToHistory(updated);
+            addToHistory();
             return updated;
         });
     }, [activePageId, addToHistory]);
@@ -275,7 +275,7 @@ export default function GlobalSettingsDesigner() {
                 }
                 return p;
             });
-            addToHistory(updated);
+            addToHistory();
             return updated;
         });
         setSelectedElement(element.id);
@@ -289,7 +289,8 @@ export default function GlobalSettingsDesigner() {
             const config = {
                 safeAreaPadding, safeAreaRadius, safeAreaWidth, safeAreaHeight, safeAreaOffset,
                 paperSize, customPaperDimensions, unit, showRulers, showSafeArea,
-                outputSettings: outputSettingsOverride || outputSettings, selectedColorAssetId, buttonText, headerTitle
+                outputSettings: outputSettingsOverride || outputSettings, selectedColorAssetId, buttonText, headerTitle,
+                baseImageScale, baseImageColorMode, enabledDownload, enabledReset
             };
 
             const res = await fetch('/imcst_api/global_design', {
@@ -318,7 +319,7 @@ export default function GlobalSettingsDesigner() {
     }, [
         pages, safeAreaPadding, safeAreaRadius, safeAreaWidth, safeAreaHeight, safeAreaOffset,
         paperSize, customPaperDimensions, unit, showRulers, showSafeArea,
-        outputSettings, selectedColorAssetId, buttonText, headerTitle
+        outputSettings, selectedColorAssetId, buttonText, headerTitle, baseImageScale, baseImageColorMode, enabledDownload, enabledReset
     ]);
 
     const applyToAllProducts = async () => {
@@ -344,11 +345,38 @@ export default function GlobalSettingsDesigner() {
     };
 
     const handleBaseImageSelect = (url: string) => {
+        const finalUrl = url || 'none';
+
+        if (finalUrl === 'none') {
+            setPages(prev => prev.map(p => p.id === activePageId ? {
+                ...p,
+                baseImage: 'none',
+                baseImageProperties: {
+                    x: 0,
+                    y: 0,
+                    scale: 1,
+                    width: 0,
+                    height: 0
+                }
+            } : p));
+            return;
+        }
+
         const img = new Image();
         img.onload = () => {
-            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImage: url, baseImageProperties: { x: 0, y: 0, scale: 1, width: img.naturalWidth, height: img.naturalHeight } } : p));
+            setPages(prev => prev.map(p => p.id === activePageId ? {
+                ...p,
+                baseImage: finalUrl,
+                baseImageProperties: {
+                    x: 0,
+                    y: 0,
+                    scale: (baseImageScale || 80) / 100,
+                    width: img.naturalWidth,
+                    height: img.naturalHeight
+                }
+            } : p));
         };
-        img.src = url;
+        img.src = finalUrl;
     };
 
     const addPage = () => {
@@ -461,7 +489,10 @@ export default function GlobalSettingsDesigner() {
                             }}
                             paperSize={paperSize}
                             customPaperDimensions={customPaperDimensions}
-                            baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask}
+                            baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask ?? false}
+                            baseImageMaskInvert={pages.find(p => p.id === activePageId)?.baseImageMaskInvert ?? false}
+                            baseImageColorMode={baseImageColorMode}
+                            baseImageScale={baseImageScale}
                         />
                     </div>
                 </div>
@@ -495,23 +526,38 @@ export default function GlobalSettingsDesigner() {
                         onCustomPaperDimensionsChange={setCustomPaperDimensions}
                         onReset={() => setPages([{ id: 'default', name: 'Front', elements: DEFAULT_ELEMENTS, baseImage: DUMMY_BASE_IMAGE }])}
                         userColors={userColors}
-                        selectedColorAssetId={selectedColorAssetId}
-                        onSelectedColorAssetIdChange={setSelectedColorAssetId}
-                        activePaletteColors={activePaletteColors}
-                        baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled}
+                        selectedBaseColorAssetId={selectedColorAssetId}
+                        onSelectedBaseColorAssetIdChange={setSelectedColorAssetId}
+                        selectedElementColorAssetId={null}
+                        onSelectedElementColorAssetIdChange={() => { }}
+                        activeBasePaletteColors={activePaletteColors}
+                        baseImageColorEnabled={pages.find(p => p.id === activePageId)?.baseImageColorEnabled ?? false}
                         onBaseImageColorEnabledChange={(v: boolean) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: v } : p))}
                         baseImageColor={pages.find(p => p.id === activePageId)?.baseImageColor}
                         onBaseImageColorChange={(c) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: c } : p))}
-                        baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask}
+                        baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask ?? false}
                         onToggleBaseImageAsMask={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageAsMask: v } : p))}
+                        baseImageMaskInvert={pages.find(p => p.id === activePageId)?.baseImageMaskInvert ?? false}
+                        onToggleBaseImageMaskInvert={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: v } : p))}
+                        baseImageScale={baseImageScale}
+                        onBaseImageScaleChange={setBaseImageScale}
+                        baseImageColorMode={baseImageColorMode}
+                        onBaseImageColorModeChange={setBaseImageColorMode}
                         outputSettings={outputSettings}
                         onProductOutputSettingsChange={setOutputSettings}
                         buttonText={buttonText}
                         onButtonTextChange={setButtonText}
                         headerTitle={headerTitle}
                         onHeaderTitleChange={setHeaderTitle}
+                        enabledDownload={enabledDownload}
+                        onToggleEnabledDownload={() => setEnabledDownload(prev => !prev)}
+                        enabledReset={enabledReset}
+                        onToggleEnabledReset={() => setEnabledReset(prev => !prev)}
                         isGlobalSettings={true}
                         onSave={(_, settings) => saveGlobalConfig(settings)}
+                        baseImage={pages.find(p => p.id === activePageId)?.baseImage}
+                        onRemoveBaseImage={() => handleBaseImageSelect('none')}
+                        onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
                     />
                 </div>
             </div>

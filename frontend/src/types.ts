@@ -247,5 +247,6 @@ export interface PageData {
   useVariantImage?: boolean;
   baseImageAsMask?: boolean;
   baseImageMaskInvert?: boolean;
+  baseImageColorMode?: 'opaque' | 'transparent';
   variantBaseImages?: Record<string, string | undefined>; // Mapping of Variant ID -> Mockup URL
 }

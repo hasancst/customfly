@@ -141,6 +141,8 @@ export function DesignerCore({
     const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
     const [outputSettings, setOutputSettings] = useState<any>(initialConfig.outputSettings || null);
     const [showGrid] = useState(initialConfig.showGrid ?? false);
+    const [baseImageScale, setBaseImageScale] = useState(initialConfig.baseImageScale ?? 80);
+    const [baseImageColorMode, setBaseImageColorMode] = useState<'opaque' | 'transparent'>(initialConfig.baseImageColorMode || 'transparent');
 
     // Toolbar Feature Flags
     const [enabledGrid, setEnabledGrid] = useState(initialConfig.enabledGrid ?? true);
@@ -417,30 +419,32 @@ export function DesignerCore({
             });
     }, [selectedBaseColorAssetId, userColors]);
 
-    // Robust Base Image Resolution Hook
+    // Optimized Base Image Resolution Hook
     const resolvedBaseImage = React.useMemo(() => {
-        if (activePage?.baseImage === 'none') return undefined;
-
-        const rawSelectedId = String(selectedVariantId);
-        // Ensure valid ID
-        if (!rawSelectedId || rawSelectedId === 'null' || rawSelectedId === 'undefined') {
-            return getProxiedUrl(activePage?.baseImage || '');
-        }
-
+        // Base resolution priority
+        const rawSelectedId = String(selectedVariantId || '');
         const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
 
-        // 1. Explicit UI Assignment (Designer choice for this variant)
-        // Check both raw ID and numeric key to be safe
+        // 1. Explicit Assignment for THIS variant (Highest Priority)
         const variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
         if (variantImage && variantImage !== 'none') return getProxiedUrl(variantImage);
 
-        // 2. Legacy config variant mockups
-        const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
-        const legacyUrl = typeof vConfig === 'string' ? vConfig : (vConfig?.url || vConfig?.default?.url);
-        if (legacyUrl) return getProxiedUrl(legacyUrl);
+        // If variant is explicitly set to 'none', we treat it as "no variant mockup" 
+        // and fall through to global page mockup.
 
-        // 3. Shopify Variant Image (AUTOMATIC)
-        // This ensures that if a variant has an image in Shopify, it is used by default
+        // 2. Explicit Global Selection for THIS page (Middle Priority)
+        if (activePage?.baseImage === 'none') {
+            // User explicitly removed the mockup for this page
+            // Skip Shopify fallbacks and use system default
+            return '/images/system-placeholder.png';
+        }
+
+        const isPlaceholder = activePage?.baseImage?.includes('placehold.co') || activePage?.baseImage?.includes('placeholder.co') || !activePage?.baseImage;
+        if (activePage?.baseImage && !isPlaceholder) {
+            return getProxiedUrl(activePage.baseImage);
+        }
+
+        // 3. Shopify Variant Image (Automated Fallback)
         const sVariant = productData?.variants?.find((v: any) => {
             const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
             return vid === vKey || String(v.id) === rawSelectedId;
@@ -448,18 +452,14 @@ export function DesignerCore({
         const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
         if (sVariantImage) return getProxiedUrl(sVariantImage);
 
-        // 4. Global Page Base Image (Designer default background)
-        if (activePage?.baseImage) return getProxiedUrl(activePage.baseImage);
-
-        // 5. Config Fallback
-        if (initialConfig?.baseImage) return getProxiedUrl(initialConfig.baseImage);
-
-        // 6. Shopify Product Image (Ultimate Fallback)
+        // 4. Shopify Product Image (Lower Priority)
         const sProductImage = productData?.images?.[0];
-        const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+        const productFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+        if (productFallback) return getProxiedUrl(productFallback);
 
-        return getProxiedUrl(finalFallback || '');
-    }, [activePage, selectedVariantId, initialConfig, productData]);
+        // 5. System Placeholder (ULTIMATE FALLBACK - Custom Fly Branded)
+        return '/images/system-placeholder.png';
+    }, [activePage, selectedVariantId, productData]);
 
     // Initialize selected variant
     useEffect(() => {
@@ -530,6 +530,8 @@ export function DesignerCore({
                     optionAssetId: selectedOptionAssetId,
                     galleryAssetId: selectedGalleryAssetId,
                     shapeAssetId: selectedShapeAssetId,
+                    baseImageScale,
+                    baseImageColorMode,
                 },
                 designJson: finalGlobal.map(p => ({
                     ...p,
@@ -812,7 +814,6 @@ export function DesignerCore({
                         onDeleteElement={deleteElement}
                         onDuplicateElement={duplicateElement}
                         zoom={zoom}
-                        onZoomChange={setZoom}
                         enableBounce={true}
                         showSafeArea={showSafeArea}
                         showRulers={showRulers}
@@ -837,8 +838,10 @@ export function DesignerCore({
                         }}
                         baseImageColor={activePage?.baseImageColor}
                         baseImageColorEnabled={activePage?.baseImageColorEnabled}
+                        baseImageColorMode={baseImageColorMode}
                         baseImageAsMask={activePage?.baseImageAsMask}
                         baseImageMaskInvert={activePage?.baseImageMaskInvert}
+                        baseImageScale={baseImageScale}
                         onUpdateBaseImage={(props) => {
                             setPages(prev => prev.map(p => p.id === activePageId ? {
                                 ...p,
@@ -918,11 +921,23 @@ export function DesignerCore({
                             isPublicMode={isPublicMode}
                             onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
                             onRemoveBaseImage={() => {
-                                const updated = pages.map(p => p.id === activePageId ? {
-                                    ...p,
-                                    baseImage: 'none',
-                                    baseImageProperties: { x: 0, y: 0, scale: 1 }
-                                } : p);
+                                const vId = String(selectedVariantId || '');
+                                const vKey = vId.match(/\d+/)?.[0] || vId;
+
+                                const updated = pages.map(p => {
+                                    if (p.id !== activePageId) return p;
+
+                                    const newVariantBaseImages = { ...(p.variantBaseImages || {}) };
+                                    if (vId) delete newVariantBaseImages[vId];
+                                    if (vKey) delete newVariantBaseImages[vKey];
+
+                                    return {
+                                        ...p,
+                                        baseImage: 'none',
+                                        baseImageProperties: { x: 0, y: 0, scale: 1 },
+                                        variantBaseImages: newVariantBaseImages
+                                    };
+                                });
                                 setPages(updated);
                                 addToHistory(updated);
                                 toast.success('Mockup removed');
@@ -945,6 +960,10 @@ export function DesignerCore({
                                 setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
                                 addToHistory(pages.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
                             }}
+                            baseImageScale={baseImageScale}
+                            onBaseImageScaleChange={setBaseImageScale}
+                            baseImageColorMode={baseImageColorMode}
+                            onBaseImageColorModeChange={setBaseImageColorMode}
                             baseImage={resolvedBaseImage}
                             selectedBaseColorAssetId={selectedBaseColorAssetId}
                             onSelectedBaseColorAssetIdChange={setSelectedBaseColorAssetId}
@@ -996,35 +1015,39 @@ export function DesignerCore({
                 onSelectImage={(url, _isVariantImage, targetVariantId) => {
                     const finalUrl = url || 'none';
                     if (targetVariantId === 'all') {
-                        const updated: PageData[] = pages.map(p => ({
-                            ...p,
-                            baseImage: finalUrl,
-                            baseImageProperties: { x: 0, y: 0, scale: 1 }
-                        }));
-                        setPages(updated);
-                        addToHistory(updated);
+                        setPages(prev => {
+                            const updated = prev.map(p => ({
+                                ...p,
+                                baseImage: finalUrl,
+                                baseImageProperties: { x: 0, y: 0, scale: 1 }
+                            }));
+                            addToHistory(updated);
+                            return updated;
+                        });
                     } else if (targetVariantId) {
-                        // Assignment for a specific variant (standardize key to numeric if possible)
                         const vKey = String(targetVariantId).match(/\d+/)?.[0] || String(targetVariantId);
-                        const updated: PageData[] = pages.map(p => p.id === activePageId ? {
-                            ...p,
-                            variantBaseImages: {
-                                ...(p.variantBaseImages || {}),
-                                [targetVariantId]: finalUrl === 'none' ? undefined : finalUrl,
-                                [vKey]: finalUrl === 'none' ? undefined : finalUrl
-                            }
-                        } : p);
-                        setPages(updated);
-                        addToHistory(updated);
+                        setPages(prev => {
+                            const updated = prev.map(p => p.id === activePageId ? {
+                                ...p,
+                                variantBaseImages: {
+                                    ...(p.variantBaseImages || {}),
+                                    [targetVariantId]: finalUrl === 'none' ? undefined : finalUrl,
+                                    [vKey]: finalUrl === 'none' ? undefined : finalUrl
+                                }
+                            } : p);
+                            addToHistory(updated);
+                            return updated;
+                        });
                     } else {
-                        // Default fallback (should not happen with new modal, but for safety)
-                        const updated: PageData[] = pages.map(p => p.id === activePageId ? {
-                            ...p,
-                            baseImage: finalUrl,
-                            baseImageProperties: { x: 0, y: 0, scale: 1 }
-                        } : p);
-                        setPages(updated);
-                        addToHistory(updated);
+                        setPages(prev => {
+                            const updated = prev.map(p => p.id === activePageId ? {
+                                ...p,
+                                baseImage: finalUrl,
+                                baseImageProperties: { x: 0, y: 0, scale: 1 }
+                            } : p);
+                            addToHistory(updated);
+                            return updated;
+                        });
                     }
                     setIsBaseImageModalOpen(false);
                 }}

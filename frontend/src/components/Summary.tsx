@@ -121,6 +121,11 @@ interface SummaryProps {
   enabledReset?: boolean;
   onToggleEnabledReset?: () => void;
   isGlobalSettings?: boolean;
+  baseImageScale?: number;
+  onBaseImageScaleChange?: (val: number) => void;
+  showSummary?: boolean;
+  baseImageColorMode?: 'opaque' | 'transparent';
+  onBaseImageColorModeChange?: (mode: 'opaque' | 'transparent') => void;
 }
 
 export const Summary: React.FC<SummaryProps> = ({
@@ -194,6 +199,10 @@ export const Summary: React.FC<SummaryProps> = ({
   headerTitle,
   onHeaderTitleChange,
   isGlobalSettings = false,
+  baseImageScale,
+  onBaseImageScaleChange,
+  baseImageColorMode = 'transparent',
+  onBaseImageColorModeChange,
 }) => {
   const [isOutputOpen, setIsOutputOpen] = React.useState(false);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = React.useState(false);
@@ -448,42 +457,50 @@ export const Summary: React.FC<SummaryProps> = ({
                   onOpenBaseImageModal?.();
                 }}>
                   <div className="w-full aspect-square rounded-xl border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center relative">
-                    {baseImage ? (
-                      <>
-                        <img src={baseImage} className="w-full h-full object-contain" alt="Mockup" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 rounded-lg text-[10px] font-bold pointer-events-auto z-10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenBaseImageModal?.();
-                            }}
-                          >
-                            Change
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="h-8 rounded-lg text-[10px] font-bold remove-btn bg-red-600 hover:bg-red-700 pointer-events-auto z-10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm('Remove mockup image?')) {
-                                onRemoveBaseImage?.();
-                              }
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center p-4 cursor-pointer">
-                        <ShoppingBag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                        <span className="text-[10px] text-gray-400">Set Base Image</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const systemPlaceholder = '/images/system-placeholder.png';
+                      const isDefault = !baseImage || baseImage === 'none' || baseImage === systemPlaceholder;
+                      const displayUrl = isDefault ? systemPlaceholder : baseImage;
+
+                      return (
+                        <>
+                          <img src={displayUrl} className={`w-full h-full ${isDefault ? 'object-cover pointer-events-none opacity-50' : 'object-contain'}`} alt="Mockup" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="h-8 rounded-lg text-[10px] font-bold pointer-events-auto z-10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenBaseImageModal?.();
+                              }}
+                            >
+                              {isDefault ? 'Set Mockup' : 'Change'}
+                            </Button>
+                            {!isDefault && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-8 rounded-lg text-[10px] font-bold remove-btn bg-red-600 hover:bg-red-700 pointer-events-auto z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm('Remove mockup image?')) {
+                                    onRemoveBaseImage?.();
+                                  }
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            )}
+                          </div>
+                          {isDefault && (
+                            <div className="absolute bottom-2 inset-x-0 flex justify-center">
+                              <span className="bg-indigo-600 text-[8px] text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">System Default</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -533,6 +550,19 @@ export const Summary: React.FC<SummaryProps> = ({
                           <p className="text-[10px] text-gray-400">Pilih palette warna dari list</p>
                         </div>
                       )}
+
+                      {/* Color Target Toggle (Hidden by default, transparent mode enabled) */}
+                      {/* <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] font-medium text-gray-700">Target Transparent Area</Label>
+                          <p className="text-[9px] text-gray-400">Apply color only to holes in image</p>
+                        </div>
+                        <Switch
+                          checked={baseImageColorMode === 'transparent'}
+                          onCheckedChange={(checked) => onBaseImageColorModeChange?.(checked ? 'transparent' : 'opaque')}
+                          className="scale-75"
+                        />
+                      </div> */}
                     </div>
                   )}
 
@@ -563,6 +593,22 @@ export const Summary: React.FC<SummaryProps> = ({
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Base Image Scale Slider */}
+                <div className="pt-2 border-t border-gray-50 space-y-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-[11px] font-medium text-gray-700">Mockup Scale</Label>
+                    <p className="text-[9px] text-gray-400">Scale of the mockup image ({baseImageScale || 100}%)</p>
+                  </div>
+                  <Slider
+                    value={[baseImageScale || 100]}
+                    min={10}
+                    max={100}
+                    step={1}
+                    onValueChange={(val) => onBaseImageScaleChange?.(val[0])}
+                    className="py-2"
+                  />
                 </div>
               </div>
             </div>
