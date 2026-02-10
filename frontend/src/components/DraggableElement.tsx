@@ -19,6 +19,7 @@ interface DraggableElementProps {
   zoom: number;
   enableBounce?: boolean;
   isPublicMode?: boolean;
+  renderMode?: 'standard' | 'view' | 'interactive';
 }
 
 import { ProcessedImage } from '@/components/ProcessedImage';
@@ -151,6 +152,7 @@ export const DraggableElement = memo(({
   onDuplicate,
   zoom,
   isPublicMode = false,
+  renderMode = 'standard',
 }: DraggableElementProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -1287,12 +1289,14 @@ export const DraggableElement = memo(({
         opacity: element.opacity / 100,
         zIndex: (element.zIndex || 0) + (isSelected ? 1000 : 0),
         willChange: 'transform, left, top, width, height',
-        pointerEvents: element.isCurved ? 'none' : 'auto'
+        pointerEvents: renderMode === 'view' ? 'none' : (element.isCurved ? 'none' : 'auto')
       }}
     >
-      {content}
+      <div style={{ opacity: renderMode === 'interactive' ? 0 : 1, width: '100%', height: '100%' }}>
+        {content}
+      </div>
 
-      {isSelected && (() => {
+      {isSelected && renderMode !== 'view' && (() => {
         const isStacked = element.type === 'monogram' && element.monogramType === 'Stacked';
         const selectionClass = isStacked ? '-inset-[30%]' : '-inset-[3px]';
         const handlesInsetClass = isStacked ? '-inset-[30%]' : 'inset-0';

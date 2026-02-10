@@ -293,20 +293,25 @@ export function Canvas({
                 return { WebkitClipPath: clipVal, clipPath: clipVal };
               })() : {};
 
+              const isMaskingActive = (baseImageAsMask && baseImage && isBaseImageLoaded);
+
+              const elementsToRender = (elements || [])
+                .filter(el => !!el && el.type !== 'file_upload' && (!isPublicMode || (el.isVisible !== false && !(el as any).isHiddenByLogic)))
+                .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+
               return (
-                <div
-                  className="absolute inset-0 transition-all"
-                  style={{
-                    zIndex: 25, // Above mockup (20) for interactivity
-                    ...maskStyle,
-                    ...clipStyle
-                  }}
-                >
-                  {/* Design Elements */}
-                  {(elements || [])
-                    .filter(el => !!el && el.type !== 'file_upload' && (!isPublicMode || (el.isVisible !== false && !(el as any).isHiddenByLogic)))
-                    .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
-                    .map((element) => (
+                <>
+                  {/* Layer 1: Visible Content (Masked & Clipped) */}
+                  <div
+                    className="absolute inset-0 transition-all"
+                    style={{
+                      zIndex: 25,
+                      ...maskStyle,
+                      ...clipStyle, // Apply safety area clip here
+                      pointerEvents: isMaskingActive ? 'none' : 'auto', // Disable interaction if masking is active (handled by Layer 2)
+                    }}
+                  >
+                    {elementsToRender.map((element) => (
                       <DraggableElement
                         key={element.id}
                         element={element}
@@ -318,9 +323,39 @@ export function Canvas({
                         zoom={validZoom}
                         enableBounce={enableBounce}
                         isPublicMode={isPublicMode}
+                        renderMode={isMaskingActive ? 'view' : 'standard'}
                       />
                     ))}
-                </div>
+                  </div>
+
+                  {/* Layer 2: Interactive Controls (Unmasked, No Clip) - Only if masking is active */}
+                  {isMaskingActive && (
+                    <div
+                      className="absolute inset-0 transition-all"
+                      style={{
+                        zIndex: 26, // Higher z-index to sit on top of mask
+                        pointerEvents: 'auto', // Capture interactions
+                        // No maskStyle, No clipStyle
+                      }}
+                    >
+                      {elementsToRender.map((element) => (
+                        <DraggableElement
+                          key={element.id}
+                          element={element}
+                          isSelected={selectedElement === element.id}
+                          onSelect={() => onSelectElement(element.id)}
+                          onUpdate={(updates: Partial<CanvasElement>, skipHistory?: boolean) => onUpdateElement(element.id, updates, skipHistory)}
+                          onDelete={() => onDeleteElement(element.id)}
+                          onDuplicate={() => onDuplicateElement(element.id)}
+                          zoom={validZoom}
+                          enableBounce={enableBounce}
+                          isPublicMode={isPublicMode}
+                          renderMode="interactive"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               );
             })()}
 
