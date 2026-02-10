@@ -35,10 +35,14 @@ export default function DesignerAdmin() {
         fetch('/imcst_api/assets'),
         fetch(`/imcst_api/design/product/${productId}`),
         fetch(`/imcst_api/config/${productId}`),
-        fetch(`/imcst_api/products/${productId}`)
+        fetch(`/imcst_api/products/${productId}?_t=${Date.now()}`) // Add cache-busting timestamp
       ]);
 
-      if (prodRes && prodRes.ok) setProductData(await prodRes.json());
+      if (prodRes && prodRes.ok) {
+        const newProductData = await prodRes.json();
+        setProductData(newProductData);
+        console.log('[Designer] Product data refreshed:', newProductData);
+      }
 
       if (assetsRes && assetsRes.ok) {
         const allAssets = await assetsRes.json();
@@ -59,6 +63,17 @@ export default function DesignerAdmin() {
       if (!isBackground) setLoading(false);
     }
   }, [productId, fetch]);
+
+  // Refresh product data when window regains focus (user might have updated Shopify)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[Designer] Window focused, refreshing product data...');
+      loadData(true); // Background refresh
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [loadData]);
 
   const deleteDesign = async (id: string, name: string) => {
     try {
@@ -146,6 +161,7 @@ export default function DesignerAdmin() {
         savedDesigns={savedDesigns}
         onDeleteDesign={deleteDesign}
         onClearAllDesigns={clearAllDesigns}
+        onRefreshProduct={() => loadData(true)} // Add refresh callback
         pricingConfigComponent={productId ? <PricingTab productId={productId} customFetch={fetch} /> : null}
         customFetch={fetch}
         onSave={async (data) => {

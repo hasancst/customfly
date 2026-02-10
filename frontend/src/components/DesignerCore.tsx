@@ -56,6 +56,7 @@ export interface DesignerCoreProps {
     customFetch?: any;
     onDeleteDesign?: (id: string, name: string) => void;
     onClearAllDesigns?: () => void;
+    onRefreshProduct?: () => void; // NEW: Callback to refresh product data
 }
 
 export function DesignerCore({

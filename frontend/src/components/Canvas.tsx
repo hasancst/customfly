@@ -367,15 +367,17 @@ export function Canvas({
                         return '';
                       }
                       if (!baseImage.startsWith('http')) return baseImage;
+
                       let finalUrl = baseImage;
+
+                      // Only proxy S3/Linode URLs - Shopify CDN works directly
                       if (!finalUrl.includes('proxy-image?url=')) {
                         if (finalUrl.includes('linodeobjects.com') || finalUrl.includes('amazonaws.com')) {
                           finalUrl = `${(window as any).IMCST_BASE_URL || ''}/imcst_public_api/proxy-image?url=${encodeURIComponent(finalUrl)}`;
-                        } else {
-                          const connector = finalUrl.includes('?') ? '&' : '?';
-                          finalUrl = `${finalUrl}${connector}imcst_cors=1`;
                         }
+                        // Shopify CDN and other URLs work directly - no modification needed
                       }
+
                       return finalUrl;
                     })()}
                     crossOrigin={baseImage?.startsWith('http') ? "anonymous" : undefined}
