@@ -49,7 +49,7 @@ export const shopify = shopifyApp({
         path: "/api/webhooks",
     },
     sessionStorage: loggingStorage,
-    isEmbeddedApp: false, // Open in new tab to avoid iframe auth issues
+    isEmbeddedApp: true, // Enable embedded mode for production-like development testing
     useOnlineTokens: false,
     hooks: {
         afterAuth: async ({ session }) => {
