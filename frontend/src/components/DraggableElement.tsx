@@ -570,7 +570,7 @@ export const DraggableElement = memo(({
     if (element.fillType !== 'gradient' || !element.gradient) return {};
     const { from, to } = element.gradient;
     return {
-      backgroundImage: `linear - gradient(135deg, ${from}, ${to})`,
+      backgroundImage: `linear-gradient(135deg, ${from}, ${to})`,
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
       backgroundClip: 'text',
@@ -594,10 +594,10 @@ export const DraggableElement = memo(({
     const adj = element.imageFilters;
     if (adj) {
       const parts = [];
-      if (adj.brightness !== undefined && adj.brightness !== 100) parts.push(`brightness(${adj.brightness} %)`);
-      if (adj.contrast !== undefined && adj.contrast !== 100) parts.push(`contrast(${adj.contrast} %)`);
-      if (adj.saturate !== undefined && adj.saturate !== 100) parts.push(`saturate(${adj.saturate} %)`);
-      if (adj.hueRotate !== undefined && adj.hueRotate !== 0) parts.push(`hue - rotate(${adj.hueRotate}deg)`);
+      if (adj.brightness !== undefined && adj.brightness !== 100) parts.push(`brightness(${adj.brightness}%)`);
+      if (adj.contrast !== undefined && adj.contrast !== 100) parts.push(`contrast(${adj.contrast}%)`);
+      if (adj.saturate !== undefined && adj.saturate !== 100) parts.push(`saturate(${adj.saturate}%)`);
+      if (adj.hueRotate !== undefined && adj.hueRotate !== 0) parts.push(`hue-rotate(${adj.hueRotate}deg)`);
       if (adj.sepia !== undefined && adj.sepia !== 0) parts.push(`sepia(${adj.sepia} %)`);
       if (adj.grayscale !== undefined && adj.grayscale !== 0) parts.push(`grayscale(${adj.grayscale} %)`);
 
@@ -913,7 +913,7 @@ export const DraggableElement = memo(({
               return (
                 <div
                   key={i}
-                  className={`w - 8 h - 8 rounded - full border border - gray - 200 overflow - hidden flex items - center justify - center`}
+                  className={`w-8 h-8 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center`}
                   style={{ backgroundColor: isImage ? '#f3f4f6' : value }}
                 >
                   {isImage ? (
@@ -1286,7 +1286,7 @@ export const DraggableElement = memo(({
         width: localState.width * (zoom / 100),
         height: localState.height * (zoom / 100),
         transform: `rotate(${localState.rotation}deg)`,
-        opacity: element.opacity / 100,
+        opacity: (element.opacity ?? 100) / 100,
         zIndex: (element.zIndex || 0) + (isSelected ? 1000 : 0),
         willChange: 'transform, left, top, width, height',
         pointerEvents: renderMode === 'view' ? 'none' : (element.isCurved ? 'none' : 'auto')
@@ -1304,7 +1304,7 @@ export const DraggableElement = memo(({
         return (
           <>
             <div
-              className={`absolute border - [2.5px] border - indigo - 600 pointer - events - none z - [999] ${selectionClass} ${element.isCurved ? 'rounded-xl opacity-40' : 'rounded-sm'} `}
+              className={`absolute border-[2.5px] border-indigo-600 pointer-events-none z-[999] ${selectionClass} ${element.isCurved ? 'rounded-xl opacity-40' : 'rounded-sm'} `}
               style={{ display: 'block' }}
             />
 

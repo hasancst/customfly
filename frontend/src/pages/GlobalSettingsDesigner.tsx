@@ -345,12 +345,13 @@ export default function GlobalSettingsDesigner() {
     };
 
     const handleBaseImageSelect = (url: string) => {
-        const finalUrl = url || 'none';
+        console.log('[ADMIN DEBUG] Base Image Selected:', url);
 
-        if (finalUrl === 'none') {
+        // If no URL provided, clear the base image
+        if (!url || url === 'none') {
             setPages(prev => prev.map(p => p.id === activePageId ? {
                 ...p,
-                baseImage: 'none',
+                baseImage: '', // Use empty string instead of 'none'
                 baseImageProperties: {
                     x: 0,
                     y: 0,
@@ -362,11 +363,13 @@ export default function GlobalSettingsDesigner() {
             return;
         }
 
+        // Load image to get dimensions
         const img = new Image();
         img.onload = () => {
+            console.log('[ADMIN DEBUG] Image Loaded:', { url, width: img.naturalWidth, height: img.naturalHeight });
             setPages(prev => prev.map(p => p.id === activePageId ? {
                 ...p,
-                baseImage: finalUrl,
+                baseImage: url, // Save the actual URL
                 baseImageProperties: {
                     x: 0,
                     y: 0,
@@ -376,7 +379,11 @@ export default function GlobalSettingsDesigner() {
                 }
             } : p));
         };
-        img.src = finalUrl;
+        img.onerror = () => {
+            console.error('[ADMIN DEBUG] Failed to load image:', url);
+            toast.error('Failed to load image');
+        };
+        img.src = url;
     };
 
     const addPage = () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { Canvas } from '../components/Canvas';
@@ -33,10 +33,13 @@ const getCanvasDimensions = (config: any) => {
 
     // 1. Custom Dimensions (Highest priority)
     if (config?.paperSize === 'Custom' && config?.customPaperDimensions) {
-        return {
-            width: (config.customPaperDimensions.width || 0) * currentPxPerUnit,
-            height: (config.customPaperDimensions.height || 0) * currentPxPerUnit
-        };
+        const w = (config.customPaperDimensions.width || 0) * currentPxPerUnit;
+        const h = (config.customPaperDimensions.height || 0) * currentPxPerUnit;
+
+        // Safety fallback if dimensions are 0 or NaN
+        if (w > 0 && h > 0) {
+            return { width: w, height: h };
+        }
     }
 
     // 2. Standard Paper Sizes (Map to MM first, then to pixels)
@@ -46,9 +49,12 @@ const getCanvasDimensions = (config: any) => {
     // We treat PAPER_DIMENSIONS as MM. Convert MM -> Pixels.
     const mmToPx = 3.7795275591;
 
+    const w = (dimensions.width || 264.5833) * mmToPx;
+    const h = (dimensions.height || 264.5833) * mmToPx;
+
     return {
-        width: dimensions.width * mmToPx,
-        height: dimensions.height * mmToPx
+        width: w || 1000,
+        height: h || 1000
     };
 };
 
@@ -93,6 +99,16 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     const containerRef = useRef<HTMLDivElement>(null);
 
     const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+    const { width: canvasWidth, height: canvasHeight } = useMemo(() => {
+        const dims = getCanvasDimensions(config);
+        console.log('[IMCST DEBUG] Canvas Dimensions:', {
+            paperSize: config?.paperSize,
+            unit: config?.unit,
+            customDims: config?.customPaperDimensions,
+            calculated: dims
+        });
+        return dims;
+    }, [config]);
 
     // 1. Theme Integration Logic (Runs only when configured)
     useEffect(() => {
@@ -160,15 +176,21 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
             const target = containerRef.current;
             if (!target) return;
 
-            const containerWidth = target.clientWidth || 500;
-            // For themes, we often want to fill the width. 
-            // If height is 0 or too small, use a default 1:1 aspect ratio for scaling.
-            let containerHeight = target.clientHeight;
+            const containerWidth = Math.min(800, target.clientWidth || 500);
+            let containerHeight = Math.min(800, target.clientHeight);
             if (containerHeight < 100) containerHeight = containerWidth;
 
-            // Assuming 1000px internal coordinate system for Canvas
-            const scale = Math.min(containerWidth / canvasWidth, containerHeight / canvasHeight);
-            setZoom(Math.max(10, scale * 100));
+            // Ensure dimensions are valid to avoid Infinity/NaN scale
+            if (canvasWidth > 0 && canvasHeight > 0) {
+                // Limit zoom to fit container, but never more than 100% for public storefront
+                const scale = Math.min(containerWidth / canvasWidth, containerHeight / canvasHeight);
+                const finalZoom = Math.max(1, Math.min(100, scale * 100));
+                console.log("[IMCST] Zoom Applied:", { containerWidth, canvasWidth, scale, finalZoom });
+                setZoom(finalZoom);
+            } else {
+                console.warn("[IMCST] Invalid canvas dimensions for zoom:", { canvasWidth, canvasHeight });
+                setZoom(100);
+            }
         };
 
         const resizeObserver = new ResizeObserver(updateZoom);
@@ -176,7 +198,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
 
         updateZoom();
         return () => resizeObserver.disconnect();
-    }, [loading, optionsRoot, isConfigured]);
+    }, [loading, optionsRoot, isConfigured, canvasWidth, canvasHeight]);
 
     // 3. Variant Sync
     useEffect(() => {
@@ -214,13 +236,23 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         const sideKey = (activePage?.id === 'default' || pages.length === 1) ? 'default' : activePage?.id;
         const mockData = variantDesign[sideKey] || variantDesign['default'];
 
-        if (mockData && mockData.url && mockData.url !== activePage?.baseImage) {
+        if (mockData && mockData.url && (mockData.url !== activePage?.baseImage || !activePage?.baseImage)) {
             setPages(prev => prev.map(p => {
                 if (p.id === (activePage?.id || 'default')) {
+                    const currentProps = p.baseImageProperties || { x: 0, y: 0, scale: 1 };
+                    const newProps = mockData.properties || currentProps;
+
                     return {
                         ...p,
                         baseImage: mockData.url,
-                        baseImageProperties: mockData.properties || p.baseImageProperties
+                        baseImageProperties: {
+                            ...currentProps,
+                            ...newProps,
+                            // Ensure basic properties exist
+                            x: newProps.x ?? currentProps.x ?? 0,
+                            y: newProps.y ?? currentProps.y ?? 0,
+                            scale: newProps.scale ?? currentProps.scale ?? 1
+                        }
                     };
                 }
                 return p;
@@ -235,6 +267,13 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
             // Fetch initial product data and config
             const prodRes = await fetch(`${baseUrl}/imcst_public_api/product/${shop}/${productId}?t=${Date.now()}`);
             const prodData = await prodRes.json();
+            console.log('[IMCST DEBUG] Product Data Loaded:', {
+                hasConfig: !!prodData.config,
+                hasProduct: !!prodData.product,
+                paperSize: prodData.config?.paperSize,
+                baseImage: prodData.config?.baseImage,
+                variantBaseImages: Object.keys(prodData.config?.variantBaseImages || {})
+            });
 
             if (!prodData.config || Object.keys(prodData.config).length === 0) {
                 console.log("[IMCST] Product not configured. Disabling designer.");
@@ -260,18 +299,30 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 setPages(fixedDesign);
                 setActivePageId(fixedDesign[0].id);
             } else {
-                // Initialize with config defaults
+                // No saved design, create initial page from config
+                const configBaseImage = prodData.config.baseImage;
+                // Don't set baseImage if it's 'none' or empty - let Canvas handle placeholder
+                const initialBaseImage = (configBaseImage && configBaseImage !== 'none') ? configBaseImage : '';
+
                 const initialSide = {
                     id: 'default',
                     name: 'Side 1',
                     elements: [],
-                    baseImage: prodData.config.baseImage,
+                    baseImage: initialBaseImage,
                     baseImageColor: prodData.config.baseImageColor,
                     baseImageColorEnabled: prodData.config.baseImageColorEnabled,
+                    baseImageColorMode: prodData.config.baseImageColorMode || 'transparent',
                     baseImageAsMask: prodData.config.baseImageAsMask,
+                    baseImageMaskInvert: prodData.config.baseImageMaskInvert,
                     baseImageProperties: prodData.config.baseImageProperties || { x: 0, y: 0, scale: 1 }
                 };
                 setPages([initialSide]);
+                console.log('[IMCST DEBUG] Initial Page Setup:', {
+                    pageId: initialSide.id,
+                    elementsCount: initialSide.elements.length,
+                    baseImage: initialSide.baseImage,
+                    baseImageProps: initialSide.baseImageProperties
+                });
                 setActivePageId('default');
             }
 
@@ -365,7 +416,6 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         return null;
     }
 
-    const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions(config);
 
     const handleOptionChange = (index: number, value: string) => {
         if (!shopifyProduct) return;
@@ -537,19 +587,22 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     const CanvasContent = (
         <div
             ref={containerRef}
-            className="flex-1 relative overflow-hidden flex items-center justify-center cursor-default bg-slate-100 w-full h-full min-h-[500px] md:min-h-[600px] z-10"
+            className="flex-1 relative overflow-hidden flex items-center justify-center cursor-default bg-transparent w-full aspect-square max-w-[800px] max-h-[800px] mx-auto z-10"
             onClick={() => setSelectedElement(null)}
         >
             <div
-                className="transform-gpu transition-transform duration-200 ease-out relative"
+                className="transform-gpu transition-transform duration-300 ease-out relative border border-slate-200 shadow-sm"
                 style={{
                     transform: `scale(${zoom / 100})`,
+                    transformOrigin: 'center center',
                     width: `${canvasWidth}px`,
                     height: `${canvasHeight}px`,
                     flexShrink: 0
                 }}
             >
                 <Canvas
+                    width={canvasWidth}
+                    height={canvasHeight}
                     elements={activePage?.elements || []}
                     selectedElement={selectedElementId}
                     onSelectElement={(id) => setSelectedElement(id)}
@@ -562,23 +615,35 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     unit={config?.unit || 'cm'}
                     paperSize={config?.paperSize || 'Default'}
                     customPaperDimensions={config?.customPaperDimensions}
-                    showSafeArea={config?.showSafeArea ?? true}
+                    showSafeArea={config?.showSafeArea ?? false} // Default false on storefront
                     safeAreaPadding={config?.safeAreaPadding}
                     safeAreaRadius={config?.safeAreaRadius}
                     safeAreaWidth={config?.safeAreaWidth}
                     safeAreaHeight={config?.safeAreaHeight}
                     safeAreaOffset={config?.safeAreaOffset || { x: 0, y: 0 }}
-                    showRulers={config?.showRulers ?? false}
-                    showGrid={config?.enabledGrid ?? false}
+                    showRulers={false} // Never show rulers on storefront
+                    showGrid={false} // Never show grid on storefront
                     baseImage={(() => {
                         const activeImg = activePage?.baseImage;
                         const configImg = config?.baseImage;
 
-                        // Ignore placeholder.co from activePage and use config instead
-                        const isPlaceholder = activeImg?.includes('placehold.co') || activeImg?.includes('placeholder.co');
-                        const raw = (activeImg && !isPlaceholder) ? activeImg : (configImg || '');
+                        console.log('[IMCST DEBUG] Base Image Resolution:', { activeImg, configImg });
 
-                        return getProxiedUrl(raw);
+                        // Priority: activePage -> config
+                        // But skip if value is 'none' or placeholder
+                        const isActivePlaceholder = activeImg?.includes('placehold.co') || activeImg?.includes('placeholder.co');
+                        const isActiveNone = !activeImg || activeImg === 'none';
+                        const isConfigNone = !configImg || configImg === 'none';
+
+                        let raw = '';
+                        if (!isActiveNone && !isActivePlaceholder) {
+                            raw = activeImg;
+                        } else if (!isConfigNone) {
+                            raw = configImg;
+                        }
+
+                        console.log('[IMCST DEBUG] Final Base Image:', { raw, proxied: raw ? getProxiedUrl(raw) : '' });
+                        return raw ? getProxiedUrl(raw) : '';
                     })()}
                     baseImageColor={activePage?.baseImageColor || config?.baseImageColor}
                     baseImageColorEnabled={activePage?.baseImageColorEnabled || config?.baseImageColorEnabled}
@@ -597,6 +662,8 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         x: 0,
                         y: 0,
                         scale: 1,
+                        width: 1000,
+                        height: 1000,
                         ...(config?.baseImageProperties || {}),
                         ...(activePage?.baseImageProperties || {})
                     }}
@@ -641,7 +708,6 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 __html: `
                 .imcst-direct-designer .flex-1 > .transform-gpu > div {
                     padding: 0 !important;
-                    background: transparent !important;
                     overflow: visible !important;
                 }
                 .imcst-direct-designer .custom-scrollbar::-webkit-scrollbar {
