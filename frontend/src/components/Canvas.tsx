@@ -243,7 +243,7 @@ export function Canvas({
             {/* 2. DESIGN ELEMENTS LAYER */}
             {(() => {
               const zoomMult = (validZoom / 100);
-              const effectiveScale = baseImageProperties?.scale ?? (baseImageScale / 100);
+              const effectiveScale = baseImageScale ? (baseImageScale / 100) : (baseImageProperties?.scale || 1);
               // Use Math.round to avoid subpixel gaps in mask rendering
               const maskW = Math.round((baseImageProperties?.width || 0) * effectiveScale * zoomMult);
               const maskH = Math.round((baseImageProperties?.height || 0) * effectiveScale * zoomMult);
@@ -387,7 +387,7 @@ export function Canvas({
                   maxHeight: currentHeight,
                   left: '50%',
                   top: '50%',
-                  transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageProperties?.scale || 1})`,
+                  transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageScale ? (baseImageScale / 100) : (baseImageProperties?.scale || 1)})`,
                   zIndex: 20,
                   pointerEvents: 'auto',
                   display: 'block !important' as any,
