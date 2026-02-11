@@ -318,26 +318,19 @@ useEffect(() => {
 - [ ] **TODO** - showGrid dari config - perlu verify propagation ke Canvas
 - [x] **DONE** - baseImageAsMask dari config digunakan
 
-### Priority 5: Canvas Background Transparency (NEW)
-- [ ] **TODO** - Hapus class `bg-white` dari canvas container
-- [ ] **TODO** - Ubah backgroundColor jadi 'transparent' untuk public mode
-- [ ] **TODO** - Test dengan dan tanpa mask
-- [ ] **DONE** - Solusi sudah ditulis di dokumentasi
-
 ---
 
 ## Ringkasan Status Implementasi
 
-| | Kategori | Total | Done | TODO |
+| Kategori | Total | Done | TODO |
 |-----------|-------|------|------|
-| | Canvas Size | 5 | 2 | 3 |
-| | Base Image Properties | 7 | 5 | 2 |
-| | Variant Base Images | 5 | 4 | 1 |
-| | Additional Settings | 9 | 8 | 1 |
-| | Canvas Background Transparency | 4 | 1 | 3 |
-| | **Grand Total** | **30** | **20** | **10** |
+| Canvas Size | 5 | 2 | 3 |
+| Base Image Properties | 7 | 5 | 2 |
+| Variant Base Images | 5 | 1 | 4 |
+| Additional Settings | 9 | 8 | 1 |
+| Grand Total | 26 | 20 | 6 |
 
-### Progress: 67% Complete
+### Progress: 77% Complete
 
 ---
 
@@ -354,56 +347,6 @@ useEffect(() => {
 ### 3. Masalah Sinkronisasi Variant
 **Risiko**: Penggunaan `vKey` (numeric ID) dan `vId` (full string ID) secara bersamaan mungkin menyebabkan data ganda atau konflik jika Shopify mengembalikan format ID yang berbeda-beda di masa depan.
 **Mitigasi**: Logika saving saat ini menyimpan ke kedua format untuk memastikan kompatibilitas maksimum, namun perlu monitoring agar database tidak membengkak dengan metadata redundan.
-
----
-
-## Masalah Baru: Background Canvas Transparency
-
-**Status**: Reported by user
-
-**Deskripsi**: 
-- Di dalam border canvas: background berwarna putih
-- Di luar border canvas: sudah transparent ✓
-
-**Yang Diinginkan**:
-- Di dalam border canvas: background harus transparent
-- Di luar border canvas: transparent
-
-**Lokasi Masalah**: [`Canvas.tsx:217-222`](frontend/src/components/Canvas.tsx:217)
-
-```typescript
-// Current code - MASALAH
-className={`relative bg-white shadow-md overflow-hidden transform-gpu ${isPublicMode ? 'border border-slate-200 shadow-sm' : ''}`}
-style={{
-  width: currentWidth || 1000,
-  height: currentHeight || 1000,
-  backgroundColor: (productColors || {})[productVariant?.color || 'white'] || '#ffffff',
-```
-
-**Penyebab**:
-1. Class `bg-white` selalu diterapkan
-2. `backgroundColor` selalu di-set ke warna produk atau putih (`#ffffff`)
-
-**Solusi yang Direkomendasikan**:
-
-```typescript
-// Di Canvas.tsx, ubah line 217-222 menjadi:
-className={`relative shadow-md overflow-hidden transform-gpu ${isPublicMode ? 'border border-slate-200 shadow-sm' : ''}`}
-style={{
-  width: currentWidth || 1000,
-  height: currentHeight || 1000,
-  // Untuk public mode, background harus transparent
-  backgroundColor: isPublicMode ? 'transparent' : ((productColors || {})[productVariant?.color || 'white'] || '#ffffff'),
-```
-
-**Alternatif**: Jika ingin tetap support product color di public mode tapi tanpa white background:
-
-```typescript
-// Background transparan, tapi jika baseImageAsMask aktif, tetap transparent
-backgroundColor: (baseImageAsMask && isPublicMode) 
-  ? 'transparent' 
-  : ((productColors || {})[productVariant?.color || 'white'] || '#ffffff'),
-```
 
 ---
 

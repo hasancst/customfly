@@ -718,7 +718,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     );
 
     return (
-        <div className={`imcst-direct-designer w-full bg-transparent text-slate-900 font-sans ${optionsRoot ? 'imcst-is-split' : 'flex flex-col md:flex-row min-h-[600px]'}`}>
+        <div className={`imcst-direct-designer w-full bg-white text-slate-900 font-sans ${optionsRoot ? 'imcst-is-split' : 'flex flex-col md:flex-row min-h-[600px]'}`}>
             <Toaster position="top-center" />
 
             {/* CANVAS: Always rendered here (main-public.tsx mounts us in the media area) */}
