@@ -12,46 +12,6 @@ import { PublicCustomizationPanel } from '../components/PublicCustomizationPanel
 import { Button } from "@/components/ui/button";
 import { getProxiedUrl } from '@/utils/urlUtils';
 
-const PAPER_DIMENSIONS: Record<string, { width: number; height: number }> = {
-    'Default': { width: 264.5833, height: 264.5833 }, // Square fallback in mm (~1000px at 3.77)
-    'A3': { width: 297, height: 420 },
-    'A4': { width: 210, height: 297 },
-    'A5': { width: 148, height: 210 },
-    'Letter': { width: 215.9, height: 279.4 },
-    'Legal': { width: 215.9, height: 355.6 },
-    'Tabloid': { width: 279.4, height: 431.8 },
-};
-
-const getCanvasDimensions = (config: any) => {
-    const unit: 'mm' | 'cm' | 'inch' = config?.unit || 'cm';
-    const pxPerUnit: Record<string, number> = {
-        'mm': 3.7795275591,
-        'cm': 37.795275591,
-        'inch': 96
-    };
-    const currentPxPerUnit = pxPerUnit[unit] || 37.795275591;
-
-    // 1. Custom Dimensions (Highest priority)
-    if (config?.paperSize === 'Custom' && config?.customPaperDimensions) {
-        return {
-            width: (config.customPaperDimensions.width || 0) * currentPxPerUnit,
-            height: (config.customPaperDimensions.height || 0) * currentPxPerUnit
-        };
-    }
-
-    // 2. Standard Paper Sizes (Map to MM first, then to pixels)
-    const paperSizeKey = config?.paperSize || 'Default';
-    const dimensions = PAPER_DIMENSIONS[paperSizeKey] || PAPER_DIMENSIONS['Default'];
-
-    // We treat PAPER_DIMENSIONS as MM. Convert MM -> Pixels.
-    const mmToPx = 3.7795275591;
-
-    return {
-        width: dimensions.width * mmToPx,
-        height: dimensions.height * mmToPx
-    };
-};
-
 interface DirectProductDesignerProps {
     productId: string;
     shop: string;
@@ -200,33 +160,75 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         }
     }, [selectedElement, isConfigured]);
 
-    // 5. Variant Media Sync
+    // State to track designs per variant (matching DesignerCore.tsx)
+    const [globalDesigns, setGlobalDesigns] = useState<any[]>([]);
+    const [variantDesigns, setVariantDesigns] = useState<Record<string, any[]>>({});
+    const prevVariantRef = useRef<string | null>(null);
+    const pagesRef = useRef(pages);
+
+    // Keep pagesRef in sync
+    useEffect(() => { pagesRef.current = pages; }, [pages]);
+
+    // 5. Variant Design & Media Sync (Unified)
     useEffect(() => {
-        if (!selectedVariantId || !config || !isConfigured || pages.length === 0) return;
+        if (!selectedVariantId || !config || !isConfigured) return;
 
-        const variantMap = config.variantBaseImages;
-        if (!variantMap || typeof variantMap !== 'object') return;
+        const rawId = String(selectedVariantId);
+        const vKey = rawId.match(/\d+/)?.[0] || rawId;
 
-        const variantDesign = variantMap[selectedVariantId];
-        if (!variantDesign) return;
+        // A. Check for Unique Design (variantDesigns) - Priority 1
+        const uniquePages = config.variantDesigns?.[rawId] || config.variantDesigns?.[vKey];
 
-        // Current side key - default to 'default'
-        const sideKey = (activePage?.id === 'default' || pages.length === 1) ? 'default' : activePage?.id;
-        const mockData = variantDesign[sideKey] || variantDesign['default'];
+        if (uniquePages && Array.isArray(uniquePages) && uniquePages.length > 0) {
+            // Found a unique design! Load it.
+            setPages(uniquePages);
 
-        if (mockData && mockData.url && mockData.url !== activePage?.baseImage) {
-            setPages(prev => prev.map(p => {
-                if (p.id === (activePage?.id || 'default')) {
-                    return {
-                        ...p,
-                        baseImage: mockData.url,
-                        baseImageProperties: mockData.properties || p.baseImageProperties
-                    };
-                }
-                return p;
-            }));
+            if (activePage?.id && !uniquePages.find((p: any) => p.id === activePage.id)) {
+                setActivePageId(uniquePages[0].id);
+            }
+            return;
         }
-    }, [selectedVariantId, config, isConfigured, activePage?.id]);
+
+        // B. If no unique design, restore Global Design
+        if (globalPages.length > 0) {
+            // Restore global pages first (clone it to avoid mutating state directly in map)
+            let nextPages = JSON.parse(JSON.stringify(globalPages));
+
+            // C. Legacy Variant Base Image Swap (variantBaseImages) - Priority 2
+            const variantMap = config.variantBaseImages;
+            if (variantMap && typeof variantMap === 'object') {
+                const variantDesign = variantMap[rawId] || variantMap[vKey];
+
+                // Legacy logic usually applies to "default" or "Side 1"
+                // mapping variant -> side -> image
+                const sideKey = 'default';
+                const mockData = variantDesign?.[sideKey] || variantDesign?.['default'];
+
+                if (mockData && mockData.url) {
+                    nextPages = nextPages.map((p: any) => {
+                        // Apply to first page or specific ID if needed. 
+                        // Usually 'default' ID or if single page.
+                        if (p.id === 'default' || nextPages.length === 1 || p.id === activePage?.id) {
+                            return {
+                                ...p,
+                                baseImage: mockData.url,
+                                baseImageProperties: mockData.properties || p.baseImageProperties
+                            };
+                        }
+                        return p;
+                    });
+                }
+            }
+
+            // Apply the update
+            setPages(nextPages);
+
+            // Validate active page ID
+            if (activePage?.id && !nextPages.find((p: any) => p.id === activePage.id)) {
+                setActivePageId(nextPages[0].id);
+            }
+        }
+    }, [selectedVariantId, config, isConfigured, globalPages]);
 
     async function init() {
         try {
@@ -258,7 +260,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     return p;
                 });
                 setPages(fixedDesign);
-                setActivePageId(fixedDesign[0].id);
+                setGlobalDesigns(fixedDesign);
             } else {
                 // Initialize with config defaults
                 const initialSide = {
@@ -272,7 +274,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     baseImageProperties: prodData.config.baseImageProperties || { x: 0, y: 0, scale: 1 }
                 };
                 setPages([initialSide]);
-                setActivePageId('default');
+                setGlobalDesigns([initialSide]); // CAPTURE GLOBAL DESIGN
             }
 
             const allAssets = await fetch(`${baseUrl}/imcst_api/public/assets?shop=${shop}`).then(r => r.json()).catch(() => []);
@@ -365,7 +367,46 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         return null;
     }
 
-    const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions(config);
+    // Layout ConstantsMatching Canvas.tsx logic
+    const getPixelsPerUnit = () => {
+        const unit = config?.unit || 'cm';
+        switch (unit) {
+            case 'mm': return 3.7795275591;
+            case 'cm': return 37.795275591;
+            case 'inch': return 96;
+            default: return 37.795275591;
+        }
+    };
+
+    const pxPerUnit = getPixelsPerUnit();
+    const mmToPx = 3.7795275591;
+
+    // Paper Sizes Logic (Must match Canvas.tsx)
+    const paperSizes: Record<string, { width: number; height: number }> = {
+        'Default': { width: 1000 / mmToPx, height: 1000 / mmToPx },
+        'A4': { width: 210, height: 297 },
+        'A3': { width: 297, height: 420 },
+        'A5': { width: 148, height: 210 },
+        'Letter': { width: 216, height: 279 },
+        'Legal': { width: 216, height: 356 },
+        'Tabloid': { width: 279, height: 432 },
+        'Custom': {
+            width: Number(config?.customPaperDimensions?.width) || 210,
+            height: Number(config?.customPaperDimensions?.height) || 297
+        },
+    };
+
+    const currentPaper = paperSizes[config?.paperSize] || paperSizes['Custom'] || paperSizes['Default'];
+
+    // Base width/height in pixels
+    // Note: Canvas.tsx uses mmToPx (3.7795...) for 'Default' and standard sizes which are defined in mm?
+    // Wait, Canvas.tsx line 143: const baseWidth = paperMM.width * mmToPx;
+    // And paperSizes definition in Canvas.tsx defines 'Default' as { width: 1000/3.77..., ... }
+    // So 'Default' comes out to 1000px.
+    // 'A4' (210) comes out to 210 * 3.7795 = 793.7 px.
+
+    const canvasWidth = currentPaper.width * mmToPx;
+    const canvasHeight = currentPaper.height * mmToPx;
 
     const handleOptionChange = (index: number, value: string) => {
         if (!shopifyProduct) return;
@@ -557,52 +598,73 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     onDeleteElement={deleteElement}
                     onDuplicateElement={duplicateElement}
                     zoom={100} // we scale via CSS
+                    showSafeArea={false}
                     productVariant={{ color: 'white', size: '', material: '' }}
-                    enableBounce={false}
+                    showRulers={false}
                     unit={config?.unit || 'cm'}
-                    paperSize={config?.paperSize || 'Default'}
+                    enableBounce={false}
+                    paperSize={config?.paperSize || 'Custom'}
                     customPaperDimensions={config?.customPaperDimensions}
-                    showSafeArea={config?.showSafeArea ?? true}
                     safeAreaPadding={config?.safeAreaPadding}
                     safeAreaRadius={config?.safeAreaRadius}
                     safeAreaWidth={config?.safeAreaWidth}
                     safeAreaHeight={config?.safeAreaHeight}
                     safeAreaOffset={config?.safeAreaOffset || { x: 0, y: 0 }}
-                    showRulers={config?.showRulers ?? false}
-                    showGrid={config?.enabledGrid ?? false}
                     baseImage={(() => {
+                        // Robust Base Image Resolution (Matching DesignerCore.tsx)
+                        const rawSelectedId = String(selectedVariantId);
+
+                        // 1. Explicit UI Assignment (Designer choice for this variant)
+                        const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+                        const variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
+                        if (variantImage && variantImage !== 'none') return getProxiedUrl(variantImage);
+
+                        // 2. Legacy config variant mockups
+                        const vConfig = config?.variantBaseImages?.[vKey] || config?.variantBaseImages?.[rawSelectedId];
+                        const legacyUrl = typeof vConfig === 'string' ? vConfig : (vConfig?.url || vConfig?.default?.url);
+                        if (legacyUrl) return getProxiedUrl(legacyUrl);
+
+                        // 3. Global Page Base Image (Manual Global Override)
                         const activeImg = activePage?.baseImage;
-                        const configImg = config?.baseImage;
+                        if (activeImg) {
+                            if (activeImg === 'blank') return 'blank'; // Explicitly removed
+                            const isPlaceholder = activeImg.includes('placehold.co') || activeImg.includes('placeholder.co');
+                            if (activeImg !== 'none' && !isPlaceholder) return getProxiedUrl(activeImg);
+                        }
 
-                        // Ignore placeholder.co from activePage and use config instead
-                        const isPlaceholder = activeImg?.includes('placehold.co') || activeImg?.includes('placeholder.co');
-                        const raw = (activeImg && !isPlaceholder) ? activeImg : (configImg || '');
+                        // 4. Shopify Variant Image (AUTOMATIC)
+                        const sVariant = shopifyProduct?.variants?.find((v: any) => {
+                            const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+                            return vid === vKey || String(v.id) === rawSelectedId;
+                        });
+                        const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
+                        if (sVariantImage) return getProxiedUrl(sVariantImage);
 
-                        return getProxiedUrl(raw);
+                        // 5. Config Fallback
+                        if (config?.baseImage) return getProxiedUrl(config.baseImage);
+
+                        // 6. Shopify Product Image (Ultimate Fallback)
+                        const sProductImage = shopifyProduct?.images?.[0];
+                        const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+
+                        return getProxiedUrl(finalFallback || '');
                     })()}
                     baseImageColor={activePage?.baseImageColor || config?.baseImageColor}
                     baseImageColorEnabled={activePage?.baseImageColorEnabled || config?.baseImageColorEnabled}
-                    baseImageColorMode={activePage?.baseImageColorMode || config?.baseImageColorMode || 'transparent'}
                     baseImageAsMask={activePage?.baseImageAsMask || config?.baseImageAsMask}
                     baseImageMaskInvert={activePage?.baseImageMaskInvert || config?.baseImageMaskInvert}
-                    baseImageScale={(() => {
-                        const vid = String(selectedVariantId || '');
-                        const vKey = vid.match(/\d+/)?.[0] || vid;
-                        return activePage?.variantBaseScales?.[vid] ||
-                            activePage?.variantBaseScales?.[vKey] ||
-                            activePage?.baseImageScale ||
-                            config?.baseImageScale;
-                    })()}
                     baseImageProperties={{
                         x: 0,
                         y: 0,
                         scale: 1,
+                        width: 1000,
+                        height: 1000,
                         ...(config?.baseImageProperties || {}),
                         ...(activePage?.baseImageProperties || {})
                     }}
                     isPublicMode={true}
                     onUpdateBaseImage={(updates) => {
-                        updateElement('FAKE_ID_NOT_NEEDED_FOR_BASE', {}, true);
+                        updateElement('FAKE_ID_NOT_NEEDED_FOR_BASE', {}, true); // Trigger history if needed, but base image usually doesn't need it
                         setPages(prev => prev.map(p => {
                             if (p.id === activePage?.id) {
                                 return {
@@ -643,6 +705,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     padding: 0 !important;
                     background: transparent !important;
                     overflow: visible !important;
+                    display: block !important;
                 }
                 .imcst-direct-designer .custom-scrollbar::-webkit-scrollbar {
                     display: none !important;

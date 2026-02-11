@@ -43,5 +43,14 @@
 
 ---
 
-## Kesimpulan Status
-Sistem sekarang lebih responsif terhadap perubahan di Shopify dan loading gambar lebih stabil tanpa gangguan cache browser. Interface juga menjadi lebih bersih setelah pembersihan fitur-fitur yang didepresiasi.
+## 4. System Placeholder Mockup (Custom Fly Branding)
+**Masalah**: Jika produk tidak memiliki gambar di Shopify, tidak ada manual upload, dan tidak ada variant image, kanvas akan kosong atau menampilkan error.
+**Solusi**:
+- Membuat gambar placeholder sistem yang profesional dengan branding **"Custom Fly"**.
+- Menetapkan gambar ini sebagai **ultimate fallback** di `DesignerCore.tsx`.
+- Sekarang, kanvas dijamin tidak akan pernah kosong; jika semua sumber gambar (Shopify, Variant, Upload) tidak tersedia, sistem akan menampilkan mockup default ini.
+
+**File Terkait**:
+- `frontend/public/images/system-placeholder.png`
+- `frontend/src/components/DesignerCore.tsx`
+- `frontend/src/pages/GlobalSettingsDesigner.tsx`

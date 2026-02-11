@@ -229,8 +229,27 @@ export function BaseImageModal({
 
                                     {/* All Gallery */}
                                     <div>
-                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">All Product Media ({productData?.images.length || 0})</h4>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">All Product Media ({productData?.images.length || 0})</h4>
+                                            <Badge variant="outline" className="text-[9px] bg-indigo-50 text-indigo-700 border-indigo-100 uppercase tracking-tighter">System Defaults Available</Badge>
+                                        </div>
                                         <div className="grid grid-cols-4 gap-4">
+                                            {/* System Default Mockup Option */}
+                                            <div
+                                                onClick={() => handleSelect('/images/system-placeholder.png', false)}
+                                                className={`group relative aspect-square rounded-2xl border-2 transition-all cursor-pointer overflow-hidden bg-white ${(activeTargetId === 'all' && currentBaseImage === '/images/system-placeholder.png') || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png')) ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-gray-200 hover:border-indigo-300 shadow-sm'}`}
+                                            >
+                                                <img src="/images/system-placeholder.png" className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="System Default" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-indigo-600/90 backdrop-blur-sm p-1.5 text-center">
+                                                    <span className="text-[8px] text-white font-black uppercase tracking-widest">System Default</span>
+                                                </div>
+                                                {((activeTargetId === 'all' && currentBaseImage === '/images/system-placeholder.png') || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png'))) && (
+                                                    <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1 shadow-lg">
+                                                        <CheckCircle2 className="w-4 h-4" />
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             {productData?.images.map((img, idx) => {
                                                 const isGlobalActive = activeTargetId === 'all' && currentBaseImage === img;
                                                 const isVariantActive = activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === img || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === img);
