@@ -214,11 +214,11 @@ export function Canvas({
   const PaperContent = (
     <div
       id="canvas-paper"
-      className={`relative bg-white shadow-md overflow-hidden transform-gpu ${isPublicMode ? 'border border-slate-200 shadow-sm' : ''}`}
+      className={`relative shadow-md overflow-hidden transform-gpu ${isPublicMode ? 'border border-slate-200 shadow-sm' : 'bg-white'}`}
       style={{
         width: currentWidth || 1000,
         height: currentHeight || 1000,
-        backgroundColor: (productColors || {})[productVariant?.color || 'white'] || '#ffffff',
+        backgroundColor: isPublicMode ? 'transparent' : ((productColors || {})[productVariant?.color || 'white'] || '#ffffff'),
         transform: 'translateZ(0)' // Force hardware acceleration for masks
       }}
       onPointerDown={(e) => {
