@@ -558,7 +558,14 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     baseImageColorMode={activePage?.baseImageColorMode || config?.baseImageColorMode}
                     baseImageAsMask={activePage?.baseImageAsMask || config?.baseImageAsMask}
                     baseImageMaskInvert={activePage?.baseImageMaskInvert || config?.baseImageMaskInvert}
-                    baseImageScale={config?.baseImageScale}
+                    baseImageScale={(() => {
+                        const vid = String(selectedVariantId || '');
+                        const vKey = vid.match(/\d+/)?.[0] || vid;
+                        return activePage?.variantBaseScales?.[vid] ||
+                            activePage?.variantBaseScales?.[vKey] ||
+                            activePage?.baseImageScale ||
+                            config?.baseImageScale;
+                    })()}
                     baseImageProperties={{
                         x: 0,
                         y: 0,

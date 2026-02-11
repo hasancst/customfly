@@ -461,6 +461,21 @@ export function DesignerCore({
         return '/images/system-placeholder.png';
     }, [activePage, selectedVariantId, productData]);
 
+    const resolvedBaseScale = React.useMemo(() => {
+        const rawSelectedId = String(selectedVariantId || '');
+        const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+
+        // 1. Explicit Scale for THIS variant
+        const variantScale = activePage?.variantBaseScales?.[rawSelectedId] || activePage?.variantBaseScales?.[vKey];
+        if (variantScale !== undefined) return variantScale;
+
+        // 2. Explicit Scale for THIS page
+        if (activePage?.baseImageScale !== undefined) return activePage.baseImageScale;
+
+        // 3. Global Scale
+        return baseImageScale;
+    }, [selectedVariantId, activePage, baseImageScale]);
+
     // Initialize selected variant
     useEffect(() => {
         if (productData?.variants && productData.variants.length > 0 && !selectedVariantId) {
@@ -841,7 +856,7 @@ export function DesignerCore({
                         baseImageColorMode={baseImageColorMode}
                         baseImageAsMask={activePage?.baseImageAsMask}
                         baseImageMaskInvert={activePage?.baseImageMaskInvert}
-                        baseImageScale={baseImageScale}
+                        baseImageScale={resolvedBaseScale}
                         onUpdateBaseImage={(props) => {
                             setPages(prev => prev.map(p => p.id === activePageId ? {
                                 ...p,
@@ -960,8 +975,24 @@ export function DesignerCore({
                                 setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
                                 addToHistory(pages.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: enabled } : p));
                             }}
-                            baseImageScale={baseImageScale}
-                            onBaseImageScaleChange={setBaseImageScale}
+                            baseImageScale={resolvedBaseScale}
+                            onBaseImageScaleChange={(sc) => {
+                                const vId = String(selectedVariantId || '');
+                                const vKey = vId.match(/\d+/)?.[0] || vId;
+                                if (vId && !isVariantLinked) {
+                                    setPages(prev => prev.map(p => p.id === activePageId ? {
+                                        ...p,
+                                        variantBaseScales: {
+                                            ...(p.variantBaseScales || {}),
+                                            [vId]: sc,
+                                            ...(vKey !== vId ? { [vKey]: sc } : {})
+                                        }
+                                    } : p));
+                                } else {
+                                    setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageScale: sc } : p));
+                                }
+                                setBaseImageScale(sc);
+                            }}
                             baseImageColorMode={baseImageColorMode}
                             onBaseImageColorModeChange={setBaseImageColorMode}
                             baseImage={resolvedBaseImage}

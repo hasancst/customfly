@@ -492,7 +492,7 @@ export default function GlobalSettingsDesigner() {
                             baseImageAsMask={pages.find(p => p.id === activePageId)?.baseImageAsMask ?? false}
                             baseImageMaskInvert={pages.find(p => p.id === activePageId)?.baseImageMaskInvert ?? false}
                             baseImageColorMode={baseImageColorMode}
-                            baseImageScale={baseImageScale}
+                            baseImageScale={pages.find(p => p.id === activePageId)?.baseImageScale ?? baseImageScale}
                         />
                     </div>
                 </div>
@@ -539,8 +539,11 @@ export default function GlobalSettingsDesigner() {
                         onToggleBaseImageAsMask={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageAsMask: v } : p))}
                         baseImageMaskInvert={pages.find(p => p.id === activePageId)?.baseImageMaskInvert ?? false}
                         onToggleBaseImageMaskInvert={(v) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageMaskInvert: v } : p))}
-                        baseImageScale={baseImageScale}
-                        onBaseImageScaleChange={setBaseImageScale}
+                        baseImageScale={pages.find(p => p.id === activePageId)?.baseImageScale ?? baseImageScale}
+                        onBaseImageScaleChange={(sc) => {
+                            setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageScale: sc } : p));
+                            setBaseImageScale(sc);
+                        }}
                         baseImageColorMode={baseImageColorMode}
                         onBaseImageColorModeChange={setBaseImageColorMode}
                         outputSettings={outputSettings}
