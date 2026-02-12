@@ -291,53 +291,106 @@ export function DesignerOpenCore({
     }, [productData]); // Run when productData loads. DO NOT include selectedVariantId to avoid loops, relying on initial mount check.
 
     // Robust Base Image Resolution
+    // The backend merges template data into initialConfig and normalizes all base image data
+    // We only need to check initialConfig for explicit admin selections
     const resolvedBaseImage = useMemo(() => {
         const activePage = pages.find(p => p.id === activePageId);
         if (activePage?.baseImage === 'none') return undefined;
 
-        const rawSelectedId = String(selectedVariantId);
+        const rawSelectedId = String(selectedVariantId || '');
         const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
 
-        // Helper to clean "Label|URL"
-        const cleanUrl = (u: any) => {
-            if (typeof u !== 'string') return u;
-            return u.includes('|') ? u.split('|')[1].trim() : u;
+        // Helper to normalize base image data (supports both legacy string and new object format)
+        const normalizeBaseImage = (img: any) => {
+            if (!img) return null;
+
+            // New format (object with source)
+            if (typeof img === 'object' && img.source && img.url) {
+                return img;
+            }
+
+            // Legacy format (plain string URL)
+            if (typeof img === 'string' && img !== 'none') {
+                return {
+                    source: 'manual',
+                    url: img,
+                    metadata: {}
+                };
+            }
+
+            return null;
         };
 
-        // 1. Explicit UI Assignment (Designer choice for this variant)
-        let variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
-        variantImage = cleanUrl(variantImage);
-        if (variantImage && variantImage !== 'none') return variantImage;
+        // Helper to clean "Label|URL" and Proxy
+        const processUrl = (u: any): string | undefined => {
+            if (!u || u === 'none') return undefined;
 
-        // 2. Legacy config variant mockups
-        const vConfig = initialConfig?.variantBaseImages?.[vKey] || initialConfig?.variantBaseImages?.[rawSelectedId];
-        let legacyUrl = typeof vConfig === 'string' ? vConfig : (vConfig?.url || vConfig?.default?.url);
-        legacyUrl = cleanUrl(legacyUrl);
-        if (legacyUrl) return legacyUrl;
+            let rawUrl: any = undefined;
 
-        // 3. Shopify Variant Image (AUTOMATIC)
-        const sVariant = productData?.variants?.find((v: any) => {
-            const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
-            return vid === vKey || String(v.id) === rawSelectedId;
+            if (typeof u === 'string') {
+                rawUrl = u;
+            } else if (typeof u === 'object') {
+                // Cari di kunci-kunci umum di mana URL biasanya disimpan
+                rawUrl = u.url || u.src || u.image || u.default?.url || u.previewUrl || u.originalUrl;
+
+                // Jika masih belum ketemu, coba ambil string pertama yang mirip URL
+                if (!rawUrl) {
+                    const values = Object.values(u);
+                    rawUrl = values.find(v => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:') || v.startsWith('/')));
+                }
+            }
+
+            if (typeof rawUrl !== 'string' || !rawUrl) return undefined;
+
+            const cleaned = rawUrl.includes('|') ? rawUrl.split('|')[1].trim() : rawUrl;
+            return getProxiedUrl(cleaned);
+        };
+
+        // Helper to check if URL is a placeholder
+        const isPlaceholder = (url: any): boolean => {
+            if (!url || typeof url !== 'string') return false;
+            return url.includes('placehold.co') || url.includes('placeholder.co');
+        };
+
+        console.log('[DesignerOpenCore] Base Image Resolution:', {
+            selectedVariantId,
+            rawSelectedId,
+            vKey,
+            'initialConfig.variantBaseImages': initialConfig?.variantBaseImages,
+            'initialConfig.baseImage': initialConfig?.baseImage,
         });
-        let sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
-        sVariantImage = cleanUrl(sVariantImage);
-        if (sVariantImage) {
-            // Fix base64 if needed
-            if (!sVariantImage.startsWith('http') && !sVariantImage.startsWith('data:')) return `data:image/jpeg;base64,${sVariantImage}`;
-            return sVariantImage;
+
+        // 1. Check variant-specific selection (admin explicitly selected for this variant)
+        const variantSelection = initialConfig?.variantBaseImages?.[rawSelectedId] || initialConfig?.variantBaseImages?.[vKey];
+        if (variantSelection) {
+            const normalized = normalizeBaseImage(variantSelection);
+            if (normalized?.url) {
+                const processed = processUrl(normalized.url);
+                if (processed && !isPlaceholder(processed)) {
+                    console.log('[DesignerOpenCore] Using variant-specific selection:', normalized.source, processed);
+                    return processed;
+                }
+            }
         }
 
-        // 4. Global Page Base Image
-        if (activePage?.baseImage) return cleanUrl(activePage.baseImage);
+        // 2. Check global selection (admin explicitly selected global base image)
+        const globalSelection = initialConfig?.baseImage;
+        if (globalSelection) {
+            const normalized = normalizeBaseImage(globalSelection);
+            if (normalized?.url) {
+                const processed = processUrl(normalized.url);
+                if (processed && !isPlaceholder(processed)) {
+                    console.log('[DesignerOpenCore] Using global selection:', normalized.source, processed);
+                    return processed;
+                }
+            }
+        }
 
-        // 5. Fallback to Shopify Product main image
-        const sProductImage = productData?.images?.[0];
-        const finalFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+        // 3. System placeholder (no selection made)
+        console.log('[DesignerOpenCore] No base image selected, using system placeholder');
+        return '/images/system-placeholder.png';
 
-        return getProxiedUrl(cleanUrl(finalFallback) || undefined);
-
-    }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseImages, productData]);
+    }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseImages, initialConfig.baseImage]);
 
 
     const addToHistory = useCallback((currentPages: PageData[]) => {
@@ -710,6 +763,8 @@ export function DesignerOpenCore({
             if (el.type === 'checkbox') elementValues[el.id] = el.checked;
             else if (el.type === 'number') elementValues[el.id] = el.numberValue;
             else elementValues[el.id] = el.text || el.src;
+            // Also map by label for visibility rules that use labels
+            if (el.label) elementValues[el.label] = elementValues[el.id];
         });
 
         const selectedVariant = productData?.variants?.find(v => {
@@ -718,13 +773,23 @@ export function DesignerOpenCore({
             return vid === svid;
         });
 
+        const optionsMap: Record<string, string> = {
+            option1: selectedVariant?.option1 || '',
+            option2: selectedVariant?.option2 || '',
+            option3: selectedVariant?.option3 || '',
+        };
+
+        // Map Shopify option names (e.g. "Color") to their current values
+        if (productData && selectedVariant) {
+            productData.options.forEach((opt, idx) => {
+                const val = idx === 0 ? selectedVariant.option1 : idx === 1 ? selectedVariant.option2 : selectedVariant.option3;
+                if (opt.name) optionsMap[opt.name] = val || '';
+            });
+        }
+
         return {
             variantId: String(selectedVariantId),
-            options: {
-                option1: selectedVariant?.option1 || '',
-                option2: selectedVariant?.option2 || '',
-                option3: selectedVariant?.option3 || '',
-            },
+            options: optionsMap,
             elementValues
         };
     }, [currentElements, selectedVariantId, productData]);
@@ -1006,9 +1071,7 @@ export function DesignerOpenCore({
                                 setHistoryIndex(0);
                                 toast.success("Design reset to original template");
                             }}
-                            onSave={handleSave}
                             onDeleteElement={deleteElement}
-                            isSaving={isSaving || isAutoSaving}
                             buttonText={buttonText}
                             userGalleries={filteredUserGalleries}
                             baseUrl={baseUrl}
@@ -1262,7 +1325,7 @@ export function DesignerOpenCore({
                     <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
                         <div
                             ref={zoomContainerRef}
-                            className="flex-1 relative flex flex-col"
+                            className="flex-1 relative flex items-center justify-center overflow-auto custom-scrollbar"
                         >
 
                             <Canvas
@@ -1273,7 +1336,6 @@ export function DesignerOpenCore({
                                 onDeleteElement={deleteElement}
                                 onDuplicateElement={duplicateElement}
                                 zoom={zoom}
-                                onZoomChange={setZoom}
                                 showSafeArea={showSafeArea}
                                 productVariant={{ color: 'white' } as any}
                                 showRulers={showRulers}

@@ -9,6 +9,7 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
 - **Export Fidelity**: Keaslian hasil ekspor (PNG, PDF, SVG, AI, EPS) dan fitur "Design Only".
 - **Config Persistence**: Memastikan pengaturan output (File Type, DPI, dll) tersimpan otomatis.
 - **Variant Management**: Penugasan gambar base/mockup spesifik ke varian produk.
+- **Canvas Mockup Rendering**: Konsistensi rendering background image (mockup) antara mode Direct, Modal, dan Redirect.
 - **Layout Management**: Kemampuan resize dan kustomisasi area kerja (Safe Area).
 
 ## 📁 File Terkait
@@ -39,6 +40,12 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
 - **DOM Surgical Removal**: Memastikan elemen dengan class `.imcst-base-image` benar-benar dicabut dari DOM saat ekspor "Design Only" untuk menjamin tidak ada "ghosting" bodi produk pada file SVG/AI/EPS.
 - **Vector Decoding**: Verifikasi output SVG/AI/EPS didecode dari XML murni (bukan base64 data-uri) agar kompatibel dengan Adobe Illustrator & CorelDraw.
 
+### 6. Explicit Base Image Selection (New)
+- **Source Integrity**: Memastikan setiap image mockup yang dipilih tersimpan dengan metadata `source` (manual/shopify_product/shopify_variant/system).
+- **Normalization Logic**: Verifikasi bahwa data lama (string URL) otomatis dinkonsolidasikan ke format object terbaru tanpa merusak tampilan.
+- **Admin-Frontend Parity**: Memastikan desainer publik menampilkan **persis** apa yang dipilih admin, melewati logika prioritas otomatis jika selection eksplisit ada.
+- **Placeholder Filtering**: Verifikasi bahwa URL `placehold.co` otomatis diabaikan dan dialihkan ke fallback sistem.
+
 ---
 
 ## 📝 Manual Regression Checklist
@@ -47,6 +54,7 @@ Dokumen ini mencatat skenario "Regression" untuk memastikan update fitur tidak m
 - [✅] **Add to Cart Location**: Verifikasi tombol "Add to Cart" berada di sidebar kanan (Summary) tepat di bawah daftar Layers.
 - [✅] **Designer Close Icon**: Klik ikon silang (X) di header desainer publik. Pastikan kembali ke halaman produk (redirect) atau menutup modal (modal mode).
 - [✅] **Public Side Navigation**: Verifikasi navigasi antar sisi produk menggunakan tombol berjajar (bukan stepper) yang intuitif.
+- [✅] **Base Image Selection Display**: Verifikasi mockup yang tampil di storefront identik dengan yang dipilih di admin, termasuk saat switch variant.
 - [ ] **Character Limit Enforcement (Critical)**: Verifikasi limit karakter pada input teks dan monogram di sidebar customization.
 
 ### B. Export & Output Fidelity

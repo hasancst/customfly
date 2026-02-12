@@ -233,7 +233,15 @@ export interface PageData {
   id: string;
   name: string;
   elements: CanvasElement[];
-  baseImage?: string;
+  baseImage?: string | {
+    source: 'manual' | 'shopify_product' | 'shopify_variant' | 'system';
+    url: string;
+    metadata?: {
+      uploadedAt?: string;
+      variantId?: string;
+      productId?: string;
+    };
+  };
   baseImageProperties?: {
     x: number;
     y: number;
@@ -249,6 +257,14 @@ export interface PageData {
   baseImageMaskInvert?: boolean;
   baseImageColorMode?: 'opaque' | 'transparent';
   baseImageScale?: number; // 0-100
-  variantBaseImages?: Record<string, string | undefined>; // Mapping of Variant ID -> Mockup URL
+  variantBaseImages?: Record<string, string | {
+    source: 'manual' | 'shopify_product' | 'shopify_variant' | 'system';
+    url: string;
+    metadata?: {
+      uploadedAt?: string;
+      variantId?: string;
+      productId?: string;
+    };
+  } | undefined>; // Mapping of Variant ID -> Mockup URL or Object
   variantBaseScales?: Record<string, number>; // Mapping of Variant ID -> Mockup Scale (0-100)
 }

@@ -11,6 +11,7 @@ import { ImageTool } from '../components/ImageTool';
 import { PublicCustomizationPanel } from '../components/PublicCustomizationPanel';
 import { Button } from "@/components/ui/button";
 import { getProxiedUrl } from '@/utils/urlUtils';
+import { evaluateVisibility } from '../utils/logicEvaluator';
 
 const PAPER_DIMENSIONS: Record<string, { width: number; height: number }> = {
     'Default': { width: 264.5833, height: 264.5833 }, // Square fallback in mm (~1000px at 3.77)
@@ -109,6 +110,42 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         });
         return dims;
     }, [config]);
+
+    // Processed Elements with Logic Evaluation
+    const processedElements = useMemo(() => {
+        if (!activePage) return [];
+
+        const currentVariant = shopifyProduct?.variants?.find((v: any) => String(v.id) === selectedVariantId) || shopifyProduct?.variants?.[0];
+
+        // Map option names to values for logic evaluator
+        const optionsMap: Record<string, string> = {};
+        if (shopifyProduct && currentVariant) {
+            shopifyProduct.options.forEach((opt: any, idx: number) => {
+                const val = idx === 0 ? currentVariant.option1 : idx === 1 ? currentVariant.option2 : currentVariant.option3;
+                optionsMap[opt.name] = val;
+                optionsMap[`option${idx + 1}`] = val;
+            });
+        }
+
+        const context = {
+            variantId: String(selectedVariantId),
+            options: optionsMap,
+            elementValues: activePage.elements.reduce((acc, el) => {
+                acc[el.id] = el.text || el.src || el.checked || el.selectedColor;
+                if (el.label) acc[el.label] = acc[el.id];
+                return acc;
+            }, {} as Record<string, any>)
+        };
+
+        return activePage.elements.map(el => {
+            const isVisible = evaluateVisibility(el, context);
+            return {
+                ...el,
+                isVisible: isVisible,
+                isHiddenByLogic: !isVisible
+            };
+        });
+    }, [activePage?.elements, selectedVariantId, shopifyProduct]);
 
     // 1. Theme Integration Logic (Runs only when configured)
     useEffect(() => {
@@ -267,12 +304,21 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
             // Fetch initial product data and config
             const prodRes = await fetch(`${baseUrl}/imcst_public_api/product/${shop}/${productId}?t=${Date.now()}`);
             const prodData = await prodRes.json();
-            console.log('[IMCST DEBUG] Product Data Loaded:', {
+
+            console.log('[DirectProductDesigner] Received data from backend:', {
                 hasConfig: !!prodData.config,
+                hasDesign: !!prodData.design,
                 hasProduct: !!prodData.product,
-                paperSize: prodData.config?.paperSize,
-                baseImage: prodData.config?.baseImage,
-                variantBaseImages: Object.keys(prodData.config?.variantBaseImages || {})
+                configKeys: prodData.config ? Object.keys(prodData.config) : [],
+                designPages: prodData.design?.length || 0
+            });
+            console.log('[DirectProductDesigner] Base Image Configuration:', {
+                'design[0].baseImage': prodData.design?.[0]?.baseImage,
+                'design[0].variantBaseImages': prodData.design?.[0]?.variantBaseImages,
+                'design[0].baseImageScale': prodData.design?.[0]?.baseImageScale,
+                'config.baseImage': prodData.config?.baseImage,
+                'config.variantBaseImages': prodData.config?.variantBaseImages,
+                'config.baseImageScale': prodData.config?.baseImageScale
             });
 
             if (!prodData.config || Object.keys(prodData.config).length === 0) {
@@ -288,16 +334,8 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
 
             // Populate Design Pages
             if (prodData.design && prodData.design.length > 0) {
-                // Fix for old saved designs having placeholders
-                const fixedDesign = prodData.design.map((p: any) => {
-                    const isPlaceholder = p.baseImage?.includes('placehold.co') || p.baseImage?.includes('placeholder.co');
-                    if (isPlaceholder || !p.baseImage) {
-                        return { ...p, baseImage: prodData.config.baseImage };
-                    }
-                    return p;
-                });
-                setPages(fixedDesign);
-                setActivePageId(fixedDesign[0].id);
+                setPages(prodData.design);
+                setActivePageId(prodData.design[0].id);
             } else {
                 // No saved design, create initial page from config
                 const configBaseImage = prodData.config.baseImage;
@@ -453,7 +491,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 {/* 1. Page Customization Options (Unified with Backend Logic) */}
                 <div className="space-y-4">
                     <PublicCustomizationPanel
-                        elements={activePage?.elements || []}
+                        elements={processedElements}
                         onUpdateElement={updateElement}
                         onSelectElement={(id) => {
                             setSelectedElement(id);
@@ -587,11 +625,11 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     const CanvasContent = (
         <div
             ref={containerRef}
-            className="flex-1 relative overflow-hidden flex items-center justify-center cursor-default bg-transparent w-full aspect-square max-w-[800px] max-h-[800px] mx-auto z-10"
+            className="relative flex-1 w-full h-full min-h-[500px] flex items-center justify-center cursor-default bg-transparent z-10"
             onClick={() => setSelectedElement(null)}
         >
             <div
-                className="transform-gpu transition-transform duration-300 ease-out relative border border-slate-200 shadow-sm"
+                className="transform-gpu transition-transform duration-300 ease-out relative"
                 style={{
                     transform: `scale(${zoom / 100})`,
                     transformOrigin: 'center center',
@@ -603,7 +641,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 <Canvas
                     width={canvasWidth}
                     height={canvasHeight}
-                    elements={activePage?.elements || []}
+                    elements={processedElements}
                     selectedElement={selectedElementId}
                     onSelectElement={(id) => setSelectedElement(id)}
                     onUpdateElement={updateElement}
@@ -624,26 +662,98 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     showRulers={false} // Never show rulers on storefront
                     showGrid={false} // Never show grid on storefront
                     baseImage={(() => {
-                        const activeImg = activePage?.baseImage;
-                        const configImg = config?.baseImage;
+                        const rawSelectedId = String(selectedVariantId || '');
+                        const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
 
-                        console.log('[IMCST DEBUG] Base Image Resolution:', { activeImg, configImg });
+                        // Helper to normalize base image data (supports both legacy string and new object format)
+                        const normalizeBaseImage = (img: any) => {
+                            if (!img) return null;
 
-                        // Priority: activePage -> config
-                        // But skip if value is 'none' or placeholder
-                        const isActivePlaceholder = activeImg?.includes('placehold.co') || activeImg?.includes('placeholder.co');
-                        const isActiveNone = !activeImg || activeImg === 'none';
-                        const isConfigNone = !configImg || configImg === 'none';
+                            // New format (object with source)
+                            if (typeof img === 'object' && img.source && img.url) {
+                                return img;
+                            }
 
-                        let raw = '';
-                        if (!isActiveNone && !isActivePlaceholder) {
-                            raw = activeImg;
-                        } else if (!isConfigNone) {
-                            raw = configImg;
+                            // Legacy format (plain string URL)
+                            if (typeof img === 'string' && img !== 'none') {
+                                return {
+                                    source: 'manual',
+                                    url: img,
+                                    metadata: {}
+                                };
+                            }
+
+                            return null;
+                        };
+
+                        // Helper to process URLs
+                        const processUrl = (u: any): string | undefined => {
+                            if (!u || u === 'none') return undefined;
+
+                            let rawUrl: any = undefined;
+
+                            if (typeof u === 'string') {
+                                rawUrl = u;
+                            } else if (typeof u === 'object') {
+                                // Cari di kunci-kunci umum di mana URL biasanya disimpan
+                                rawUrl = u.url || u.src || u.image || u.default?.url || u.previewUrl || u.originalUrl;
+
+                                // Jika masih belum ketemu, coba ambil string pertama yang mirip URL
+                                if (!rawUrl) {
+                                    const values = Object.values(u);
+                                    rawUrl = values.find(v => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:') || v.startsWith('/')));
+                                }
+                            }
+
+                            if (typeof rawUrl !== 'string' || !rawUrl) return undefined;
+
+                            const cleaned = rawUrl.includes('|') ? rawUrl.split('|')[1].trim() : rawUrl;
+                            return getProxiedUrl(cleaned);
+                        };
+
+                        // Helper to check if URL is a placeholder
+                        const isPlaceholder = (url: any): boolean => {
+                            if (!url || typeof url !== 'string') return false;
+                            return url.includes('placehold.co') || url.includes('placeholder.co');
+                        };
+
+                        console.log('[DirectProductDesigner] Base Image Resolution Debug:', {
+                            selectedVariantId,
+                            rawSelectedId,
+                            vKey,
+                            'config.variantBaseImages': config?.variantBaseImages,
+                            'config.baseImage': config?.baseImage,
+                        });
+
+                        // 1. Check variant-specific selection (admin explicitly selected for this variant)
+                        const variantSelection = config?.variantBaseImages?.[rawSelectedId] || config?.variantBaseImages?.[vKey];
+                        if (variantSelection) {
+                            const normalized = normalizeBaseImage(variantSelection);
+                            if (normalized?.url) {
+                                const processed = processUrl(normalized.url);
+                                if (processed && !isPlaceholder(processed)) {
+                                    console.log('[DirectProductDesigner] Using variant-specific selection:', normalized.source, processed);
+                                    return processed;
+                                }
+                            }
                         }
 
-                        console.log('[IMCST DEBUG] Final Base Image:', { raw, proxied: raw ? getProxiedUrl(raw) : '' });
-                        return raw ? getProxiedUrl(raw) : '';
+                        // 2. Check global selection (admin explicitly selected global base image)
+                        const globalSelection = config?.baseImage;
+                        if (globalSelection) {
+                            const normalized = normalizeBaseImage(globalSelection);
+                            if (normalized?.url) {
+                                const processed = processUrl(normalized.url);
+                                if (processed && !isPlaceholder(processed)) {
+                                    console.log('[DirectProductDesigner] Using global selection:', normalized.source, processed);
+                                    return processed;
+                                }
+                            }
+                        }
+
+                        // 3. System placeholder (no selection made)
+                        console.log('[DirectProductDesigner] No base image selected, using system placeholder');
+                        return '/images/system-placeholder.png';
                     })()}
                     baseImageColor={activePage?.baseImageColor || config?.baseImageColor}
                     baseImageColorEnabled={activePage?.baseImageColorEnabled || config?.baseImageColorEnabled}
@@ -722,7 +832,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
             <Toaster position="top-center" />
 
             {/* CANVAS: Always rendered here (main-public.tsx mounts us in the media area) */}
-            <div className={`relative flex flex-col overflow-hidden ${optionsRoot ? 'w-full h-full' : 'flex-1 bg-gray-100/50 md:h-screen md:sticky md:top-0'}`}>
+            <div className={`relative flex flex-col items-center justify-center overflow-hidden ${optionsRoot ? 'w-full h-full' : 'flex-1 bg-gray-100/50 md:h-screen md:sticky md:top-0'}`}>
                 {CanvasContent}
             </div>
 

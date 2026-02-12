@@ -19,7 +19,7 @@ interface BaseImageModalProps {
     onClose: () => void;
     productData: ShopifyProduct | null;
     selectedVariantId: string;
-    onSelectImage: (url: string, isVariantImage?: boolean, targetVariantId?: string | 'all') => void;
+    onSelectImage: (url: string, source: 'manual' | 'shopify_product' | 'shopify_variant' | 'system', targetVariantId?: string | 'all') => void;
     variantBaseImages?: Record<string, string | undefined>;
     currentBaseImage?: string;
 }
@@ -68,7 +68,7 @@ export function BaseImageModal({
             if (!response.ok) throw new Error('Upload failed');
 
             const data = await response.json();
-            onSelectImage(data.url, false, activeTargetId);
+            onSelectImage(data.url, 'manual', activeTargetId);
             toast.success('Base image uploaded successfully');
             onClose();
         } catch (err) {
@@ -79,8 +79,8 @@ export function BaseImageModal({
         }
     };
 
-    const handleSelect = (url: string, isVariantImage = false) => {
-        onSelectImage(url, isVariantImage, activeTargetId);
+    const handleSelect = (url: string, source: 'shopify_product' | 'shopify_variant' | 'system') => {
+        onSelectImage(url, source, activeTargetId);
         onClose();
     };
 
@@ -172,7 +172,7 @@ export function BaseImageModal({
                             <Button
                                 variant="ghost"
                                 className="w-full text-[10px] font-bold text-red-500 hover:text-red-600 hover:bg-red-50 h-8 rounded-lg"
-                                onClick={() => onSelectImage('', false, activeTargetId)}
+                                onClick={() => onSelectImage('', 'system', activeTargetId)}
                             >
                                 Clear Target Assignment
                             </Button>
@@ -205,7 +205,7 @@ export function BaseImageModal({
                                                 const v = productData?.variants.find(v => String(v.id) === String(activeTargetId));
                                                 return v?.image ? (
                                                     <div
-                                                        onClick={() => handleSelect(v.image!, true)}
+                                                        onClick={() => handleSelect(v.image!, 'shopify_variant')}
                                                         className={`group relative aspect-square w-32 rounded-2xl border-2 transition-all cursor-pointer overflow-hidden ${(variantBaseImages[activeTargetId] === v.image || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === v.image) ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-gray-100 hover:border-indigo-300 shadow-sm'}`}
                                                     >
                                                         <img src={v.image} className="w-full h-full object-cover" alt="Variant" />
@@ -236,7 +236,7 @@ export function BaseImageModal({
                                         <div className="grid grid-cols-4 gap-4">
                                             {/* System Default Mockup Option */}
                                             <div
-                                                onClick={() => handleSelect('/images/system-placeholder.png', false)}
+                                                onClick={() => handleSelect('/images/system-placeholder.png', 'system')}
                                                 className={`group relative aspect-square rounded-2xl border-2 transition-all cursor-pointer overflow-hidden bg-white ${(activeTargetId === 'all' && currentBaseImage === '/images/system-placeholder.png') || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png')) ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-gray-200 hover:border-indigo-300 shadow-sm'}`}
                                             >
                                                 <img src="/images/system-placeholder.png" className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="System Default" />
@@ -258,7 +258,7 @@ export function BaseImageModal({
                                                 return (
                                                     <div
                                                         key={idx}
-                                                        onClick={() => handleSelect(img, false)}
+                                                        onClick={() => handleSelect(img, 'shopify_product')}
                                                         className={`group relative aspect-square rounded-2xl border-2 transition-all cursor-pointer overflow-hidden bg-gray-50 ${isActive ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-gray-100 hover:border-indigo-300 shadow-sm'}`}
                                                     >
                                                         <img src={img} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt={`Product ${idx} `} />

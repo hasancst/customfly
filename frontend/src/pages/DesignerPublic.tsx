@@ -43,6 +43,21 @@ export default function DesignerPublic({
                 const prodRes = await fetch(`${baseUrl}/imcst_public_api/product/${shop}/${productId}`);
                 if (prodRes.ok) {
                     const data = await prodRes.json();
+                    console.log('[DesignerPublic] Received data from backend:', {
+                        hasConfig: !!data.config,
+                        hasDesign: !!data.design,
+                        hasProduct: !!data.product,
+                        configKeys: data.config ? Object.keys(data.config) : [],
+                        designPages: data.design?.length || 0
+                    });
+                    console.log('[DesignerPublic] Base Image Configuration:', {
+                        'design[0].baseImage': data.design?.[0]?.baseImage,
+                        'design[0].variantBaseImages': data.design?.[0]?.variantBaseImages,
+                        'design[0].baseImageScale': data.design?.[0]?.baseImageScale,
+                        'config.baseImage': data.config?.baseImage,
+                        'config.variantBaseImages': data.config?.variantBaseImages,
+                        'config.baseImageScale': data.config?.baseImageScale
+                    });
                     setConfigData(data.config);
                     setInitialDesign(data.design);
                     setShopifyProduct(data.product);

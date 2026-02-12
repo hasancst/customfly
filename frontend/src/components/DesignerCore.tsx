@@ -1043,37 +1043,53 @@ export function DesignerCore({
                 selectedVariantId={selectedVariantId}
                 currentBaseImage={activePage?.baseImage}
                 variantBaseImages={activePage?.variantBaseImages}
-                onSelectImage={(url, _isVariantImage, targetVariantId) => {
-                    const finalUrl = url || 'none';
+                onSelectImage={(url, source, targetVariantId) => {
+                    // Create base image data object with source metadata
+                    const createBaseImageData = (imgUrl: string, imgSource: 'manual' | 'shopify_product' | 'shopify_variant' | 'system') => {
+                        if (!imgUrl || imgUrl === 'none') return 'none';
+                        return {
+                            source: imgSource,
+                            url: imgUrl,
+                            metadata: {
+                                uploadedAt: imgSource === 'manual' ? new Date().toISOString() : undefined
+                            }
+                        };
+                    };
+
+                    const baseImageData = createBaseImageData(url, source);
+
                     if (targetVariantId === 'all') {
+                        // Set global base image for all pages
                         setPages(prev => {
                             const updated = prev.map(p => ({
                                 ...p,
-                                baseImage: finalUrl,
+                                baseImage: baseImageData,
                                 baseImageProperties: { x: 0, y: 0, scale: 1 }
                             }));
                             addToHistory(updated);
                             return updated;
                         });
                     } else if (targetVariantId) {
+                        // Set variant-specific base image
                         const vKey = String(targetVariantId).match(/\d+/)?.[0] || String(targetVariantId);
                         setPages(prev => {
                             const updated = prev.map(p => p.id === activePageId ? {
                                 ...p,
                                 variantBaseImages: {
                                     ...(p.variantBaseImages || {}),
-                                    [targetVariantId]: finalUrl === 'none' ? undefined : finalUrl,
-                                    [vKey]: finalUrl === 'none' ? undefined : finalUrl
+                                    [targetVariantId]: baseImageData === 'none' ? undefined : baseImageData,
+                                    [vKey]: baseImageData === 'none' ? undefined : baseImageData
                                 }
                             } : p);
                             addToHistory(updated);
                             return updated;
                         });
                     } else {
+                        // Set base image for current page
                         setPages(prev => {
                             const updated = prev.map(p => p.id === activePageId ? {
                                 ...p,
-                                baseImage: finalUrl,
+                                baseImage: baseImageData,
                                 baseImageProperties: { x: 0, y: 0, scale: 1 }
                             } : p);
                             addToHistory(updated);

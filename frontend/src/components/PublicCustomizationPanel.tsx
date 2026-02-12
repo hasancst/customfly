@@ -85,13 +85,22 @@ export function PublicCustomizationPanel({
                     'text', 'monogram', 'field', 'textarea',
                     'image', 'gallery', 'dropdown', 'button',
                     'checkbox', 'number', 'time', 'file_upload',
-                    'swatch', 'product_color'
+                    'swatch', 'product_color', 'shape'
                 ].includes(el.type);
 
                 return isSupportedType && !(el as any).isHiddenByLogic && !el.id.startsWith('gallery-added-');
             })
             .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     }, [elements]);
+
+    useEffect(() => {
+        console.log("[IMCST DEBUG] PublicPanel Elements List:", {
+            total: elements.length,
+            editable: editableElements.length,
+            hiddenByLogic: elements.filter(e => (e as any).isHiddenByLogic).length,
+            ids: elements.map(e => e.id)
+        });
+    }, [elements, editableElements]);
 
     return (
         <div className="flex flex-col h-full bg-white p-6 overflow-hidden">

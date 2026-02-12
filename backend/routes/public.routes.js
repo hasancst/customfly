@@ -14,6 +14,31 @@ const STATIC_PATH = resolve(__dirname, "../../frontend/dist");
 const router = express.Router();
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
+/**
+ * Normalizes base image data to support both legacy (string) and new (object) formats
+ * @param {any} img - Base image data (string URL or object with source/url)
+ * @returns {object|null} Normalized base image object or null
+ */
+const normalizeBaseImage = (img) => {
+    if (!img) return null;
+
+    // New format (object with source)
+    if (typeof img === 'object' && img.source && img.url) {
+        return img;
+    }
+
+    // Legacy format (plain string URL)
+    if (typeof img === 'string' && img !== 'none') {
+        return {
+            source: 'manual',
+            url: img,
+            metadata: {}
+        };
+    }
+
+    return null;
+};
+
 // Storefront Loader JS
 router.get(["/loader.js", "/storefront.js"], async (req, res) => {
     try {
@@ -162,6 +187,102 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
             }
         } catch (err) {
             console.error("[Public API] Failed to fetch Shopify product data:", err);
+        }
+
+
+        // Merge base image config from template into config object for frontend compatibility
+        // IMPORTANT: Config values (from admin) ALWAYS take priority over template values
+        if (initialDesign && initialDesign.designJson && initialDesign.designJson.length > 0) {
+            const firstPage = initialDesign.designJson[0];
+            // Only merge if config doesn't already have these values
+            if (!config) config = {};
+
+            // Base Image - Normalize and merge with config priority
+            if (!config.baseImage && firstPage.baseImage) {
+                config.baseImage = normalizeBaseImage(firstPage.baseImage);
+            } else if (config.baseImage) {
+                // Ensure config baseImage is normalized
+                config.baseImage = normalizeBaseImage(config.baseImage);
+            }
+
+            // Base Image Scale - Config takes priority
+            if (!config.baseImageScale && firstPage.baseImageScale) config.baseImageScale = firstPage.baseImageScale;
+
+            // Variant Base Images - Normalize and merge with config priority
+            if (firstPage.variantBaseImages) {
+                const normalizedTemplateVariants = {};
+                Object.keys(firstPage.variantBaseImages).forEach(key => {
+                    normalizedTemplateVariants[key] = normalizeBaseImage(firstPage.variantBaseImages[key]);
+                });
+
+                if (!config.variantBaseImages) {
+                    config.variantBaseImages = normalizedTemplateVariants;
+                } else {
+                    // Normalize config variants and merge
+                    const normalizedConfigVariants = {};
+                    Object.keys(config.variantBaseImages).forEach(key => {
+                        normalizedConfigVariants[key] = normalizeBaseImage(config.variantBaseImages[key]);
+                    });
+
+                    // Merge: config values override template values for same variant
+                    config.variantBaseImages = {
+                        ...normalizedTemplateVariants,
+                        ...normalizedConfigVariants
+                    };
+                }
+            } else if (config.variantBaseImages) {
+                // Normalize existing config variants
+                const normalizedConfigVariants = {};
+                Object.keys(config.variantBaseImages).forEach(key => {
+                    normalizedConfigVariants[key] = normalizeBaseImage(config.variantBaseImages[key]);
+                });
+                config.variantBaseImages = normalizedConfigVariants;
+            }
+
+            // Variant Base Scales - Merge with config priority
+            if (firstPage.variantBaseScales) {
+                if (!config.variantBaseScales) {
+                    config.variantBaseScales = firstPage.variantBaseScales;
+                } else {
+                    // Merge: config values override template values for same variant
+                    config.variantBaseScales = {
+                        ...firstPage.variantBaseScales,
+                        ...config.variantBaseScales
+                    };
+                }
+            }
+
+            // Color settings
+            if (!config.baseImageColor && firstPage.baseImageColor) config.baseImageColor = firstPage.baseImageColor;
+            if (config.baseImageColorEnabled === undefined && firstPage.baseImageColorEnabled !== undefined) {
+                config.baseImageColorEnabled = firstPage.baseImageColorEnabled;
+            }
+            if (!config.baseImageColorMode && firstPage.baseImageColorMode) config.baseImageColorMode = firstPage.baseImageColorMode;
+
+            // Mask settings
+            if (config.baseImageAsMask === undefined && firstPage.baseImageAsMask !== undefined) {
+                config.baseImageAsMask = firstPage.baseImageAsMask;
+            }
+            if (config.baseImageMaskInvert === undefined && firstPage.baseImageMaskInvert !== undefined) {
+                config.baseImageMaskInvert = firstPage.baseImageMaskInvert;
+            }
+
+            // Properties (position, scale, etc.)
+            if (!config.baseImageProperties && firstPage.baseImageProperties) {
+                config.baseImageProperties = firstPage.baseImageProperties;
+            }
+        } else if (config) {
+            // No template, but ensure config data is normalized
+            if (config.baseImage) {
+                config.baseImage = normalizeBaseImage(config.baseImage);
+            }
+            if (config.variantBaseImages) {
+                const normalizedConfigVariants = {};
+                Object.keys(config.variantBaseImages).forEach(key => {
+                    normalizedConfigVariants[key] = normalizeBaseImage(config.variantBaseImages[key]);
+                });
+                config.variantBaseImages = normalizedConfigVariants;
+            }
         }
 
         const responseData = {
