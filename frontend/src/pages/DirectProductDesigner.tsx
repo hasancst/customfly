@@ -4,10 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Canvas } from '../components/Canvas';
 import { useCanvasState } from '../hooks/designer/useCanvasState';
 import { toast, Toaster } from 'sonner';
-import { Loader2, Image as ImageIcon, Type, ShoppingBag, RotateCcw, Layers } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { TextTool } from '../components/TextTool';
-import { ImageTool } from '../components/ImageTool';
+import { Loader2, ShoppingBag, RotateCcw, Layers } from 'lucide-react';
 import { PublicCustomizationPanel } from '../components/PublicCustomizationPanel';
 import { Button } from "@/components/ui/button";
 import { getProxiedUrl } from '@/utils/urlUtils';
@@ -72,7 +69,6 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     const [assets, setAssets] = useState<{ fonts: any[], colors: any[], options: any[], galleries: any[] }>({ fonts: [], colors: [], options: [], galleries: [] });
 
     // Core State
-    const [activeTool, setActiveTool] = useState<'text' | 'image' | 'upload' | null>(null);
     const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(true);
     const [optionsRoot, setOptionsRoot] = useState<HTMLElement | null>(null);
 
@@ -308,8 +304,6 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     useEffect(() => {
         if (selectedElement && isConfigured) {
             setIsMobilePanelOpen(true);
-            if (selectedElement.type === 'text' || (selectedElement as any).type === 'monogram') setActiveTool('text');
-            else if (selectedElement.type === 'image') setActiveTool('image');
         }
     }, [selectedElement, isConfigured]);
 
@@ -582,7 +576,6 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         onUpdateElement={updateElement}
                         onSelectElement={(id) => {
                             setSelectedElement(id);
-                            // If user clicks a text/image in the list, we might want to switch tool, but usually Public panel handles it
                         }}
                         onReset={() => {
                             if (confirm("Reset current design?")) {
@@ -602,81 +595,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     />
                 </div>
 
-                {/* 2. Add New Tools (Optional based on config) */}
-                <div className="space-y-4 border-t pt-6">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Add Extras</label>
-
-                    {!activeTool ? (
-                        <div className="flex gap-2">
-                            {config?.enabledTools?.text !== false && (
-                                <button
-                                    onClick={() => setActiveTool('text')}
-                                    className="flex-1 flex items-center justify-center py-3 px-4 rounded-xl border border-slate-200 hover:border-black transition-all gap-2 group bg-slate-50"
-                                >
-                                    <Type className="w-4 h-4" />
-                                    <span className="text-xs font-bold">Add Text</span>
-                                </button>
-                            )}
-
-                            {config?.enabledTools?.image !== false && (
-                                <button
-                                    onClick={() => setActiveTool('image')}
-                                    className="flex-1 flex items-center justify-center py-3 px-4 rounded-xl border border-slate-200 hover:border-black transition-all gap-2 group bg-slate-50"
-                                >
-                                    <ImageIcon className="w-4 h-4" />
-                                    <span className="text-xs font-bold">Add Image</span>
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        <AnimatePresence mode="wait">
-                            {activeTool === 'text' && (
-                                <motion.div key="text-tool" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="font-bold text-[10px] uppercase text-slate-900 flex items-center gap-2">
-                                            <Type className="w-3 h-3" /> Add Text
-                                        </span>
-                                        <button onClick={() => { setActiveTool(null); setSelectedElement(null); }} className="text-xs font-bold text-slate-400 hover:text-black bg-white w-6 h-6 rounded-full flex items-center justify-center border shadow-sm">✕</button>
-                                    </div>
-                                    <TextTool
-                                        onAddElement={(el) => {
-                                            addElement(el);
-                                            setActiveTool(null);
-                                        }}
-                                        selectedElement={(selectedElement && (selectedElement.type === 'text' || (selectedElement as any).type === 'monogram')) ? selectedElement : undefined}
-                                        onUpdateElement={updateElement}
-                                        canvasDimensions={{ width: canvasWidth, height: canvasHeight }}
-                                        userFonts={assets.fonts}
-                                        isPublicMode={true}
-                                    />
-                                </motion.div>
-                            )}
-
-                            {activeTool === 'image' && (
-                                <motion.div key="image-tool" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="font-bold text-[10px] uppercase text-slate-900 flex items-center gap-2">
-                                            <ImageIcon className="w-3 h-3" /> Add Image
-                                        </span>
-                                        <button onClick={() => { setActiveTool(null); setSelectedElement(null); }} className="text-xs font-bold text-slate-400 hover:text-black bg-white w-6 h-6 rounded-full flex items-center justify-center border shadow-sm">✕</button>
-                                    </div>
-                                    <ImageTool
-                                        onAddElement={(el) => {
-                                            addElement(el);
-                                            setActiveTool(null);
-                                        }}
-                                        selectedElement={(selectedElement && selectedElement.type === 'image') ? selectedElement : undefined}
-                                        onUpdateElement={updateElement}
-                                        shop={shop}
-                                        isPublicMode={true}
-                                    />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    )}
-                </div>
-
-                {/* 3. Page Switcher (If multiple) */}
+                {/* 2. Page Switcher (If multiple) */}
                 {pages.length > 1 && (
                     <div className="space-y-3 border-t pt-6">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
