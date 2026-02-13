@@ -633,7 +633,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     const CanvasContent = (
         <div
             ref={containerRef}
-            className="relative flex-1 w-full h-full min-h-[500px] flex items-center justify-center cursor-default bg-transparent z-10"
+            className="relative flex-1 w-full h-full min-h-[500px] flex items-start justify-center cursor-default bg-transparent z-10 pt-4"
             onClick={() => setSelectedElement(null)}
         >
             <div
@@ -854,7 +854,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
             <Toaster position="top-center" />
 
             {/* CANVAS: Always rendered here (main-public.tsx mounts us in the media area) */}
-            <div className={`relative flex flex-col items-center justify-center overflow-hidden ${optionsRoot ? 'w-full h-full' : 'flex-1 bg-gray-100/50 md:h-screen md:sticky md:top-0'}`}>
+            <div className={`relative flex flex-col items-start justify-start overflow-hidden ${optionsRoot ? 'w-full h-full' : 'flex-1 bg-gray-100/50 md:h-screen md:sticky md:top-0'}`}>
                 {CanvasContent}
             </div>
 
