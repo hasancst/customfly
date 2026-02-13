@@ -15,6 +15,7 @@ import {
   Plus,
   Image as ImageIcon,
   UploadCloud,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Select,
@@ -30,6 +31,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { CanvasElement } from '../types';
+import { toast } from 'sonner';
 
 interface SummaryProps {
   elements: CanvasElement[];
@@ -126,6 +128,7 @@ interface SummaryProps {
   showSummary?: boolean;
   baseImageColorMode?: 'opaque' | 'transparent';
   onBaseImageColorModeChange?: (mode: 'opaque' | 'transparent') => void;
+  onSyncVariantImages?: (variants: any[]) => Promise<void>;
 }
 
 export const Summary: React.FC<SummaryProps> = ({
@@ -195,6 +198,7 @@ export const Summary: React.FC<SummaryProps> = ({
   uniqueDesignBehavior = 'duplicate',
   onUniqueDesignBehaviorChange,
   buttonText,
+  onSyncVariantImages,
   onButtonTextChange,
   headerTitle,
   onHeaderTitleChange,
@@ -295,7 +299,39 @@ export const Summary: React.FC<SummaryProps> = ({
                 ))}
                 {selectedVariant && (
                   <>
-                    <div className={`flex justify-between items-center ${isPublicMode ? 'pt-8 mt-8' : 'pt-2 mt-1'} border-t border-gray-50`}>
+                    {/* Sync Variant Button - Only show in admin mode if product has variants */}
+                    {!isPublicMode && hasVariants && (
+                      <div className="pt-2 mt-2">
+                        <Button
+                          onClick={async () => {
+                            try {
+                              // Get all variants with their images from Shopify
+                              const variantsWithImages = shopifyVariants.filter((v: any) => v.image);
+                              
+                              if (variantsWithImages.length === 0) {
+                                toast.error('No variant images found in Shopify');
+                                return;
+                              }
+
+                              // Call the sync function passed from parent
+                              if (onSyncVariantImages) {
+                                await onSyncVariantImages(variantsWithImages);
+                                toast.success(`Synced ${variantsWithImages.length} variant images to mockups`);
+                              }
+                            } catch (error) {
+                              console.error('Error syncing variant images:', error);
+                              toast.error('Failed to sync variant images');
+                            }
+                          }}
+                          className="w-full h-9 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Sync Variant Images
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className={`flex justify-between items-center ${isPublicMode ? 'pt-8 mt-8' : 'pt-2 mt-2'} border-t border-gray-50`}>
                       <span className={`${isPublicMode ? 'text-lg' : 'text-xs'} font-normal text-gray-400`}>Current Price</span>
                       <Badge variant="secondary" className={`bg-indigo-600 text-white hover:bg-indigo-700 border-0 font-normal ${isPublicMode ? 'text-3xl px-6 py-3 rounded-2xl shadow-lg' : 'text-sm px-2 py-0.5'} transition-all`}>${selectedVariant.price}</Badge>
                     </div>

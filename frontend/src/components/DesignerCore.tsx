@@ -967,6 +967,32 @@ export function DesignerCore({
                             onVariantChange={setSelectedVariantId}
                             isPublicMode={isPublicMode}
                             onOpenBaseImageModal={() => setIsBaseImageModalOpen(true)}
+                            onSyncVariantImages={async (variants) => {
+                                // Sync variant images from Shopify to mockups
+                                const updated = pages.map(p => {
+                                    if (p.id !== activePageId) return p;
+
+                                    const newVariantBaseImages = { ...(p.variantBaseImages || {}) };
+                                    
+                                    // Assign each variant's image to the mockup
+                                    variants.forEach((variant: any) => {
+                                        if (variant.image) {
+                                            const vId = String(variant.id);
+                                            const vKey = vId.match(/\d+/)?.[0] || vId;
+                                            newVariantBaseImages[vId] = variant.image;
+                                            newVariantBaseImages[vKey] = variant.image;
+                                        }
+                                    });
+
+                                    return {
+                                        ...p,
+                                        variantBaseImages: newVariantBaseImages
+                                    };
+                                });
+                                
+                                setPages(updated);
+                                addToHistory(updated);
+                            }}
                             onRemoveBaseImage={() => {
                                 const vId = String(selectedVariantId || '');
                                 const vKey = vId.match(/\d+/)?.[0] || vId;
