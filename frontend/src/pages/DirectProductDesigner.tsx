@@ -633,7 +633,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
     const CanvasContent = (
         <div
             ref={containerRef}
-            className="relative flex-1 w-full h-full min-h-[500px] flex items-start justify-center cursor-default bg-transparent z-10 pt-4"
+            className="relative flex-1 w-full h-full min-h-[500px] flex items-start justify-center cursor-default bg-transparent z-10"
             onClick={() => setSelectedElement(null)}
         >
             <div
@@ -844,6 +844,11 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 }
                 .imcst-direct-designer .custom-scrollbar::-webkit-scrollbar {
                     display: none !important;
+                }
+                /* Remove any margin/padding from canvas container */
+                .imcst-direct-designer > div:first-child {
+                    margin: 0 !important;
+                    padding: 0 !important;
                 }
             `}} />
         </div>
