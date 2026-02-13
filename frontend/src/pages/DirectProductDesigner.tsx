@@ -250,6 +250,60 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         }
     }, [shopifyProduct, selectedVariantId, isConfigured]);
 
+    // 3b. Listen to variant changes from URL (when Shopify form changes variant)
+    useEffect(() => {
+        const variantFromUrl = searchParams.get('variant');
+        if (variantFromUrl && variantFromUrl !== selectedVariantId && isConfigured) {
+            console.log('[DirectProductDesigner] Variant changed from URL:', variantFromUrl);
+            setSelectedVariantId(variantFromUrl);
+        }
+    }, [searchParams, isConfigured]);
+
+    // 3c. Listen to Shopify variant selector changes (for direct integration)
+    useEffect(() => {
+        if (!isConfigured) return;
+
+        // Listen to Shopify's variant change event
+        const handleShopifyVariantChange = (event: any) => {
+            const newVariantId = event.detail?.variant?.id || event.detail?.variantId;
+            if (newVariantId && String(newVariantId) !== selectedVariantId) {
+                console.log('[DirectProductDesigner] Shopify variant changed:', newVariantId);
+                setSelectedVariantId(String(newVariantId));
+            }
+        };
+
+        // Listen to custom event from Shopify theme
+        window.addEventListener('variant:change', handleShopifyVariantChange);
+        
+        // Also listen to URL changes via popstate
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const variantFromUrl = params.get('variant');
+            if (variantFromUrl && variantFromUrl !== selectedVariantId) {
+                console.log('[DirectProductDesigner] Variant changed via popstate:', variantFromUrl);
+                setSelectedVariantId(variantFromUrl);
+            }
+        };
+        
+        window.addEventListener('popstate', handlePopState);
+
+        // Polling as fallback - check URL every 500ms
+        const pollInterval = setInterval(() => {
+            const params = new URLSearchParams(window.location.search);
+            const variantFromUrl = params.get('variant');
+            if (variantFromUrl && variantFromUrl !== selectedVariantId) {
+                console.log('[DirectProductDesigner] Variant changed via polling:', variantFromUrl);
+                setSelectedVariantId(variantFromUrl);
+            }
+        }, 500);
+
+        return () => {
+            window.removeEventListener('variant:change', handleShopifyVariantChange);
+            window.removeEventListener('popstate', handlePopState);
+            clearInterval(pollInterval);
+        };
+    }, [isConfigured, selectedVariantId]);
+
     // 4. Selection Sync
     useEffect(() => {
         if (selectedElement && isConfigured) {
@@ -259,43 +313,63 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
         }
     }, [selectedElement, isConfigured]);
 
-    // 5. Variant Media Sync
+    // 5. Variant Media Sync - Update base image when variant changes
     useEffect(() => {
-        if (!selectedVariantId || !config || !isConfigured || pages.length === 0) return;
+        console.log('[DirectProductDesigner] Variant Media Sync triggered:', {
+            selectedVariantId,
+            isConfigured,
+            pagesLength: pages.length,
+            hasActivePage: !!activePage,
+            activePageId: activePage?.id,
+            variantBaseImages: activePage?.variantBaseImages
+        });
 
-        const variantMap = config.variantBaseImages;
-        if (!variantMap || typeof variantMap !== 'object') return;
-
-        const variantDesign = variantMap[selectedVariantId];
-        if (!variantDesign) return;
-
-        // Current side key - default to 'default'
-        const sideKey = (activePage?.id === 'default' || pages.length === 1) ? 'default' : activePage?.id;
-        const mockData = variantDesign[sideKey] || variantDesign['default'];
-
-        if (mockData && mockData.url && (mockData.url !== activePage?.baseImage || !activePage?.baseImage)) {
-            setPages(prev => prev.map(p => {
-                if (p.id === (activePage?.id || 'default')) {
-                    const currentProps = p.baseImageProperties || { x: 0, y: 0, scale: 1 };
-                    const newProps = mockData.properties || currentProps;
-
-                    return {
-                        ...p,
-                        baseImage: mockData.url,
-                        baseImageProperties: {
-                            ...currentProps,
-                            ...newProps,
-                            // Ensure basic properties exist
-                            x: newProps.x ?? currentProps.x ?? 0,
-                            y: newProps.y ?? currentProps.y ?? 0,
-                            scale: newProps.scale ?? currentProps.scale ?? 1
-                        }
-                    };
-                }
-                return p;
-            }));
+        if (!selectedVariantId || !isConfigured || pages.length === 0 || !activePage) {
+            console.log('[DirectProductDesigner] Variant Media Sync skipped - missing requirements');
+            return;
         }
-    }, [selectedVariantId, config, isConfigured, activePage?.id]);
+
+        const rawSelectedId = String(selectedVariantId);
+        const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+
+        // Check if this variant has a specific base image assigned
+        const variantImage = activePage.variantBaseImages?.[rawSelectedId] || activePage.variantBaseImages?.[vKey];
+        
+        console.log('[DirectProductDesigner] Checking variant image:', {
+            rawSelectedId,
+            vKey,
+            variantImage,
+            currentBaseImage: activePage.baseImage
+        });
+
+        if (variantImage && variantImage !== 'none') {
+            // Variant has specific image assigned, update it
+            const normalizedUrl = typeof variantImage === 'string' ? variantImage : variantImage?.url || variantImage;
+            
+            if (normalizedUrl && normalizedUrl !== activePage.baseImage) {
+                console.log('[DirectProductDesigner] Switching to variant-specific image:', {
+                    variantId: selectedVariantId,
+                    from: activePage.baseImage,
+                    to: normalizedUrl
+                });
+
+                setPages(prev => prev.map(p => {
+                    if (p.id === activePage.id) {
+                        return {
+                            ...p,
+                            baseImage: normalizedUrl
+                        };
+                    }
+                    return p;
+                }));
+            } else {
+                console.log('[DirectProductDesigner] Image already correct, no update needed');
+            }
+        } else {
+            console.log('[DirectProductDesigner] No variant-specific image found, keeping current');
+        }
+        // If no variant-specific image, keep the global/current base image (don't change)
+    }, [selectedVariantId, isConfigured, activePage?.id, activePage?.variantBaseImages]);
 
     async function init() {
         try {
@@ -334,8 +408,18 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
 
             // Populate Design Pages
             if (prodData.design && prodData.design.length > 0) {
-                setPages(prodData.design);
+                // Ensure variantBaseImages is included in each page
+                const pagesWithVariantImages = prodData.design.map((page: any) => ({
+                    ...page,
+                    variantBaseImages: page.variantBaseImages || prodData.config.variantBaseImages || {},
+                    variantBaseScales: page.variantBaseScales || prodData.config.variantBaseScales || {}
+                }));
+                setPages(pagesWithVariantImages);
                 setActivePageId(prodData.design[0].id);
+                console.log('[DirectProductDesigner] Loaded design with variant images:', {
+                    pageCount: pagesWithVariantImages.length,
+                    variantBaseImages: pagesWithVariantImages[0]?.variantBaseImages
+                });
             } else {
                 // No saved design, create initial page from config
                 const configBaseImage = prodData.config.baseImage;
@@ -352,14 +436,17 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                     baseImageColorMode: prodData.config.baseImageColorMode || 'transparent',
                     baseImageAsMask: prodData.config.baseImageAsMask,
                     baseImageMaskInvert: prodData.config.baseImageMaskInvert,
-                    baseImageProperties: prodData.config.baseImageProperties || { x: 0, y: 0, scale: 1 }
+                    baseImageProperties: prodData.config.baseImageProperties || { x: 0, y: 0, scale: 1 },
+                    variantBaseImages: prodData.config.variantBaseImages || {},
+                    variantBaseScales: prodData.config.variantBaseScales || {}
                 };
                 setPages([initialSide]);
                 console.log('[IMCST DEBUG] Initial Page Setup:', {
                     pageId: initialSide.id,
                     elementsCount: initialSide.elements.length,
                     baseImage: initialSide.baseImage,
-                    baseImageProps: initialSide.baseImageProperties
+                    baseImageProps: initialSide.baseImageProperties,
+                    variantBaseImages: initialSide.variantBaseImages
                 });
                 setActivePageId('default');
             }
@@ -510,6 +597,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         shop={shop}
                         onAddElement={addElement}
                         onDeleteElement={deleteElement}
+                        hideVariantSelector={true}
                     />
                 </div>
 
@@ -639,6 +727,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 }}
             >
                 <Canvas
+                    key={`canvas-${selectedVariantId}-${activePage?.baseImage}`}
                     width={canvasWidth}
                     height={canvasHeight}
                     elements={processedElements}
@@ -721,37 +810,50 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                             selectedVariantId,
                             rawSelectedId,
                             vKey,
-                            'config.variantBaseImages': config?.variantBaseImages,
+                            'activePage.variantBaseImages': activePage?.variantBaseImages,
+                            'activePage.baseImage': activePage?.baseImage,
                             'config.baseImage': config?.baseImage,
                         });
 
-                        // 1. Check variant-specific selection (admin explicitly selected for this variant)
-                        const variantSelection = config?.variantBaseImages?.[rawSelectedId] || config?.variantBaseImages?.[vKey];
-                        if (variantSelection) {
+                        // 1. Check variant-specific selection from activePage (highest priority)
+                        const variantSelection = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
+                        if (variantSelection && variantSelection !== 'none') {
                             const normalized = normalizeBaseImage(variantSelection);
                             if (normalized?.url) {
                                 const processed = processUrl(normalized.url);
                                 if (processed && !isPlaceholder(processed)) {
-                                    console.log('[DirectProductDesigner] Using variant-specific selection:', normalized.source, processed);
+                                    console.log('[DirectProductDesigner] Using variant-specific selection from activePage:', processed);
                                     return processed;
                                 }
                             }
                         }
 
-                        // 2. Check global selection (admin explicitly selected global base image)
+                        // 2. Check activePage base image
+                        if (activePage?.baseImage && activePage.baseImage !== 'none') {
+                            const normalized = normalizeBaseImage(activePage.baseImage);
+                            if (normalized?.url) {
+                                const processed = processUrl(normalized.url);
+                                if (processed && !isPlaceholder(processed)) {
+                                    console.log('[DirectProductDesigner] Using activePage base image:', processed);
+                                    return processed;
+                                }
+                            }
+                        }
+
+                        // 3. Check global selection from config (fallback)
                         const globalSelection = config?.baseImage;
                         if (globalSelection) {
                             const normalized = normalizeBaseImage(globalSelection);
                             if (normalized?.url) {
                                 const processed = processUrl(normalized.url);
                                 if (processed && !isPlaceholder(processed)) {
-                                    console.log('[DirectProductDesigner] Using global selection:', normalized.source, processed);
+                                    console.log('[DirectProductDesigner] Using global selection from config:', processed);
                                     return processed;
                                 }
                             }
                         }
 
-                        // 3. System placeholder (no selection made)
+                        // 4. System placeholder (no selection made)
                         console.log('[DirectProductDesigner] No base image selected, using system placeholder');
                         return '/images/system-placeholder.png';
                     })()}

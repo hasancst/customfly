@@ -419,7 +419,9 @@ export function Canvas({
                     finalUrl = `${baseUrl}/imcst_public_api/proxy-image?url=${encodeURIComponent(finalUrl)}`;
                   }
                 }
-                return finalUrl;
+                // Add cache busting parameter to force reload
+                const separator = finalUrl.includes('?') ? '&' : '?';
+                return `${finalUrl}${separator}_cb=${encodeURIComponent(baseImage || '')}`;
               })()}
               crossOrigin="anonymous"
               onLoad={(event) => {

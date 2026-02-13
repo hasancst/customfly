@@ -66,6 +66,7 @@ interface PublicCustomizationPanelProps {
     onBaseImageColorChange?: (color: string) => void;
     onBaseImageColorEnabledChange?: (enabled: boolean) => void;
     selectedBaseColorAssetId?: string | null;
+    hideVariantSelector?: boolean;
 }
 
 export function PublicCustomizationPanel({
@@ -86,7 +87,8 @@ export function PublicCustomizationPanel({
     baseImageColorEnabled = false,
     onBaseImageColorChange,
     onBaseImageColorEnabledChange,
-    selectedBaseColorAssetId
+    selectedBaseColorAssetId,
+    hideVariantSelector = false
 }: PublicCustomizationPanelProps) {
     const [activeGalleryTab, setActiveGalleryTab] = useState<'all' | string>('all');
     const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -167,8 +169,8 @@ export function PublicCustomizationPanel({
             </div>
 
             <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-8 custom-scrollbar">
-                {/* Product Variant Options (Shopify) */}
-                {shopifyOptions.length > 0 && (
+                {/* Product Variant Options (Shopify) - Hidden in direct customize mode */}
+                {!hideVariantSelector && shopifyOptions.length > 0 && (
                     <div className="space-y-6 pb-6 border-b border-gray-100">
                         {shopifyOptions.map((option, idx) => (
                             <div key={option.name} className="space-y-3">
