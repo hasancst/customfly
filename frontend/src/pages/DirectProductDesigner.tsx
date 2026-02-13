@@ -623,7 +623,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         className="w-full h-14 bg-black text-white rounded-2xl font-black text-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl"
                     >
                         <ShoppingBag className="w-6 h-6" />
-                        <span>{config?.buttonText || 'Add to Cart'}</span>
+                        <span>Add to Cart</span>
                     </Button>
                 </div>
             </div>
