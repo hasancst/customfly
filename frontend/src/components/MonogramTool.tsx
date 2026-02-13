@@ -155,6 +155,14 @@ export function MonogramTool({ onAddElement, selectedElement, onUpdateElement, c
 
         if (fontMode === 'custom' && selectedFontId) {
             const matched = flatCustomFonts.find((f: any) => String(f.assetId) === String(selectedFontId));
+            console.log('[MonogramTool] Creating with custom font:', {
+                fontMode,
+                selectedFontId,
+                matched,
+                fontFamily: matched?.value,
+                fontAssetId: matched?.assetId,
+                flatCustomFontsCount: flatCustomFonts.length
+            });
             if (matched) {
                 fontFamily = matched.value;
                 fontAssetId = matched.assetId;

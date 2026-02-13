@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Switch } from './ui/switch';
 import {
     RotateCcw,
     ImageIcon,
@@ -18,6 +19,30 @@ import {
 import { toast } from 'sonner';
 import { Skeleton } from './ui/skeleton';
 import { useEffect } from 'react';
+
+// Helper function to parse asset colors
+const parseAssetColors = (value: string) => {
+    if (!value) return [];
+    const colors: { name: string, value: string }[] = [];
+    const lines = value.split('\n').filter(Boolean);
+
+    lines.forEach(line => {
+        if (line.includes('|')) {
+            const [name, val] = line.split('|');
+            const cleanVal = val.trim();
+            if (/^#[0-9A-Fa-f]{3,6}$/.test(cleanVal)) {
+                colors.push({ name: name.trim(), value: cleanVal });
+            }
+        } else {
+            const cleanVal = line.trim();
+            if (/^#[0-9A-Fa-f]{3,6}$/.test(cleanVal)) {
+                colors.push({ name: cleanVal, value: cleanVal });
+            }
+        }
+    });
+
+    return colors;
+};
 
 interface PublicCustomizationPanelProps {
     elements: CanvasElement[];
@@ -34,6 +59,13 @@ interface PublicCustomizationPanelProps {
     shop?: string;
     onAddElement?: (element: CanvasElement) => void;
     onDeleteElement?: (id: string) => void;
+    // Mockup color props
+    userColors?: any[];
+    baseImageColor?: string;
+    baseImageColorEnabled?: boolean;
+    onBaseImageColorChange?: (color: string) => void;
+    onBaseImageColorEnabledChange?: (enabled: boolean) => void;
+    selectedBaseColorAssetId?: string | null;
 }
 
 export function PublicCustomizationPanel({
@@ -48,7 +80,13 @@ export function PublicCustomizationPanel({
     baseUrl = '',
     shop = '',
     onAddElement,
-    onDeleteElement
+    onDeleteElement,
+    userColors = [],
+    baseImageColor,
+    baseImageColorEnabled = false,
+    onBaseImageColorChange,
+    onBaseImageColorEnabledChange,
+    selectedBaseColorAssetId
 }: PublicCustomizationPanelProps) {
     const [activeGalleryTab, setActiveGalleryTab] = useState<'all' | string>('all');
     const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -74,6 +112,26 @@ export function PublicCustomizationPanel({
     }, [gallerySearch, activeGalleryTab]);
 
     const shopifyOptions = productData?.options || [];
+
+    // Get active color palette
+    const activeColorPalette = useMemo(() => {
+        if (!selectedBaseColorAssetId || !userColors.length) return [];
+        const asset = userColors.find((a: any) => String(a.id) === String(selectedBaseColorAssetId));
+        if (!asset) return [];
+        return parseAssetColors(asset.value);
+    }, [userColors, selectedBaseColorAssetId]);
+
+    // Debug logging
+    useEffect(() => {
+        console.log('[PublicCustomizationPanel] Debug:', {
+            hasProductData: !!productData,
+            productDataKeys: productData ? Object.keys(productData) : [],
+            shopifyOptions: shopifyOptions,
+            shopifyOptionsLength: shopifyOptions.length,
+            selectedVariant: selectedVariant,
+            hasHandleOptionChange: !!handleOptionChange
+        });
+    }, [productData, shopifyOptions, selectedVariant, handleOptionChange]);
 
     // Filter elements that are editable by customer and have a label
     const editableElements = useMemo(() => {
@@ -135,6 +193,47 @@ export function PublicCustomizationPanel({
                                 </Select>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* Mockup Color Selection */}
+                {activeColorPalette.length > 0 && onBaseImageColorChange && onBaseImageColorEnabledChange && (
+                    <div className="space-y-4 pb-6 border-b border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                <div className="w-1 h-3 bg-indigo-500 rounded-full" />
+                                Mockup Color
+                            </Label>
+                            <Switch
+                                checked={baseImageColorEnabled}
+                                onCheckedChange={onBaseImageColorEnabledChange}
+                                className="scale-75"
+                            />
+                        </div>
+
+                        {baseImageColorEnabled && (
+                            <div className="flex flex-wrap gap-1.5">
+                                {activeColorPalette.map((c, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => {
+                                            onBaseImageColorChange(c.value);
+                                            // Auto-enable if not already enabled
+                                            if (!baseImageColorEnabled) {
+                                                onBaseImageColorEnabledChange(true);
+                                            }
+                                        }}
+                                        className={`w-8 h-8 rounded-md border-2 transition-all flex-shrink-0 ${
+                                            baseImageColor === c.value 
+                                                ? 'border-indigo-600 ring-2 ring-indigo-100 scale-110' 
+                                                : 'border-gray-200 hover:border-gray-300 hover:scale-105'
+                                        }`}
+                                        style={{ backgroundColor: c.value }}
+                                        title={c.name}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

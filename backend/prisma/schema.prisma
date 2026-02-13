@@ -54,6 +54,10 @@ model MerchantConfig {
   safeAreaRadius        Float?   @default(0)
   safeAreaWidth         Float?
   variantBaseImages     Json?
+  variantBaseScales     Json?
+  baseImageScale        Float?
+  baseImageColorMode    String?  @default("transparent")
+  baseImageMaskInvert   Boolean? @default(false)
   buttonStyle           Json?
   buttonText            String   @default("Design It")
   headerTitle           String   @default("Product Customizer")

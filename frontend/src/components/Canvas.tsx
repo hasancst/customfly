@@ -446,39 +446,63 @@ export function Canvas({
               }}
               draggable={false}
             />
-
-            {/* Color Overlay */}
-            {baseImageColorEnabled && baseImageColor && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  zIndex: 2,
-                  backgroundColor: baseImageColor,
-                  WebkitMaskImage: baseImageColorMode === 'transparent'
-                    ? `linear-gradient(black, black), url("${baseImage}")`
-                    : `url("${baseImage}")`,
-                  maskImage: baseImageColorMode === 'transparent'
-                    ? `linear-gradient(black, black), url("${baseImage}")`
-                    : `url("${baseImage}")`,
-                  WebkitMaskSize: baseImageColorMode === 'transparent'
-                    ? `100% 100%, contain`
-                    : `contain`,
-                  maskSize: baseImageColorMode === 'transparent'
-                    ? `100% 100%, contain`
-                    : `contain`,
-                  WebkitMaskRepeat: 'no-repeat',
-                  maskRepeat: 'no-repeat',
-                  WebkitMaskPosition: 'center',
-                  maskPosition: 'center',
-                  WebkitMaskComposite: baseImageColorMode === 'transparent' ? 'destination-out' : 'source-over',
-                  maskComposite: baseImageColorMode === 'transparent' ? 'subtract' : 'add',
-                  mixBlendMode: 'normal'
-                }}
-              />
-            )}
           </div>
         </motion.div>
       </div>
+
+      {/* Color Overlay - Behind transparent areas using CSS mask */}
+      {(() => {
+        if (!baseImageColorEnabled || !baseImageColor) {
+          return null;
+        }
+        
+        const containerWidth = (baseImageProperties?.width || 600) * (validZoom / 100);
+        const containerHeight = (baseImageProperties?.height || 600) * (validZoom / 100);
+        
+        // Fallback to minimum size if calculated size is invalid
+        const finalWidth = containerWidth > 0 ? containerWidth : 600;
+        const finalHeight = containerHeight > 0 ? containerHeight : 600;
+        
+        // Calculate position to match base image
+        const baseX = (baseImageProperties?.x || 0) * (validZoom / 100);
+        const baseY = (baseImageProperties?.y || 0) * (validZoom / 100);
+        const scale = baseImageScale ? (baseImageScale / 100) : (baseImageProperties?.scale || 1);
+
+        // Color overlay with CSS mask - only show in transparent areas
+        // We need to invert the mask so color appears where the image is transparent
+        const maskUrl = baseImage ? (baseImage.startsWith('http') && !baseImage.includes('proxy-image') 
+          ? `${(window as any).IMCST_BASE_URL || ''}/imcst_public_api/proxy-image?url=${encodeURIComponent(baseImage)}`
+          : baseImage) : '';
+        
+        return (
+          <div
+            className="absolute pointer-events-none"
+            data-color-overlay="true"
+            data-color={baseImageColor}
+            style={{
+              left: '50%',
+              top: '50%',
+              transform: `translate(-50%, -50%) translate(${baseX}px, ${baseY}px) scale(${scale})`,
+              width: `${finalWidth}px`,
+              height: `${finalHeight}px`,
+              zIndex: 19, // Below base image (20) so it appears behind
+              backgroundColor: baseImageColor,
+              // Use double mask technique: solid layer + inverted image mask
+              WebkitMaskImage: maskUrl ? `linear-gradient(black, black), url("${maskUrl}")` : 'none',
+              maskImage: maskUrl ? `linear-gradient(black, black), url("${maskUrl}")` : 'none',
+              WebkitMaskSize: '100% 100%, 100% 100%',
+              maskSize: '100% 100%, 100% 100%',
+              WebkitMaskPosition: 'center, center',
+              maskPosition: 'center, center',
+              WebkitMaskRepeat: 'no-repeat, no-repeat',
+              maskRepeat: 'no-repeat, no-repeat',
+              // Subtract the image from solid layer = color only in transparent areas
+              WebkitMaskComposite: 'destination-out',
+              maskComposite: 'subtract'
+            }}
+          />
+        );
+      })()}
 
       {/* Safe Area Controls (only show if enabled) */}
       {showSafeArea && !isNaN(currentWidth) && !isNaN(currentHeight) && (

@@ -58,7 +58,8 @@ router.post("/config", async (req, res) => {
             'baseImageProperties', 'selectedColorAssetId', 'customPaperDimensions',
             'paperSize', 'safeAreaOffset', 'safeAreaPadding', 'safeAreaShape',
             'showRulers', 'showSafeArea', 'unit', 'baseImageAsMask', 'safeAreaHeight',
-            'safeAreaRadius', 'safeAreaWidth', 'variantBaseImages', 'buttonStyle',
+            'safeAreaRadius', 'safeAreaWidth', 'variantBaseImages', 'variantBaseScales',
+            'baseImageScale', 'baseImageColorMode', 'baseImageMaskInvert', 'buttonStyle',
             'selectedBaseColorAssetId',
             'buttonText', 'headerTitle', 'designerLayout', 'enabledTools', 'inlineSettings',
             'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
@@ -70,6 +71,14 @@ router.post("/config", async (req, res) => {
         const cleanData = {};
         Object.keys(configData).forEach(key => {
             if (allowedFields.includes(key)) cleanData[key] = configData[key];
+        });
+
+        console.log('[Config Save] Data to save:', {
+            productId,
+            'cleanData.baseImage': cleanData.baseImage,
+            'cleanData.variantBaseImages': cleanData.variantBaseImages,
+            'cleanData.baseImageScale': cleanData.baseImageScale,
+            'cleanData.variantBaseScales': cleanData.variantBaseScales
         });
 
         // Ensure mandatory printArea is present for creation

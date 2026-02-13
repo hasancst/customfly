@@ -98,16 +98,25 @@ export function DesignerOpenCore({
     const isPublicModeProp = isPublicMode;
 
     const [pages, setPages] = useState<PageData[]>(() => {
-        if (!isPublicMode) return initialPages;
-        return initialPages.map(p => ({
+        const mergedPages = initialPages.map(p => ({
             ...p,
+            // Merge config values if not present in page
+            baseImageColor: p.baseImageColor || initialConfig.baseImageColor,
+            baseImageColorEnabled: p.baseImageColorEnabled !== undefined ? p.baseImageColorEnabled : initialConfig.baseImageColorEnabled,
+            baseImageColorMode: p.baseImageColorMode || initialConfig.baseImageColorMode || 'transparent',
+            baseImageAsMask: p.baseImageAsMask !== undefined ? p.baseImageAsMask : initialConfig.baseImageAsMask,
+            baseImageMaskInvert: p.baseImageMaskInvert !== undefined ? p.baseImageMaskInvert : initialConfig.baseImageMaskInvert,
+            baseImageScale: p.baseImageScale || initialConfig.baseImageScale,
+            variantBaseScales: p.variantBaseScales || initialConfig.variantBaseScales,
             elements: p.elements.map(el => {
+                if (!isPublicMode) return el;
                 if ((el.type === 'text' || el.type === 'textarea' || el.type === 'monogram') && el.hideTextPreview) {
                     return { ...el, text: '' };
                 }
                 return el;
             })
         }));
+        return mergedPages;
     });
     const [activePageId, setActivePageId] = useState<string>(initialPages[0]?.id || 'default');
     const [selectedElement, setSelectedElement] = useState<string | null>(null);
@@ -356,18 +365,34 @@ export function DesignerOpenCore({
             selectedVariantId,
             rawSelectedId,
             vKey,
+            'activePage.variantBaseImages': activePage?.variantBaseImages,
             'initialConfig.variantBaseImages': initialConfig?.variantBaseImages,
+            'activePage.baseImage': activePage?.baseImage,
             'initialConfig.baseImage': initialConfig?.baseImage,
         });
 
-        // 1. Check variant-specific selection (admin explicitly selected for this variant)
+        // 1. Check variant-specific selection from activePage FIRST (from design/template)
+        const pageVariantSelection = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
+        if (pageVariantSelection) {
+            const normalized = normalizeBaseImage(pageVariantSelection);
+            if (normalized?.url) {
+                const processed = processUrl(normalized.url);
+                if (processed && !isPlaceholder(processed)) {
+                    console.log('[DesignerOpenCore] Using page variant-specific selection:', normalized.source, processed);
+                    return processed;
+                }
+            }
+        }
+
+        // 2. Check variant-specific selection from config (admin explicitly selected for this variant)
         const variantSelection = initialConfig?.variantBaseImages?.[rawSelectedId] || initialConfig?.variantBaseImages?.[vKey];
         if (variantSelection) {
             const normalized = normalizeBaseImage(variantSelection);
             if (normalized?.url) {
                 const processed = processUrl(normalized.url);
                 if (processed && !isPlaceholder(processed)) {
-                    console.log('[DesignerOpenCore] Using variant-specific selection:', normalized.source, processed);
+                    console.log('[DesignerOpenCore] Using config variant-specific selection:', normalized.source, processed);
+                    return processed;
                     return processed;
                 }
             }
@@ -391,6 +416,58 @@ export function DesignerOpenCore({
         return '/images/system-placeholder.png';
 
     }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseImages, initialConfig.baseImage]);
+
+    // Resolve base image scale (per-variant or global)
+    const resolvedBaseScale = useMemo(() => {
+        const activePage = pages.find(p => p.id === activePageId);
+        const rawSelectedId = String(selectedVariantId || '');
+        const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
+
+        // 1. Check variant-specific scale
+        if (selectedVariantId && activePage?.variantBaseScales?.[rawSelectedId]) {
+            return activePage.variantBaseScales[rawSelectedId];
+        }
+        if (selectedVariantId && activePage?.variantBaseScales?.[vKey]) {
+            return activePage.variantBaseScales[vKey];
+        }
+        if (selectedVariantId && initialConfig?.variantBaseScales?.[rawSelectedId]) {
+            return initialConfig.variantBaseScales[rawSelectedId];
+        }
+        if (selectedVariantId && initialConfig?.variantBaseScales?.[vKey]) {
+            return initialConfig.variantBaseScales[vKey];
+        }
+
+        // 2. Check page-specific scale
+        if (activePage?.baseImageScale) {
+            return activePage.baseImageScale;
+        }
+
+        // 3. Check global config scale
+        if (initialConfig?.baseImageScale) {
+            return initialConfig.baseImageScale;
+        }
+
+        // 4. Default
+        return 80;
+    }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseScales, initialConfig.baseImageScale]);
+
+    // Debug logging for base image color settings
+    useEffect(() => {
+        const activePage = pages.find(p => p.id === activePageId);
+        console.log('[DesignerOpenCore] Base Image Color Debug:', {
+            'currentPages.baseImageColor': activePage?.baseImageColor,
+            'currentPages.baseImageColorEnabled': activePage?.baseImageColorEnabled,
+            'currentPages.baseImageColorMode': activePage?.baseImageColorMode,
+            'initialConfig.baseImageColor': initialConfig?.baseImageColor,
+            'initialConfig.baseImageColorEnabled': initialConfig?.baseImageColorEnabled,
+            'initialConfig.baseImageColorMode': initialConfig?.baseImageColorMode,
+            'initialConfig.variantBaseImages': initialConfig?.variantBaseImages,
+            'activePage.variantBaseImages': activePage?.variantBaseImages,
+            'selectedVariantId': selectedVariantId,
+            'resolvedBaseImage': resolvedBaseImage,
+            'resolvedBaseScale': resolvedBaseScale
+        });
+    }, [pages, activePageId, initialConfig, selectedVariantId, resolvedBaseImage, resolvedBaseScale]);
 
 
     const addToHistory = useCallback((currentPages: PageData[]) => {
@@ -587,10 +664,14 @@ export function DesignerOpenCore({
         addToHistory(updated);
     };
 
-    const handleSave = async (_isTemplate = false, isSilent = false, outputSettingsOverride?: any) => {
+    const handleSave = async (_isTemplate = false, isSilent = false, saveTypeOrOutputSettings?: 'product' | 'global' | any) => {
         if (!onSave) return;
         if (!isSilent) setIsSaving(true);
         else setIsAutoSaving(true);
+
+        // Determine if third parameter is saveType or outputSettings
+        const isSaveType = saveTypeOrOutputSettings === 'product' || saveTypeOrOutputSettings === 'global';
+        const outputSettingsOverride = isSaveType ? undefined : saveTypeOrOutputSettings;
 
         const currentSettings = outputSettingsOverride || productOutputSettings;
 
@@ -894,9 +975,21 @@ export function DesignerOpenCore({
                 document.head.appendChild(style);
             }
             let css = '';
+            const fontsArray = Array.from(fontsToLoad);
+            console.log('[DesignerOpenCore] Loading fonts:', {
+                fontsToLoadCount: fontsArray.length,
+                fontsToLoad: fontsArray.map(f => ({ name: f.name, hasValue: !!f.value, fontType: f.config?.fontType }))
+            });
+            
             fontsToLoad.forEach(f => {
                 if (f.config?.fontType === 'custom' && f.value && !f.value.includes('|')) {
-                    css += `@font-face { font-family: "${cleanAssetName(f.name)}"; src: url("${f.value}"); font-display: swap; }\n`;
+                    const cleanName = cleanAssetName(f.name);
+                    console.log('[DesignerOpenCore] Loading single font:', {
+                        originalName: f.name,
+                        cleanName,
+                        url: f.value.substring(0, 50) + '...'
+                    });
+                    css += `@font-face { font-family: "${cleanName}"; src: url("${f.value}"); font-display: swap; }\n`;
                 }
 
                 if (f.value && f.value.includes('|')) {
@@ -905,13 +998,26 @@ export function DesignerOpenCore({
                         if (line.includes('|')) {
                             const [name, data] = line.split('|');
                             if (name && data && (data.trim().startsWith('data:') || data.trim().startsWith('http'))) {
-                                css += `@font-face { font-family: "${cleanAssetName(name.trim())}"; src: url("${data.trim()}"); font-display: swap; }\n`;
+                                const cleanName = cleanAssetName(name.trim());
+                                console.log('[DesignerOpenCore] Loading variation font:', {
+                                    originalName: name.trim(),
+                                    cleanName,
+                                    url: data.trim().substring(0, 50) + '...'
+                                });
+                                css += `@font-face { font-family: "${cleanName}"; src: url("${data.trim()}"); font-display: swap; }\n`;
                             }
                         }
                     });
                 }
             });
-            if (style.textContent !== css) style.textContent = css;
+            
+            if (style.textContent !== css) {
+                console.log('[DesignerOpenCore] Updating font CSS:', {
+                    cssLength: css.length,
+                    fontFaceCount: (css.match(/@font-face/g) || []).length
+                });
+                style.textContent = css;
+            }
         }
     }, [filteredUserFonts, usedFontAssetIds, userFonts]);
 
@@ -1037,7 +1143,7 @@ export function DesignerOpenCore({
     return (
         <div className="fixed inset-0 z-[99999] bg-gray-100 flex flex-col overflow-hidden">
             <Header
-                title={productData?.title} onSave={(isTemplate) => handleSave(isTemplate, false)} designName={designName} onDesignNameChange={setDesignName}
+                title={productData?.title} onSave={(isTemplate, isSilent, saveType) => handleSave(isTemplate, isSilent, saveType)} designName={designName} onDesignNameChange={setDesignName}
                 isSaving={isSaving || isAutoSaving} lastSavedTime={lastSavedTime}
                 productId={productId}
                 isPublicMode={isPublicModeProp} buttonText={buttonText}
@@ -1077,6 +1183,15 @@ export function DesignerOpenCore({
                             baseUrl={baseUrl}
                             shop={shop}
                             onAddElement={addElement}
+                            productData={productData}
+                            selectedVariant={productData?.variants?.find((v: any) => String(v.id) === String(selectedVariantId))}
+                            handleOptionChange={handleOptionChange}
+                            userColors={userColors}
+                            baseImageColor={currentPages.baseImageColor}
+                            baseImageColorEnabled={currentPages.baseImageColorEnabled || false}
+                            onBaseImageColorChange={(color) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color } : p))}
+                            onBaseImageColorEnabledChange={(enabled) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p))}
+                            selectedBaseColorAssetId={selectedBaseColorAssetId}
                         />
                     </div>
                 ) : (
@@ -1368,6 +1483,8 @@ export function DesignerOpenCore({
                                 baseImageProperties={currentPages.baseImageProperties as any}
                                 baseImageColor={currentPages.baseImageColor}
                                 baseImageColorEnabled={currentPages.baseImageColorEnabled}
+                                baseImageColorMode={currentPages.baseImageColorMode || initialConfig.baseImageColorMode || 'transparent'}
+                                baseImageScale={resolvedBaseScale}
                                 onUpdateBaseImage={(props) => {
                                     setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageProperties: { ...p.baseImageProperties, ...props } as any } : p));
                                 }}

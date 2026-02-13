@@ -165,6 +165,22 @@ export default function DesignerAdmin() {
         pricingConfigComponent={productId ? <PricingTab productId={productId} customFetch={fetch} /> : null}
         customFetch={fetch}
         onSave={async (data) => {
+          // Determine shopifyProductId based on saveType
+          // 'product' = save for this product only (visible to customers)
+          // 'global' = save to template library (reusable across products)
+          const finalShopifyProductId = data.saveType === 'global' ? 'GLOBAL' : productId;
+          
+          console.log('[Designer] Saving design:', {
+            saveType: data.saveType,
+            isTemplate: data.isTemplate,
+            shopifyProductId: finalShopifyProductId,
+            productId,
+            'designJson[0].baseImage': data.designJson[0]?.baseImage,
+            'designJson[0].variantBaseImages': data.designJson[0]?.variantBaseImages,
+            'config.baseImage': data.config.baseImage,
+            'config.variantBaseImages': data.config.variantBaseImages
+          });
+
           // 1. Save Design
           const designRes = await fetch('/imcst_api/design', {
             method: 'POST',
@@ -175,7 +191,7 @@ export default function DesignerAdmin() {
               designJson: data.designJson,
               isTemplate: data.isTemplate,
               previewUrl: data.previewUrl,
-              shopifyProductId: productId
+              shopifyProductId: finalShopifyProductId
             })
           });
 

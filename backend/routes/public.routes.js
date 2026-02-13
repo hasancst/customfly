@@ -15,25 +15,21 @@ const router = express.Router();
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 /**
- * Normalizes base image data to support both legacy (string) and new (object) formats
- * @param {any} img - Base image data (string URL or object with source/url)
- * @returns {object|null} Normalized base image object or null
+ * Extracts URL string from base image data (supports both string and object formats)
+ * @param {any} img - Base image data (string URL or object with url property)
+ * @returns {string|null} URL string or null
  */
-const normalizeBaseImage = (img) => {
+const extractBaseImageUrl = (img) => {
     if (!img) return null;
 
-    // New format (object with source)
-    if (typeof img === 'object' && img.source && img.url) {
-        return img;
+    // Object format with url property
+    if (typeof img === 'object' && img.url) {
+        return img.url;
     }
 
-    // Legacy format (plain string URL)
+    // Plain string URL
     if (typeof img === 'string' && img !== 'none') {
-        return {
-            source: 'manual',
-            url: img,
-            metadata: {}
-        };
+        return img;
     }
 
     return null;
@@ -156,6 +152,18 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
         let config = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId } });
         const globalConfig = await prisma.merchantConfig.findFirst({ where: { shop, shopifyProductId: 'GLOBAL' } });
 
+        console.log('[Public API] Config from DB:', {
+            productId: shopifyProductId,
+            hasConfig: !!config,
+            hasGlobalConfig: !!globalConfig,
+            'config.baseImageColor': config?.baseImageColor,
+            'config.baseImageColorEnabled': config?.baseImageColorEnabled,
+            'config.baseImageColorMode': config?.baseImageColorMode,
+            'globalConfig.baseImageColor': globalConfig?.baseImageColor,
+            'globalConfig.baseImageColorEnabled': globalConfig?.baseImageColorEnabled,
+            'globalConfig.baseImageColorMode': globalConfig?.baseImageColorMode
+        });
+
         if (!config) {
             config = globalConfig;
         } else if (globalConfig) {
@@ -184,6 +192,16 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
                 const client = new shopify.api.clients.Rest({ session });
                 const response = await client.get({ path: `products/${shopifyProductId}` });
                 productData = response.body.product;
+                
+                // Debug logging
+                console.log('[Public API] Shopify Product Data:', {
+                    productId: shopifyProductId,
+                    hasOptions: !!productData?.options,
+                    optionsCount: productData?.options?.length || 0,
+                    options: productData?.options,
+                    hasVariants: !!productData?.variants,
+                    variantsCount: productData?.variants?.length || 0
+                });
             }
         } catch (err) {
             console.error("[Public API] Failed to fetch Shopify product data:", err);
@@ -197,46 +215,46 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
             // Only merge if config doesn't already have these values
             if (!config) config = {};
 
-            // Base Image - Normalize and merge with config priority
+            // Base Image - Extract URL string and merge with config priority
             if (!config.baseImage && firstPage.baseImage) {
-                config.baseImage = normalizeBaseImage(firstPage.baseImage);
+                config.baseImage = extractBaseImageUrl(firstPage.baseImage);
             } else if (config.baseImage) {
-                // Ensure config baseImage is normalized
-                config.baseImage = normalizeBaseImage(config.baseImage);
+                // Ensure config baseImage is a URL string
+                config.baseImage = extractBaseImageUrl(config.baseImage);
             }
 
             // Base Image Scale - Config takes priority
             if (!config.baseImageScale && firstPage.baseImageScale) config.baseImageScale = firstPage.baseImageScale;
 
-            // Variant Base Images - Normalize and merge with config priority
+            // Variant Base Images - Extract URLs and merge with config priority
             if (firstPage.variantBaseImages) {
-                const normalizedTemplateVariants = {};
+                const extractedTemplateVariants = {};
                 Object.keys(firstPage.variantBaseImages).forEach(key => {
-                    normalizedTemplateVariants[key] = normalizeBaseImage(firstPage.variantBaseImages[key]);
+                    extractedTemplateVariants[key] = extractBaseImageUrl(firstPage.variantBaseImages[key]);
                 });
 
                 if (!config.variantBaseImages) {
-                    config.variantBaseImages = normalizedTemplateVariants;
+                    config.variantBaseImages = extractedTemplateVariants;
                 } else {
-                    // Normalize config variants and merge
-                    const normalizedConfigVariants = {};
+                    // Extract config variant URLs and merge
+                    const extractedConfigVariants = {};
                     Object.keys(config.variantBaseImages).forEach(key => {
-                        normalizedConfigVariants[key] = normalizeBaseImage(config.variantBaseImages[key]);
+                        extractedConfigVariants[key] = extractBaseImageUrl(config.variantBaseImages[key]);
                     });
 
                     // Merge: config values override template values for same variant
                     config.variantBaseImages = {
-                        ...normalizedTemplateVariants,
-                        ...normalizedConfigVariants
+                        ...extractedTemplateVariants,
+                        ...extractedConfigVariants
                     };
                 }
             } else if (config.variantBaseImages) {
-                // Normalize existing config variants
-                const normalizedConfigVariants = {};
+                // Extract URLs from existing config variants
+                const extractedConfigVariants = {};
                 Object.keys(config.variantBaseImages).forEach(key => {
-                    normalizedConfigVariants[key] = normalizeBaseImage(config.variantBaseImages[key]);
+                    extractedConfigVariants[key] = extractBaseImageUrl(config.variantBaseImages[key]);
                 });
-                config.variantBaseImages = normalizedConfigVariants;
+                config.variantBaseImages = extractedConfigVariants;
             }
 
             // Variant Base Scales - Merge with config priority
@@ -272,17 +290,26 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
                 config.baseImageProperties = firstPage.baseImageProperties;
             }
         } else if (config) {
-            // No template, but ensure config data is normalized
+            // No template, but ensure config data is extracted to URL strings
             if (config.baseImage) {
-                config.baseImage = normalizeBaseImage(config.baseImage);
+                config.baseImage = extractBaseImageUrl(config.baseImage);
             }
             if (config.variantBaseImages) {
-                const normalizedConfigVariants = {};
+                const extractedConfigVariants = {};
                 Object.keys(config.variantBaseImages).forEach(key => {
-                    normalizedConfigVariants[key] = normalizeBaseImage(config.variantBaseImages[key]);
+                    extractedConfigVariants[key] = extractBaseImageUrl(config.variantBaseImages[key]);
                 });
-                config.variantBaseImages = normalizedConfigVariants;
+                config.variantBaseImages = extractedConfigVariants;
             }
+            
+            // Ensure color settings are present even without template
+            // These should already be in config from admin, just make sure they're not undefined
+            if (config.baseImageColor === undefined) config.baseImageColor = null;
+            if (config.baseImageColorEnabled === undefined) config.baseImageColorEnabled = false;
+            if (config.baseImageColorMode === undefined) config.baseImageColorMode = 'transparent';
+            if (config.baseImageAsMask === undefined) config.baseImageAsMask = false;
+            if (config.baseImageMaskInvert === undefined) config.baseImageMaskInvert = false;
+            if (config.baseImageScale === undefined) config.baseImageScale = 80;
         }
 
         const responseData = {
@@ -291,13 +318,38 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
             product: productData
         };
 
+        console.log('[Public API] Response Data:', {
+            productId: shopifyProductId,
+            'config.baseImage': responseData.config?.baseImage,
+            'config.variantBaseImages': responseData.config?.variantBaseImages,
+            'design[0].baseImage': responseData.design?.[0]?.baseImage,
+            'design[0].variantBaseImages': responseData.design?.[0]?.variantBaseImages,
+            hasConfig: !!responseData.config,
+            hasDesign: !!responseData.design
+        });
+
         if (productData) {
             const images = productData.images ? productData.images.map(img => img.src) : [];
             const variants = productData.variants ? productData.variants.map(v => {
                 const imgObj = productData.images?.find(img => img.id === v.image_id);
                 return { ...v, id: String(v.id), image: imgObj ? imgObj.src : null };
             }) : [];
-            responseData.product = { ...productData, images, variants };
+            
+            // Preserve all product data including options
+            responseData.product = { 
+                ...productData, 
+                images, 
+                variants,
+                // Explicitly ensure options are included
+                options: productData.options || []
+            };
+            
+            console.log('[Public API] Response Product Data:', {
+                hasOptions: !!responseData.product.options,
+                optionsCount: responseData.product.options?.length || 0,
+                options: responseData.product.options
+            });
+            
             cache.set(cacheKey, responseData);
         }
         res.json(responseData);

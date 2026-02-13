@@ -228,9 +228,21 @@ export function DesignerCore({
                 document.head.appendChild(style);
             }
             let css = '';
+            const fontsArray = Array.from(fontsToLoad);
+            console.log('[DesignerCore] Loading fonts:', {
+                fontsToLoadCount: fontsArray.length,
+                fontsToLoad: fontsArray.map(f => ({ name: f.name, hasValue: !!f.value, fontType: f.config?.fontType }))
+            });
+            
             fontsToLoad.forEach(f => {
                 if (f.config?.fontType === 'custom' && f.value && !f.value.includes('|')) {
-                    css += `@font-face { font-family: "${cleanAssetName(f.name)}"; src: url("${f.value}"); font-display: swap; }\n`;
+                    const cleanName = cleanAssetName(f.name);
+                    console.log('[DesignerCore] Loading single font:', {
+                        originalName: f.name,
+                        cleanName,
+                        url: f.value.substring(0, 50) + '...'
+                    });
+                    css += `@font-face { font-family: "${cleanName}"; src: url("${f.value}"); font-display: swap; }\n`;
                 }
 
                 if (f.value && f.value.includes('|')) {
@@ -239,13 +251,26 @@ export function DesignerCore({
                         if (line.includes('|')) {
                             const [name, data] = line.split('|');
                             if (name && data && (data.trim().startsWith('data:') || data.trim().startsWith('http'))) {
-                                css += `@font-face { font-family: "${cleanAssetName(name.trim())}"; src: url("${data.trim()}"); font-display: swap; }\n`;
+                                const cleanName = cleanAssetName(name.trim());
+                                console.log('[DesignerCore] Loading variation font:', {
+                                    originalName: name.trim(),
+                                    cleanName,
+                                    url: data.trim().substring(0, 50) + '...'
+                                });
+                                css += `@font-face { font-family: "${cleanName}"; src: url("${data.trim()}"); font-display: swap; }\n`;
                             }
                         }
                     });
                 }
             });
-            if (style.textContent !== css) style.textContent = css;
+            
+            if (style.textContent !== css) {
+                console.log('[DesignerCore] Updating font CSS:', {
+                    cssLength: css.length,
+                    fontFaceCount: (css.match(/@font-face/g) || []).length
+                });
+                style.textContent = css;
+            }
         }
     }, [filteredUserFonts, usedFontAssetIds, userFonts]);
 
@@ -483,10 +508,16 @@ export function DesignerCore({
         }
     }, [productData, selectedVariantId]);
 
-    const handleSave = async (isTemplate = false, isSilent = false, outputSettingsOverride?: any) => {
+    const handleSave = async (isTemplate = false, isSilent = false, saveTypeOrOutputSettings?: 'product' | 'global' | any) => {
         if (!onSave) return;
 
         const currentPagesJson = JSON.stringify(pages);
+        
+        // Determine if third parameter is saveType or outputSettings
+        const isSaveType = saveTypeOrOutputSettings === 'product' || saveTypeOrOutputSettings === 'global';
+        const saveType = isSaveType ? saveTypeOrOutputSettings as ('product' | 'global') : undefined;
+        const outputSettingsOverride = isSaveType ? undefined : saveTypeOrOutputSettings;
+        
         if (isSilent && currentPagesJson === lastSavedPagesJson && !outputSettingsOverride) return;
 
         setIsSaving(true);
@@ -514,6 +545,7 @@ export function DesignerCore({
                 name: designName,
                 productId,
                 isTemplate,
+                saveType, // Pass saveType to parent
                 config: {
                     ...initialConfig,
                     designName,
@@ -674,7 +706,7 @@ export function DesignerCore({
                     canUndo={canUndo}
                     canRedo={canRedo}
                     title={productData?.title || "Product Builder"}
-                    onSave={(isTemplate) => handleSave(isTemplate)}
+                    onSave={(isTemplate, isSilent, saveType) => handleSave(isTemplate, isSilent, saveType)}
                     showPreview={true}
                     onPreview={() => {
                         if (isPublicMode) {
@@ -1044,26 +1076,23 @@ export function DesignerCore({
                 currentBaseImage={activePage?.baseImage}
                 variantBaseImages={activePage?.variantBaseImages}
                 onSelectImage={(url, source, targetVariantId) => {
-                    // Create base image data object with source metadata
-                    const createBaseImageData = (imgUrl: string, imgSource: 'manual' | 'shopify_product' | 'shopify_variant' | 'system') => {
-                        if (!imgUrl || imgUrl === 'none') return 'none';
-                        return {
-                            source: imgSource,
-                            url: imgUrl,
-                            metadata: {
-                                uploadedAt: imgSource === 'manual' ? new Date().toISOString() : undefined
-                            }
-                        };
-                    };
+                    // Normalize base image - always store as string URL, not object
+                    // This prevents [object Object] errors when URL is used in img src
+                    const normalizedUrl = (!url || url === 'none') ? 'none' : url;
 
-                    const baseImageData = createBaseImageData(url, source);
+                    console.log('[DesignerCore] Base image selected:', {
+                        url: normalizedUrl,
+                        source,
+                        targetVariantId,
+                        type: typeof normalizedUrl
+                    });
 
                     if (targetVariantId === 'all') {
                         // Set global base image for all pages
                         setPages(prev => {
                             const updated = prev.map(p => ({
                                 ...p,
-                                baseImage: baseImageData,
+                                baseImage: normalizedUrl,
                                 baseImageProperties: { x: 0, y: 0, scale: 1 }
                             }));
                             addToHistory(updated);
@@ -1077,8 +1106,8 @@ export function DesignerCore({
                                 ...p,
                                 variantBaseImages: {
                                     ...(p.variantBaseImages || {}),
-                                    [targetVariantId]: baseImageData === 'none' ? undefined : baseImageData,
-                                    [vKey]: baseImageData === 'none' ? undefined : baseImageData
+                                    [targetVariantId]: normalizedUrl === 'none' ? undefined : normalizedUrl,
+                                    [vKey]: normalizedUrl === 'none' ? undefined : normalizedUrl
                                 }
                             } : p);
                             addToHistory(updated);
@@ -1089,7 +1118,7 @@ export function DesignerCore({
                         setPages(prev => {
                             const updated = prev.map(p => p.id === activePageId ? {
                                 ...p,
-                                baseImage: baseImageData,
+                                baseImage: normalizedUrl,
                                 baseImageProperties: { x: 0, y: 0, scale: 1 }
                             } : p);
                             addToHistory(updated);

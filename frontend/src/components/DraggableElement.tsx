@@ -1009,6 +1009,16 @@ export const DraggableElement = memo(({
         const monogramType = element.monogramType || 'Vine';
         const customFont = element.fontFamily;
 
+        console.log('[DraggableElement] Rendering monogram:', {
+          elementId: element.id,
+          fontFamily: element.fontFamily,
+          fontAssetId: element.fontAssetId,
+          monogramType: element.monogramType,
+          customFont,
+          willUseCustomFont: !!customFont,
+          text: monogramText
+        });
+
         const monogramTextProps = {
           fill: element.fillType === 'gradient' ? `url(#gradient - ${element.id})` : (element.color || '#000000'),
           stroke: element.strokeWidth && element.strokeWidth > 0 ? (element.strokeColor || '#000000') : 'none',
@@ -1048,9 +1058,11 @@ export const DraggableElement = memo(({
           const chars = monogramText.substring(0, 3).split('');
           const isDiamond = monogramType === 'Diamond';
           const isCircle = monogramType === 'Circle';
+          const isRound = monogramType === 'Round'; // Traditional Circle
 
           // Diamond is already tight (34/66). 
           // Circle (Master Circle) now also made tight to match the pillow reference.
+          // Round (Traditional Circle) needs wider spacing
           let leftX = "22%";
           let rightX = "78%";
           let midSize = "95";
@@ -1062,6 +1074,12 @@ export const DraggableElement = memo(({
             leftX = "25%";
             rightX = "75%";
             midSize = "100";
+          } else if (isRound) {
+            // Traditional Circle - very wide spacing like the yellow pillow reference
+            // Font itself is designed tight, so we need maximum spacing
+            leftX = "12%";  // Very far left, almost touching circle edge
+            rightX = "88%"; // Very far right, almost touching circle edge
+            midSize = "110"; // Larger middle character to dominate
           }
 
           return (
@@ -1069,17 +1087,17 @@ export const DraggableElement = memo(({
               <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', aspectRatio: '1/1' }}>
                 {renderDefs()}
                 {chars[0] && (
-                  <text x={leftX} y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={`${monogramType} -Left`} {...monogramTextProps}>
+                  <text x={leftX} y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={`${monogramType}-Left`} {...monogramTextProps}>
                     {chars[0]}
                   </text>
                 )}
                 {chars[1] && (
-                  <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize={midSize} fontFamily={`${monogramType} -Mid`} {...monogramTextProps}>
+                  <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize={midSize} fontFamily={`${monogramType}-Mid`} {...monogramTextProps}>
                     {chars[1]}
                   </text>
                 )}
                 {chars[2] && (
-                  <text x={rightX} y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={`${monogramType} -Right`} {...monogramTextProps}>
+                  <text x={rightX} y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="95" fontFamily={`${monogramType}-Right`} {...monogramTextProps}>
                     {chars[2]}
                   </text>
                 )}

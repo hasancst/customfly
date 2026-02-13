@@ -54,9 +54,15 @@ export default function DesignerPublic({
                         'design[0].baseImage': data.design?.[0]?.baseImage,
                         'design[0].variantBaseImages': data.design?.[0]?.variantBaseImages,
                         'design[0].baseImageScale': data.design?.[0]?.baseImageScale,
+                        'design[0].baseImageColor': data.design?.[0]?.baseImageColor,
+                        'design[0].baseImageColorEnabled': data.design?.[0]?.baseImageColorEnabled,
+                        'design[0].baseImageColorMode': data.design?.[0]?.baseImageColorMode,
                         'config.baseImage': data.config?.baseImage,
                         'config.variantBaseImages': data.config?.variantBaseImages,
-                        'config.baseImageScale': data.config?.baseImageScale
+                        'config.baseImageScale': data.config?.baseImageScale,
+                        'config.baseImageColor': data.config?.baseImageColor,
+                        'config.baseImageColorEnabled': data.config?.baseImageColorEnabled,
+                        'config.baseImageColorMode': data.config?.baseImageColorMode
                     });
                     setConfigData(data.config);
                     setInitialDesign(data.design);

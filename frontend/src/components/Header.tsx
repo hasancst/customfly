@@ -37,7 +37,7 @@ interface HeaderProps {
   onPreview?: () => void;
   productId?: string;
   title?: string;
-  onSave?: (isTemplate?: boolean, isSilent?: boolean) => void;
+  onSave?: (isTemplate?: boolean, isSilent?: boolean, saveType?: 'product' | 'global') => void;
   designName?: string;
   onDesignNameChange?: (name: string) => void;
   isSaving?: boolean;
@@ -469,22 +469,22 @@ export function Header({
                   <DropdownMenuContent align="end" className="w-60 p-2 rounded-xl shadow-2xl border-gray-100 z-[1000002]">
                     < DropdownMenuLabel className="text-[10px] font-bold text-gray-400 tracking-widest px-2 py-1.5">Save Options</DropdownMenuLabel>
                     < DropdownMenuSeparator className="bg-gray-100" />
-                    < DropdownMenuItem onClick={() => onSave?.(false)
+                    < DropdownMenuItem onClick={() => onSave?.(true, false, 'product')
                     } className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
                       < div className="flex items-center gap-3">
                         < Box className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
                         < div className="flex flex-col gap-0.5">
                           < span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">This Product Only</span>
-                          < span className="text-[10px] text-gray-400">Regular design for current product</span>
+                          < span className="text-[10px] text-gray-400">Save as template for this product (visible to customers)</span>
                         </div >
                       </div >
                     </DropdownMenuItem >
-                    <DropdownMenuItem onClick={() => onSave?.(true)} className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
+                    <DropdownMenuItem onClick={() => onSave?.(true, false, 'global')} className="rounded-lg p-2.5 cursor-pointer focus:bg-indigo-50 group">
                       < div className="flex items-center gap-3">
                         < Library className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
                         < div className="flex flex-col gap-0.5">
                           < span className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Store Template</span>
-                          < span className="text-[10px] text-gray-400">Add to global templates library</span>
+                          < span className="text-[10px] text-gray-400">Add to global templates library (reusable)</span>
                         </div >
                       </div >
                     </DropdownMenuItem >
