@@ -598,6 +598,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         onAddElement={addElement}
                         onDeleteElement={deleteElement}
                         hideVariantSelector={true}
+                        useMinimalStyling={true}
                     />
                 </div>
 

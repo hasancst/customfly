@@ -67,6 +67,7 @@ interface PublicCustomizationPanelProps {
     onBaseImageColorEnabledChange?: (enabled: boolean) => void;
     selectedBaseColorAssetId?: string | null;
     hideVariantSelector?: boolean;
+    useMinimalStyling?: boolean; // New prop for theme-based styling
 }
 
 export function PublicCustomizationPanel({
@@ -88,7 +89,8 @@ export function PublicCustomizationPanel({
     onBaseImageColorChange,
     onBaseImageColorEnabledChange,
     selectedBaseColorAssetId,
-    hideVariantSelector = false
+    hideVariantSelector = false,
+    useMinimalStyling = false
 }: PublicCustomizationPanelProps) {
     const [activeGalleryTab, setActiveGalleryTab] = useState<'all' | string>('all');
     const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -163,12 +165,14 @@ export function PublicCustomizationPanel({
     }, [elements, editableElements]);
 
     return (
-        <div className="flex flex-col h-full bg-white p-6 overflow-hidden">
-            <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black text-indigo-950 uppercase tracking-tighter italic">Your Customization</h2>
-            </div>
+        <div className={useMinimalStyling ? "space-y-6" : "flex flex-col h-full bg-white p-6 overflow-hidden"}>
+            {!useMinimalStyling && (
+                <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black text-indigo-950 uppercase tracking-tighter italic">Your Customization</h2>
+                </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-8 custom-scrollbar">
+            <div className={useMinimalStyling ? "space-y-6" : "flex-1 overflow-y-auto pr-2 -mr-2 space-y-8 custom-scrollbar"}>
                 {/* Product Variant Options (Shopify) - Hidden in direct customize mode */}
                 {!hideVariantSelector && shopifyOptions.length > 0 && (
                     <div className="space-y-6 pb-6 border-b border-gray-100">
@@ -249,19 +253,19 @@ export function PublicCustomizationPanel({
                         const labelText = el.label || (el.type === 'gallery' ? 'Choose your image' : el.type.charAt(0).toUpperCase() + el.type.slice(1));
 
                         return (
-                            <div key={el.id} className="space-y-3 group animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                <div className="flex items-center justify-between px-1">
-                                    <Label className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                        <div className="w-1 h-3 bg-indigo-500 rounded-full" />
+                            <div key={el.id} className={useMinimalStyling ? "space-y-2" : "space-y-3 group animate-in fade-in slide-in-from-bottom-2 duration-300"}>
+                                <div className="flex items-center justify-between">
+                                    <Label className={useMinimalStyling ? "block text-sm font-medium mb-1" : "text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"}>
+                                        {!useMinimalStyling && <div className="w-1 h-3 bg-indigo-500 rounded-full" />}
                                         {labelText}
                                     </Label>
                                     {onDeleteElement && (el.type === 'image' || el.type === 'text') && el.id.includes('added-') && (
                                         <button
                                             onClick={() => onDeleteElement(el.id)}
-                                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                            className={useMinimalStyling ? "text-sm text-red-600 hover:text-red-800" : "p-1.5 text-gray-400 hover:text-red-500 transition-colors"}
                                             title="Remove"
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            {useMinimalStyling ? "Remove" : <Trash2 className="w-3.5 h-3.5" />}
                                         </button>
                                     )}
                                 </div>
@@ -284,7 +288,9 @@ export function PublicCustomizationPanel({
                                                     onUpdateElement(el.id, { text: newVal });
                                                 }}
                                                 placeholder={el.placeholder || `Enter ${labelText.toLowerCase()}...`}
-                                                className="h-14 rounded-2xl border-2 border-gray-100 bg-white px-5 text-base font-bold text-indigo-950 shadow-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-gray-300"
+                                                className={useMinimalStyling 
+                                                    ? "w-full px-3 py-2 border rounded" 
+                                                    : "h-14 rounded-2xl border-2 border-gray-100 bg-white px-5 text-base font-bold text-indigo-950 shadow-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-gray-300"}
                                             />
                                             {((el.type === 'text' || el.type === 'monogram' || el.type === 'field') && (el.maxChars || el.type === 'monogram')) && (
                                                 <div className="flex justify-end px-1">
@@ -310,7 +316,9 @@ export function PublicCustomizationPanel({
                                                     onUpdateElement(el.id, { text: newVal });
                                                 }}
                                                 placeholder={el.placeholder || `Enter ${labelText.toLowerCase()}...`}
-                                                className="min-h-[120px] rounded-2xl border-2 border-gray-100 bg-white p-5 text-base font-bold text-indigo-950 shadow-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-gray-300 resize-none"
+                                                className={useMinimalStyling
+                                                    ? "w-full px-3 py-2 border rounded min-h-[100px]"
+                                                    : "min-h-[120px] rounded-2xl border-2 border-gray-100 bg-white p-5 text-base font-bold text-indigo-950 shadow-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-gray-300 resize-none"}
                                             />
                                             {el.maxChars && (
                                                 <div className="flex justify-end px-1">
@@ -331,14 +339,16 @@ export function PublicCustomizationPanel({
                                             value={el.text || ""}
                                             onValueChange={(val) => onUpdateElement(el.id, { text: val })}
                                         >
-                                            <SelectTrigger className="h-14 rounded-2xl border-2 border-gray-100 bg-white px-5 text-base font-bold text-indigo-950 shadow-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all">
+                                            <SelectTrigger className={useMinimalStyling
+                                                ? "w-full px-3 py-2 border rounded"
+                                                : "h-14 rounded-2xl border-2 border-gray-100 bg-white px-5 text-base font-bold text-indigo-950 shadow-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all"}>
                                                 <SelectValue placeholder={el.placeholder || "Select an option..."} />
                                             </SelectTrigger>
-                                            <SelectContent className="rounded-2xl border shadow-2xl p-2">
+                                            <SelectContent className={useMinimalStyling ? "" : "rounded-2xl border shadow-2xl p-2"}>
                                                 {el.dropdownOptions?.map((opt: string) => {
                                                     const display = opt.includes('|') ? opt.split('|')[0] : opt;
                                                     return (
-                                                        <SelectItem key={opt} value={display} className="rounded-xl py-3 font-medium cursor-pointer">
+                                                        <SelectItem key={opt} value={display} className={useMinimalStyling ? "" : "rounded-xl py-3 font-medium cursor-pointer"}>
                                                             {display}
                                                         </SelectItem>
                                                     );
@@ -348,14 +358,14 @@ export function PublicCustomizationPanel({
                                     )}
 
                                     {el.type === 'checkbox' && (
-                                        <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl border-2 border-gray-100">
+                                        <div className={useMinimalStyling ? "flex items-center gap-2" : "flex items-center gap-3 p-4 bg-gray-50 rounded-2xl border-2 border-gray-100"}>
                                             <input
                                                 type="checkbox"
                                                 checked={!!el.checked}
                                                 onChange={(e) => onUpdateElement(el.id, { checked: e.target.checked })}
-                                                className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                className={useMinimalStyling ? "w-4 h-4" : "w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"}
                                             />
-                                            <span className="text-sm font-bold text-indigo-950">{el.placeholder || labelText}</span>
+                                            <span className={useMinimalStyling ? "text-sm" : "text-sm font-bold text-indigo-950"}>{el.placeholder || labelText}</span>
                                         </div>
                                     )}
 
@@ -365,6 +375,18 @@ export function PublicCustomizationPanel({
                                                 {el.enabledOptions?.map((opt: string) => {
                                                     const display = opt.includes('|') ? opt.split('|')[0] : opt;
                                                     const isSelected = el.text === display;
+
+                                                    if (useMinimalStyling) {
+                                                        return (
+                                                            <button
+                                                                key={opt}
+                                                                onClick={() => onUpdateElement(el.id, { text: display })}
+                                                                className={`px-4 py-2 border rounded ${isSelected ? 'bg-black text-white border-black' : 'bg-white text-black border-gray-300 hover:border-black'}`}
+                                                            >
+                                                                {display}
+                                                            </button>
+                                                        );
+                                                    }
 
                                                     const buttonStyle = el.buttonStyle || 'solid';
                                                     const baseClasses = "px-4 py-2.5 rounded-lg font-bold text-sm transition-all cursor-pointer border-2";
