@@ -568,7 +568,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                 </div>
             )}
 
-            <div className={`p-4 md:p-6 space-y-6 ${optionsRoot ? 'px-0 pt-0' : 'h-[80vh] md:h-auto overflow-y-auto'}`}>
+            <div className={`space-y-6 ${optionsRoot ? 'px-0 pt-0' : 'p-4 md:p-6 h-[80vh] md:h-auto overflow-y-auto'}`}>
                 {/* 1. Page Customization Options (Unified with Backend Logic) */}
                 <div className="space-y-4">
                     <PublicCustomizationPanel
