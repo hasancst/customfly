@@ -585,4 +585,51 @@ router.get("/proxy-image", async (req, res) => {
     }
 });
 
+// Upload preview image (base64) to permanent storage
+router.post("/upload", async (req, res) => {
+    try {
+        const { shop, imageBase64 } = req.body;
+        
+        if (!shop) {
+            return res.status(400).json({ error: "Shop parameter required" });
+        }
+        
+        if (!imageBase64) {
+            return res.status(400).json({ error: "No image data provided" });
+        }
+        
+        console.log('[Upload Preview] Received request from shop:', shop);
+        console.log('[Upload Preview] Image data length:', imageBase64.length);
+        
+        // Import S3 service
+        const { uploadBase64ToS3 } = await import('../services/s3Service.js');
+        const { getCDNUrl } = await import('../config/s3.js');
+        
+        // Generate filename with timestamp
+        const timestamp = Date.now();
+        const filename = `preview-${timestamp}.png`;
+        const key = `${shop}/previews/${filename}`;
+        
+        console.log('[Upload Preview] Uploading to S3 with key:', key);
+        
+        // Upload to S3 (permanent storage)
+        const url = await uploadBase64ToS3(imageBase64, key);
+        const cdnUrl = getCDNUrl(url);
+        
+        console.log('[Upload Preview] Upload successful:', cdnUrl);
+        
+        res.json({ 
+            url: cdnUrl, 
+            key,
+            success: true 
+        });
+    } catch (error) {
+        console.error("[Upload Preview Error]", error);
+        res.status(500).json({ 
+            error: `Upload failed: ${error.message}`,
+            success: false 
+        });
+    }
+});
+
 export default router;

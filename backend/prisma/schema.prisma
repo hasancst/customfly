@@ -28,57 +28,55 @@ model Session {
 }
 
 model MerchantConfig {
-  id                    String   @id @default(uuid())
-  shop                  String
-  shopifyProductId      String
-  printArea             Json
-  baseImage             String?
-  masks                 Json?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  baseImageColor        String?
-  baseImageColorEnabled Boolean? @default(false)
-  baseImageProperties   Json?
-  selectedColorAssetId  String?
+  id                       String   @id @default(uuid())
+  shop                     String
+  shopifyProductId         String
+  printArea                Json
+  baseImage                String?
+  masks                    Json?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  baseImageColor           String?
+  baseImageColorEnabled    Boolean? @default(false)
+  baseImageProperties      Json?
+  selectedColorAssetId     String?
+  customPaperDimensions    Json?
+  paperSize                String?
+  safeAreaOffset           Json?
+  safeAreaPadding          Float?
+  safeAreaShape            String?
+  showRulers               Boolean? @default(false)
+  showSafeArea             Boolean? @default(false)
+  unit                     String?
+  baseImageAsMask          Boolean? @default(false)
+  safeAreaHeight           Float?
+  safeAreaRadius           Float?   @default(0)
+  safeAreaWidth            Float?
+  variantBaseImages        Json?
+  buttonStyle              Json?
+  buttonText               String   @default("Design It")
+  designerLayout           String   @default("redirect")
+  enabledTools             Json?
+  inlineSettings           Json?
+  modalSettings            Json?
+  wizardSettings           Json?
+  outputSettings           Json?
+  colorAssetId             String?
+  fontAssetId              String?
+  galleryAssetId           String?
+  optionAssetId            String?
+  shapeAssetId             String?
   selectedBaseColorAssetId String?
-  customPaperDimensions Json?
-  paperSize             String?
-  safeAreaOffset        Json?
-  safeAreaPadding       Float?
-  safeAreaShape         String?
-  showRulers            Boolean? @default(false)
-  showSafeArea          Boolean? @default(false)
-  unit                  String?
-  baseImageAsMask       Boolean? @default(false)
-  safeAreaHeight        Float?
-  safeAreaRadius        Float?   @default(0)
-  safeAreaWidth         Float?
-  variantBaseImages     Json?
-  variantBaseScales     Json?
-  baseImageScale        Float?
-  baseImageColorMode    String?  @default("transparent")
-  baseImageMaskInvert   Boolean? @default(false)
-  buttonStyle           Json?
-  buttonText            String   @default("Design It")
-  headerTitle           String   @default("Product Customizer")
-  designerLayout        String   @default("redirect")
-  enabledTools          Json?
-  inlineSettings        Json?
-  modalSettings         Json?
-  wizardSettings        Json?
-  outputSettings        Json?
-  colorAssetId          String?
-  fontAssetId           String?
-  galleryAssetId        String?
-  optionAssetId         String?
-  shapeAssetId          String?
-  
-  // Toolbar feature flags
-  enabledGrid           Boolean? @default(true)
-  enabledUndoRedo       Boolean? @default(true)
-  enabledDownload       Boolean? @default(true)
-  enabledReset          Boolean? @default(true)
-  showGrid              Boolean? @default(false)
+  enabledDownload          Boolean? @default(true)
+  enabledGrid              Boolean? @default(true)
+  enabledReset             Boolean? @default(true)
+  enabledUndoRedo          Boolean? @default(true)
+  showGrid                 Boolean? @default(false)
+  headerTitle              String   @default("Product Customizer")
+  baseImageColorMode       String?  @default("transparent")
+  baseImageMaskInvert      Boolean? @default(false)
+  baseImageScale           Float?
+  variantBaseScales        Json?
 
   @@unique([shop, shopifyProductId])
 }
@@ -169,4 +167,84 @@ model DesignUpload {
   createdAt DateTime @default(now())
 
   @@index([shop, productId])
+}
+
+model AISession {
+  id        String     @id @default(uuid())
+  shop      String
+  userId    String?
+  startedAt DateTime   @default(now())
+  endedAt   DateTime?
+  status    String     @default("active")
+  context   Json?
+  actions   AIAction[]
+
+  @@index([shop])
+  @@index([startedAt])
+}
+
+model AIAction {
+  id         String    @id @default(uuid())
+  sessionId  String
+  shop       String
+  actionType String
+  target     String
+  targetId   String?
+  input      Json?
+  output     Json?
+  changes    Json?
+  status     String    @default("pending")
+  approvedBy String?
+  approvedAt DateTime?
+  executedAt DateTime?
+  createdAt  DateTime  @default(now())
+  session    AISession @relation(fields: [sessionId], references: [id])
+
+  @@index([shop])
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AIRecommendation {
+  id          String   @id @default(uuid())
+  shop        String
+  category    String
+  priority    String   @default("medium")
+  title       String
+  description String
+  reasoning   String?
+  actionable  Boolean  @default(true)
+  actions     Json?
+  status      String   @default("new")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shop])
+  @@index([status])
+  @@index([priority])
+}
+
+model AIShopProfile {
+  id              String   @id @default(uuid())
+  shop            String   @unique
+  industry        String?
+  stylePreference String?  // e.g., "minimalist", "bold", "classic"
+  learnedPatterns Json?    // e.g., common canvas sizes used, preferred colors
+  lastAnalyzedAt  DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shop])
+}
+
+model AIFeedback {
+  id         String   @id @default(uuid())
+  shop       String
+  sessionId  String?
+  actionId   String?
+  rating     Int      // 1 to 5, or thumb up/down represented as 1/-1
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@index([shop])
 }

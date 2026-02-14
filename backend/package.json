@@ -17,6 +17,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",
     "@aws-sdk/lib-storage": "^3.980.0",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
     "@shopify/shopify-api": "^12.3.0",
     "@shopify/shopify-app-express": "^6.0.5",
@@ -29,6 +30,7 @@
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "node-cache": "^5.1.2",
+    "openai": "^6.22.0",
     "prisma": "^5.22.0",
     "sharp": "^0.34.5",
     "winston": "^3.19.0"

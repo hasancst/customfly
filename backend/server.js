@@ -20,10 +20,14 @@ import promoRoutes from "./routes/promo.routes.js";
 import webhookRoutes from "./routes/webhooks.routes.js";
 import publicRoutes from "./routes/public.routes.js";
 import proxyRoutes from "./routes/proxy.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
 
 // Middleware
 import { validateShopParam } from "./middleware/auth.js";
 import { ensureTenantIsolation } from "./middleware/tenantIsolation.js";
+import { uploadLimiter, aiLimiter } from "./middleware/rateLimit.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import logger from "./config/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -87,9 +91,9 @@ app.use(publicPaths, (req, res, next) => {
     next();
 });
 
-// 3. Public Design APIs (with tenant isolation for shop param validation)
+// 3. Public Design APIs (NO RATE LIMIT - Customer facing)
 app.use("/imcst_public_api", ensureTenantIsolation);
-app.use("/imcst_api", uploadRoutes); // /public/upload/...
+app.use("/imcst_api", uploadRoutes); // /public/upload/... - NO LIMIT for customers
 app.use("/imcst_api", designPublicRoutes); // /public/design/...
 app.use("/imcst_api", assetPublicRoutes);  // /public/assets/... and /remove-bg
 app.use("/imcst_public_api", publicRoutes); // Storefront APIs
@@ -124,6 +128,8 @@ app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolat
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, designRoutes);
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, assetRoutes);
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, promoRoutes);
+// AI routes have their own per-shop rate limiter (aiRateLimiter in ai.routes.js)
+app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, aiRoutes);
 
 // --- Storefront Loader Support ---
 app.get("/loader.js", publicRoutes); // Handled by public.routes.js
@@ -254,6 +260,10 @@ app.use(shopify.ensureInstalledOnShop(), async (req, res) => {
     }
 });
 
+// Global Error Handler (Must be last)
+app.use(errorHandler);
+
 app.listen(PORT, () => {
+    logger.info(`Backend running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     console.log(`Backend running on port ${PORT} in ${process.env.NODE_ENV} mode`);
 });

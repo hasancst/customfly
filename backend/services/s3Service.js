@@ -19,9 +19,10 @@ const s3Client = new S3Client({
  * @param {Buffer} buffer - File buffer
  * @param {string} key - S3 object key (path/filename)
  * @param {string} contentType - Mime type
+ * @param {object} options - Additional options (cacheControl, etc.)
  * @returns {Promise<string>} - Public URL of the uploaded file
  */
-export async function uploadToS3(buffer, key, contentType) {
+export async function uploadToS3(buffer, key, contentType, options = {}) {
     try {
         const upload = new Upload({
             client: s3Client,
@@ -31,6 +32,7 @@ export async function uploadToS3(buffer, key, contentType) {
                 Body: buffer,
                 ContentType: contentType,
                 ACL: 'public-read', // Ensure it's publicly readable
+                CacheControl: options.cacheControl || 'public, max-age=31536000', // 1 year default
             },
         });
 
@@ -51,9 +53,10 @@ export async function uploadToS3(buffer, key, contentType) {
  * Converts a base64 string to a buffer and uploads to S3
  * @param {string} base64String - Raw base64 data (with or without prefix)
  * @param {string} key - S3 object key
+ * @param {object} options - Additional options (cacheControl, etc.)
  * @returns {Promise<string>} - Public URL
  */
-export async function uploadBase64ToS3(base64String, key) {
+export async function uploadBase64ToS3(base64String, key, options = {}) {
     try {
         // Remove data URI prefix if present
         const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -68,7 +71,7 @@ export async function uploadBase64ToS3(base64String, key) {
             buffer = Buffer.from(base64String, 'base64');
         }
 
-        return await uploadToS3(buffer, key, contentType);
+        return await uploadToS3(buffer, key, contentType, options);
     } catch (error) {
         console.error("S3 Base64 Upload Error:", error);
         throw error;

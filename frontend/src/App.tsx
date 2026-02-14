@@ -9,6 +9,7 @@ import GlobalSettingsDesigner from '@/pages/GlobalSettingsDesigner';
 import Pricing from '@/pages/Pricing';
 import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
+import AIChat from '@/components/ai/AIChat';
 import { RoutePropagator } from '@/components/RoutePropagator';
 import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import { Provider as AppBridgeProvider, NavigationMenu } from "@shopify/app-bridge-react";
@@ -130,6 +131,7 @@ function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic:
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/designer" element={<GlobalSettingsDesigner />} />
             </Routes>
+            {!isPublic && <AIChat />}
         </>
     );
 

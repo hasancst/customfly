@@ -132,10 +132,14 @@ export default function DesignerAdmin() {
 
   // Construct default pages if no designs exist, using config data
   const hasConfig = config && !config.error;
+  
+  // If config has printArea with layers, use those as initial elements
+  const configElements = hasConfig && config.printArea?.layers ? config.printArea.layers : [];
+  
   const defaultPages = hasConfig ? [{
     id: 'default',
     name: 'Side 1',
-    elements: [],
+    elements: configElements, // Use layers from config as initial elements
     baseImage: config.baseImage || '',
     baseImageProperties: config.baseImageProperties || { x: 0, y: 0, scale: 1, width: 1000, height: 1000 }
   }] : undefined;
@@ -144,12 +148,28 @@ export default function DesignerAdmin() {
     ? [...savedDesigns].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
     : null;
 
+  // IMPORTANT: If config has layers, merge them with saved design
+  // This ensures AI-added layers appear even if there's a saved design
+  let initialPages = latestDesign?.designJson || defaultPages || undefined;
+  if (initialPages && configElements.length > 0) {
+    // Merge config layers into the first page
+    initialPages = initialPages.map((page: any, index: number) => {
+      if (index === 0) {
+        return {
+          ...page,
+          elements: configElements // Override with config layers
+        };
+      }
+      return page;
+    });
+  }
+
   return (
     <>
       <Toaster />
       <DesignerCore
         isPublicMode={false}
-        initialPages={latestDesign?.designJson || defaultPages || undefined}
+        initialPages={initialPages}
         initialConfig={hasConfig ? config : {}}
         initialDesignId={latestDesign?.id} // Pass initial ID
         productId={productId}
@@ -204,7 +224,12 @@ export default function DesignerAdmin() {
               ...data.config,
               // Special: Sync active page's base image to merchant config
               baseImage: data.designJson[0]?.baseImage || data.config.baseImage,
-              baseImageProperties: data.designJson[0]?.baseImageProperties || data.config.baseImageProperties
+              baseImageProperties: data.designJson[0]?.baseImageProperties || data.config.baseImageProperties,
+              // CRITICAL: Sync printArea.layers with current design elements
+              // This ensures config.printArea stays in sync with saved design
+              printArea: {
+                layers: data.designJson[0]?.elements || []
+              }
             })
           });
 

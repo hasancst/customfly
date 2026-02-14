@@ -4,6 +4,7 @@ import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, C
 import { ViewIcon, PlusIcon, MinusIcon, SandboxIcon, StoreIcon } from '@shopify/polaris-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
+import RecommendationDashboard from '../components/ai/RecommendationDashboard';
 
 interface Variant {
     id: string;
@@ -323,8 +324,9 @@ export default function AdminDashboard() {
     );
 
     const tabs = [
-        { id: 'all-products', content: 'All products', panelID: 'all-products-content' },
-        { id: 'custom-products', content: 'Custom product', panelID: 'custom-products-content' },
+        { id: 'all-products', content: 'Semua Produk', panelID: 'all-products-content' },
+        { id: 'custom-products', content: 'Produk Aktif', panelID: 'custom-products-content' },
+        { id: 'ai-recommendations', content: 'Rekomendasi AI', panelID: 'ai-recs-content' },
     ];
 
     const renderProductItem = (product: Product) => {
@@ -475,22 +477,26 @@ export default function AdminDashboard() {
                 <Layout.Section>
                     <Card padding="0">
                         <Tabs tabs={tabs} selected={selectedTab} onSelect={handleTabChange}>
-                            <ResourceList
-                                resourceName={resourceName}
-                                items={sortedProducts}
-                                loading={isLoading}
-                                filterControl={selectedTab === 0 ? filterControl : undefined}
-                                sortValue={sortValue}
-                                sortOptions={[
-                                    { label: 'Newest', value: 'newest' },
-                                    { label: 'Oldest', value: 'oldest' },
-                                    { label: 'A-Z', value: 'a-z' },
-                                    { label: 'Z-A', value: 'z-a' },
-                                ]}
-                                onSortChange={(selected) => setSortValue(selected)}
-                                renderItem={renderProductItem}
-                                emptyState={emptyState}
-                            />
+                            {selectedTab <= 1 ? (
+                                <ResourceList
+                                    resourceName={resourceName}
+                                    items={sortedProducts}
+                                    loading={isLoading}
+                                    filterControl={selectedTab === 0 ? filterControl : undefined}
+                                    sortValue={sortValue}
+                                    sortOptions={[
+                                        { label: 'Newest', value: 'newest' },
+                                        { label: 'Oldest', value: 'oldest' },
+                                        { label: 'A-Z', value: 'a-z' },
+                                        { label: 'Z-A', value: 'z-a' },
+                                    ]}
+                                    onSortChange={(selected) => setSortValue(selected)}
+                                    renderItem={renderProductItem}
+                                    emptyState={emptyState}
+                                />
+                            ) : (
+                                <RecommendationDashboard />
+                            )}
                         </Tabs>
                     </Card>
                 </Layout.Section>
