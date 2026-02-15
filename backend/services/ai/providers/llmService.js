@@ -1,42 +1,61 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import ollamaService from "./ollamaService.js";
+import deepseekService from "./deepseekService.js";
 
 /**
- * Service to handle LLM API calls using Google Gemini Flash.
- * Optimized for fast, structured JSON responses.
+ * LLM Service - Multi-provider AI abstraction layer
+ * Supports: Gemini (cloud), DeepSeek (cloud), Ollama (self-hosted)
  */
 class LLMService {
     constructor() {
-        this.apiKey = process.env.GEMINI_API_KEY;
-        if (this.apiKey) {
-            this.genAI = new GoogleGenerativeAI(this.apiKey);
+        this.provider = process.env.AI_PROVIDER || 'gemini';
+        console.log(`[LLM] Using provider: ${this.provider}`);
+
+        // Initialize Gemini if selected
+        if (this.provider === 'gemini') {
+            this.apiKey = process.env.GEMINI_API_KEY;
+            if (this.apiKey) {
+                this.genAI = new GoogleGenerativeAI(this.apiKey);
+            }
         }
     }
 
     /**
-     * Generates a completion based on the prompt and system instructions.
-     * Uses Gemini 1.5 Flash by default for speed and cost efficiency.
+     * Route to appropriate provider
      */
-    async generateCompletion(messages, options = {}) {
+    async analyze(systemPrompt, userPrompt) {
+        switch (this.provider) {
+            case 'ollama':
+                return await ollamaService.analyze(systemPrompt, userPrompt);
+            
+            case 'deepseek':
+                return await deepseekService.analyze(systemPrompt, userPrompt);
+            
+            case 'gemini':
+            default:
+                return await this._analyzeGemini(systemPrompt, userPrompt);
+        }
+    }
+
+    /**
+     * Gemini-specific implementation
+     */
+    async _analyzeGemini(systemPrompt, userPrompt) {
         if (!this.genAI) {
             throw new Error("GEMINI_API_KEY is not set in environment variables.");
         }
 
         try {
-            // Convert OpenAI-style messages to Gemini-style
-            const systemInstruction = messages.find(m => m.role === 'system')?.content || "";
-            const userMessage = messages.find(m => m.role === 'user')?.content || "";
-
-            // Initialize model with JSON constraint
             const model = this.genAI.getGenerativeModel({
-                model: options.model || process.env.GEMINI_MODEL || "gemini-1.5-flash",
-                systemInstruction: systemInstruction,
+                model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+                systemInstruction: systemPrompt,
                 generationConfig: {
                     responseMimeType: "application/json",
-                    temperature: options.temperature || 0.7,
+                    temperature: 0.7,
                 }
             });
 
-            const result = await model.generateContent(userMessage);
+            const result = await model.generateContent(userPrompt);
             const response = await result.response;
             const text = response.text();
 
@@ -48,14 +67,13 @@ class LLMService {
     }
 
     /**
-     * Specialized method for analyzing products or configurations.
+     * Generic completion method (for backward compatibility)
      */
-    async analyze(systemPrompt, userPrompt) {
-        const messages = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ];
-        return this.generateCompletion(messages);
+    async generateCompletion(messages, options = {}) {
+        const systemInstruction = messages.find(m => m.role === 'system')?.content || "";
+        const userMessage = messages.find(m => m.role === 'user')?.content || "";
+        
+        return await this.analyze(systemInstruction, userMessage);
     }
 }
 

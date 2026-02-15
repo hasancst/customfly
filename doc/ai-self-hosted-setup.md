@@ -1,21 +1,93 @@
-# Self-Hosted AI Setup Guide
+# Self-Hosted & Cloud AI Setup Guide
 
-Panduan lengkap untuk menggunakan AI self-hosted (Ollama) sebagai pengganti Google Gemini.
+Panduan lengkap untuk menggunakan AI dengan berbagai provider:
+- **DeepSeek** - Cloud AI murah (recommended untuk production)
+- **Ollama** - Self-hosted gratis unlimited
+- **Gemini** - Google Cloud AI (default)
 
-## Kenapa Self-Hosted?
+## Perbandingan Provider
+
+| Provider | Type | Cost | Quota | Quality | Speed | Setup |
+|----------|------|------|-------|---------|-------|-------|
+| **DeepSeek** | Cloud | $0.14/1M | Unlimited | ⭐⭐⭐⭐⭐ | ⚡⚡⚡ | ⚡ Easy |
+| **Ollama** | Self-hosted | Free | Unlimited | ⭐⭐⭐⭐ | ⚡⚡ | ⚡⚡ Medium |
+| **Gemini** | Cloud | $0.35/1M | 20/day free | ⭐⭐⭐⭐⭐ | ⚡⚡⚡ | ⚡ Easy |
+
+## Recommended: DeepSeek (Cloud)
+
+### Kenapa DeepSeek?
 
 ✅ **Keuntungan**:
-- Gratis unlimited (no quota)
-- Privacy terjaga (data tidak keluar server)
-- Lebih cepat (no network latency ke cloud)
-- Tidak tergantung internet
+- **70% lebih murah** dari GPT-4 ($0.14 vs $0.50 per 1M tokens)
+- **Unlimited requests** (no free tier quota)
+- **Kualitas tinggi** (comparable to GPT-4)
+- **Setup mudah** (just API key)
+- **Cepat** (low latency)
 
 ❌ **Kekurangan**:
-- Butuh resource server (RAM/GPU)
-- Kualitas response mungkin lebih rendah
-- Perlu maintenance sendiri
+- Perlu API key (tapi murah)
+- Butuh internet connection
 
-## Recommended: Ollama
+### Setup DeepSeek
+
+#### 1. Get API Key
+
+1. Buka https://platform.deepseek.com/
+2. Sign up / Login
+3. Go to API Keys
+4. Create new API key
+5. Copy API key
+
+#### 2. Update .env
+
+```bash
+cd /www/wwwroot/custom.local/backend
+nano .env
+```
+
+Update:
+```env
+# Change provider to deepseek
+AI_PROVIDER=deepseek
+
+# Add DeepSeek API key
+DEEPSEEK_API_KEY=sk-your-actual-api-key-here
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+#### 3. Restart Backend
+
+```bash
+sudo systemctl restart imcst-backend
+sudo systemctl status imcst-backend
+```
+
+#### 4. Test
+
+1. Open Designer
+2. Open AI Chat
+3. Send message: "tambahkan upload foto"
+4. Should work unlimited!
+
+### Pricing Example
+
+**Monthly usage: 1000 AI requests/day**
+- Input: ~500K tokens/day = 15M tokens/month
+- Output: ~250K tokens/day = 7.5M tokens/month
+
+**DeepSeek Cost**:
+- Input: 15M × $0.14 = $2.10
+- Output: 7.5M × $0.28 = $2.10
+- **Total: $4.20/month** 💰
+
+**Gemini Cost** (same usage):
+- ~$10-15/month
+
+**Savings: 60-70%**
+
+---
+
+## Alternative: Ollama (Self-Hosted)
 
 ### System Requirements
 
@@ -304,16 +376,79 @@ OLLAMA_MODEL_CODE=mistral:7b         # Best for code
 
 ## Cost Comparison
 
+### DeepSeek (Cloud - Recommended)
+- Setup: $0 (just API key)
+- Per request: ~$0.0001 (100 tokens avg)
+- Monthly (1000 req/day): ~$4-5
+- **Best for**: Production, high volume
+
 ### Gemini (Cloud)
 - Free: 20 requests/day
 - Paid: $0.35 per 1M tokens
-- Monthly (1000 req/day): ~$10-50
+- Monthly (1000 req/day): ~$10-15
+- **Best for**: Testing, low volume
 
 ### Ollama (Self-Hosted)
 - Setup: $0 (use existing server)
 - Running: $0 (electricity only)
 - Monthly: ~$5-10 (electricity)
-- **Savings**: 80-90%
+- **Best for**: Privacy, unlimited free
+
+## Provider Comparison Table
+
+| Feature | DeepSeek | Ollama | Gemini |
+|---------|----------|--------|--------|
+| **Cost/1M tokens** | $0.14 | Free | $0.35 |
+| **Setup Time** | 5 min | 30 min | 5 min |
+| **Quality** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Speed** | ⚡⚡⚡ | ⚡⚡ | ⚡⚡⚡ |
+| **Quota Limit** | None | None | 20/day free |
+| **Privacy** | Cloud | Local | Cloud |
+| **Maintenance** | None | Low | None |
+| **Internet Required** | Yes | No | Yes |
+| **GPU Required** | No | Optional | No |
+
+## Quick Start Guide
+
+### Option 1: DeepSeek (Fastest)
+
+```bash
+# 1. Get API key from https://platform.deepseek.com/
+# 2. Update .env
+echo "AI_PROVIDER=deepseek" >> backend/.env
+echo "DEEPSEEK_API_KEY=sk-your-key" >> backend/.env
+
+# 3. Restart
+sudo systemctl restart imcst-backend
+```
+
+### Option 2: Ollama (Free)
+
+```bash
+# 1. Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# 2. Download model
+ollama pull llama3.2:3b
+
+# 3. Update .env
+echo "AI_PROVIDER=ollama" >> backend/.env
+echo "OLLAMA_MODEL=llama3.2:3b" >> backend/.env
+
+# 4. Restart
+sudo systemctl restart imcst-backend
+```
+
+### Option 3: Gemini (Default)
+
+```bash
+# Already configured, just need API key
+# Get from: https://aistudio.google.com/
+echo "AI_PROVIDER=gemini" >> backend/.env
+echo "GEMINI_API_KEY=your-key" >> backend/.env
+
+sudo systemctl restart imcst-backend
+```
 
 ## Migration Checklist
 
