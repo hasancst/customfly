@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Gallery Images</title>
+</head>
+<body>
+    <h1>Gallery Image Test</h1>
+    
+    <h2>Image 1: T-Shirt Mockup</h2>
+    <img src="https://customfly.us-southeast-1.linodeobjects.com/gallery/T-Shirt Mockup.jpeg" 
+         alt="T-Shirt Mockup" 
+         style="max-width: 200px; border: 1px solid #ccc;"
+         onload="console.log('Image 1 loaded')"
+         onerror="console.error('Image 1 failed to load')">
+    
+    <h2>Image 2: Hoodie Design</h2>
+    <img src="https://customfly.us-southeast-1.linodeobjects.com/gallery/Hoodie Design.jpeg" 
+         alt="Hoodie Design" 
+         style="max-width: 200px; border: 1px solid #ccc;"
+         onload="console.log('Image 2 loaded')"
+         onerror="console.error('Image 2 failed to load')">
+    
+    <h2>Image 3: With URL Encoding</h2>
+    <img src="https://customfly.us-southeast-1.linodeobjects.com/gallery/T-Shirt%20Mockup.jpeg" 
+         alt="T-Shirt Mockup Encoded" 
+         style="max-width: 200px; border: 1px solid #ccc;"
+         onload="console.log('Image 3 loaded (encoded)')"
+         onerror="console.error('Image 3 failed to load (encoded)')">
+    
+    <script>
+        console.log('Test page loaded');
+    </script>
+</body>
+</html>

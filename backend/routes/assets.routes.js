@@ -1,6 +1,6 @@
 import express from "express";
 import prisma from "../config/database.js";
-import NodeCache from "node-cache";
+import cache from "../config/cache.js";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { resolve, dirname } from "path";
@@ -9,7 +9,6 @@ import { transformAssetValue } from "../config/s3.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const router = express.Router();
-const cache = new NodeCache({ stdTTL: 600, checkperiod: 60 });
 
 // Admin: Get Assets
 router.get("/assets", async (req, res) => {
@@ -68,6 +67,105 @@ router.put("/assets/:id", async (req, res) => {
         res.json({ ...updatedAsset, value: transformAssetValue(updatedAsset.value) });
     } catch (error) {
         res.status(400).json({ error: error.message });
+    }
+});
+
+// Admin: Update Asset (Name, Value, Config)
+router.put("/assets/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+        const { name, value, label, config } = req.body;
+        
+        // Find the asset
+        const asset = await prisma.asset.findFirst({ where: { id, shop } });
+        if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+        // Update the asset
+        const updatedAsset = await prisma.asset.update({
+            where: { id },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(value !== undefined && { value }),
+                ...(label !== undefined && { label }),
+                ...(config !== undefined && { config }),
+                updatedAt: new Date()
+            }
+        });
+
+        // Clear cache
+        cache.del(`assets_${shop}_all`);
+        cache.del(`assets_${shop}_${asset.type}`);
+
+        res.json({ 
+            success: true, 
+            message: `Updated ${asset.type} "${updatedAsset.name}"`,
+            asset: updatedAsset
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Admin: Delete Asset (Group)
+// When deleting a group, all items within it are also deleted
+router.delete("/assets/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+        
+        // Find the asset to delete
+        const asset = await prisma.asset.findFirst({ where: { id, shop } });
+        if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+        // Delete the asset
+        await prisma.asset.delete({ where: { id } });
+
+        // Clear cache
+        cache.del(`assets_${shop}_all`);
+        cache.del(`assets_${shop}_${asset.type}`);
+
+        res.json({ 
+            success: true, 
+            message: `Deleted ${asset.type} group "${asset.name}"`,
+            deletedAsset: asset
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Admin: Set Default Asset
+router.put("/assets/:id/set-default", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+        
+        const asset = await prisma.asset.findFirst({ where: { id, shop } });
+        if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+        // Unset all other defaults of the same type
+        await prisma.asset.updateMany({
+            where: { shop, type: asset.type, isDefault: true },
+            data: { isDefault: false }
+        });
+
+        // Set this one as default
+        const updatedAsset = await prisma.asset.update({
+            where: { id },
+            data: { isDefault: true }
+        });
+
+        // Clear cache
+        cache.del(`assets_${shop}_all`);
+        cache.del(`assets_${shop}_${asset.type}`);
+
+        res.json({ 
+            success: true,
+            asset: { ...updatedAsset, value: transformAssetValue(updatedAsset.value) }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 

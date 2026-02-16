@@ -23,6 +23,9 @@ export default function Assets() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editAssetId, setEditAssetId] = useState<string | null>(null);
     const [editAssetName, setEditAssetName] = useState('');
+    const [editAssetType, setEditAssetType] = useState<string>('');
+    const [editAssetValue, setEditAssetValue] = useState('');
+    const [editColors, setEditColors] = useState<Array<{name: string, hex: string}>>([]);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [isSettingDefault, setIsSettingDefault] = useState<string | null>(null);  // NEW
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
@@ -78,6 +81,34 @@ export default function Assets() {
 
     useEffect(() => {
         fetchAssets();
+    }, [fetchAssets]);
+
+    // Auto-refresh when AI creates/updates/deletes assets
+    useEffect(() => {
+        const handleAssetChange = () => {
+            console.log('[Assets] Detected asset change, refreshing...');
+            fetchAssets();
+        };
+
+        // Listen for custom events from AI Chat
+        window.addEventListener('ai-asset-created', handleAssetChange);
+        window.addEventListener('ai-asset-updated', handleAssetChange);
+        window.addEventListener('ai-asset-deleted', handleAssetChange);
+
+        // Also refresh when tab becomes visible (in case user was on another tab)
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                fetchAssets();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('ai-asset-created', handleAssetChange);
+            window.removeEventListener('ai-asset-updated', handleAssetChange);
+            window.removeEventListener('ai-asset-deleted', handleAssetChange);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [fetchAssets]);
 
 
@@ -190,6 +221,26 @@ export default function Assets() {
     const handleEditAsset = (asset: Asset) => {
         setEditAssetId(asset.id);
         setEditAssetName(asset.name);
+        setEditAssetType(asset.type);
+        setEditAssetValue(asset.value);
+        
+        // Parse colors if it's a color palette
+        if (asset.type === 'color') {
+            try {
+                // Format: "Name|#HEX, Name|#HEX, ..."
+                const colorPairs = asset.value.split(',').map(pair => pair.trim());
+                const parsedColors = colorPairs.map(pair => {
+                    const [name, hex] = pair.split('|').map(s => s.trim());
+                    return { name: name || '', hex: hex || '#000000' };
+                });
+                setEditColors(parsedColors);
+            } catch (e) {
+                setEditColors([]);
+            }
+        } else {
+            setEditColors([]);
+        }
+        
         setIsEditModalOpen(true);
     };
 
@@ -197,36 +248,31 @@ export default function Assets() {
         if (!editAssetId || !editAssetName) return;
         setIsSubmitting(true);
         try {
-            // We need to fetch the existing asset content first or just update name
-            // For simplicity, we assume we just update name. However, our API might need full PUT.
-            // Let's check backend... It's only CREATE and DELETE currently. 
-            // We'll simulate update by delete + create OR ideally implement UPDATE in backend.
-            // Since backend update isn't shown, I'll assume we can't or add UPDATE endpoint.
-            // Wait, backend has NO update endpoint for assets. I'll implement a quick destroy-recreate
-            // OR better, I'll add the PATCH/PUT endpoint to backend first if I could, but I can't touch backend in this step.
-            // Actually, I can touch backend. But let's check if I can just use prisma update.
-            // For now, let's use the 'delete and re-add' strategy or try to fetch + re-post with new name.
-
-            // Simpler: Just update name in local state if we had backend support.
-            // Given constraints, I will add an update endpoint to backend in next step if needed.
-            // But wait, the user request assumes it's possible. I'll try to add a PUT handler in backend too.
-            // For this frontend step, I'll call a hypothetical PUT /imcst_api/assets/:id
+            let updateData: any = { name: editAssetName };
+            
+            // If editing color palette, update value with colors
+            if (editAssetType === 'color' && editColors.length > 0) {
+                const colorValue = editColors
+                    .filter(c => c.name && c.hex)
+                    .map(c => `${c.name}|${c.hex}`)
+                    .join(', ');
+                updateData.value = colorValue;
+            }
 
             const response = await fetch(`/imcst_api/assets/${editAssetId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: editAssetName })
+                body: JSON.stringify(updateData)
             });
 
             if (response.ok) {
-                showToast("Asset renamed successfully");
-                setAssets(prev => prev.map(a => a.id === editAssetId ? { ...a, name: editAssetName } : a));
+                const result = await response.json();
+                showToast("Asset updated successfully");
+                setAssets(prev => prev.map(a => a.id === editAssetId ? result.asset : a));
                 setIsEditModalOpen(false);
             } else {
-                // Fallback if PUT not supported: Delete and Re-create (Risky for IDs)
-                // Let's assume I'll add the PUT endpoint shortly.
                 console.error("Update failed");
-                alert("Failed to update name");
+                alert("Failed to update asset");
             }
 
         } catch (error) {
@@ -509,7 +555,7 @@ export default function Assets() {
             <Modal
                 open={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
-                title="Edit Asset Name"
+                title={editAssetType === 'color' ? 'Edit Color Palette' : 'Edit Asset Name'}
                 primaryAction={{
                     content: 'Save',
                     onAction: handleRenameAsset,
@@ -525,6 +571,63 @@ export default function Assets() {
                             onChange={setEditAssetName}
                             autoComplete="off"
                         />
+                        
+                        {editAssetType === 'color' && (
+                            <BlockStack gap="400">
+                                <Text as="h3" variant="headingMd">Colors</Text>
+                                {editColors.map((color, index) => (
+                                    <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <TextField
+                                                label="Color Name"
+                                                value={color.name}
+                                                onChange={(value) => {
+                                                    const newColors = [...editColors];
+                                                    newColors[index].name = value;
+                                                    setEditColors(newColors);
+                                                }}
+                                                autoComplete="off"
+                                            />
+                                        </div>
+                                        <div style={{ width: '120px' }}>
+                                            <TextField
+                                                label="Hex Code"
+                                                value={color.hex}
+                                                onChange={(value) => {
+                                                    const newColors = [...editColors];
+                                                    newColors[index].hex = value;
+                                                    setEditColors(newColors);
+                                                }}
+                                                autoComplete="off"
+                                                prefix="#"
+                                            />
+                                        </div>
+                                        <div style={{ 
+                                            width: '40px', 
+                                            height: '40px', 
+                                            backgroundColor: color.hex, 
+                                            border: '1px solid #ddd',
+                                            borderRadius: '4px'
+                                        }} />
+                                        <Button
+                                            tone="critical"
+                                            onClick={() => {
+                                                setEditColors(editColors.filter((_, i) => i !== index));
+                                            }}
+                                        >
+                                            Remove
+                                        </Button>
+                                    </div>
+                                ))}
+                                <Button
+                                    onClick={() => {
+                                        setEditColors([...editColors, { name: '', hex: '#000000' }]);
+                                    }}
+                                >
+                                    Add Color
+                                </Button>
+                            </BlockStack>
+                        )}
                     </FormLayout>
                 </Modal.Section>
             </Modal>

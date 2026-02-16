@@ -48,8 +48,8 @@ interface SummaryProps {
   onResetSafeAreaOffset: () => void;
   onToggleRulers: () => void;
   showRulers: boolean;
-  unit: 'cm' | 'mm' | 'inch';
-  onUnitChange: (unit: 'cm' | 'mm' | 'inch') => void;
+  unit: 'cm' | 'mm' | 'inch' | 'px';
+  onUnitChange: (unit: 'cm' | 'mm' | 'inch' | 'px') => void;
   paperSize: string;
   onPaperSizeChange: (val: string) => void;
   customPaperDimensions: { width: number, height: number };
@@ -699,15 +699,41 @@ export const Summary: React.FC<SummaryProps> = ({
                           <SelectContent className="rounded-xl shadow-xl">
                             <SelectItem value="Default">Default (1000 × 1000 px)</SelectItem>
                             <SelectItem value="A4">A4 (210 × 297 mm)</SelectItem>
+                            <SelectItem value="A3">A3 (297 × 420 mm)</SelectItem>
                             <SelectItem value="A5">A5 (148 × 210 mm)</SelectItem>
-                            <SelectItem value="Letter">Letter (216 × 279 mm)</SelectItem>
+                            <SelectItem value="A6">A6 (105 × 148 mm)</SelectItem>
+                            <SelectItem value="Letter">Letter (8.5 × 11 in)</SelectItem>
+                            <SelectItem value="Legal">Legal (8.5 × 14 in)</SelectItem>
+                            <SelectItem value="Tabloid">Tabloid (11 × 17 in)</SelectItem>
+                            <SelectItem value="4x6">4×6 Photo</SelectItem>
+                            <SelectItem value="5x7">5×7 Photo</SelectItem>
+                            <SelectItem value="8x10">8×10 Photo</SelectItem>
+                            <SelectItem value="BusinessCard">Business Card</SelectItem>
+                            <SelectItem value="Postcard">Postcard (4×6)</SelectItem>
                             <SelectItem value="Custom">Custom Size</SelectItem>
                           </SelectContent>
                         </Select>
                         {paperSize === 'Custom' && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            <Input type="number" value={customPaperDimensions.width} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, width: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder="W (mm)" />
-                            <Input type="number" value={customPaperDimensions.height} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, height: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder="H (mm)" />
+                          <div className="space-y-2 pt-1">
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input type="number" value={customPaperDimensions.width} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, width: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder={`Width (${unit})`} />
+                              <Input type="number" value={customPaperDimensions.height} onChange={(e) => onCustomPaperDimensionsChange({ ...customPaperDimensions, height: Number(e.target.value) })} className="h-8 text-xs bg-gray-50" placeholder={`Height (${unit})`} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-medium text-gray-400">Unit</Label>
+                              <Select value={unit} onValueChange={(val: any) => {
+                                onUnitChange(val);
+                                onSave?.(false);
+                              }}>
+                                <SelectTrigger className="h-8 rounded-lg bg-gray-50 border-gray-100 text-[11px]"><SelectValue /></SelectTrigger>
+                                <SelectContent className="rounded-xl shadow-xl">
+                                  <SelectItem value="px">Pixels (px)</SelectItem>
+                                  <SelectItem value="cm">Centimeters (cm)</SelectItem>
+                                  <SelectItem value="mm">Millimeters (mm)</SelectItem>
+                                  <SelectItem value="inch">Inches (inch)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -740,9 +766,10 @@ export const Summary: React.FC<SummaryProps> = ({
                         }}>
                           <SelectTrigger className="h-8 rounded-lg bg-gray-50 border-gray-100 text-[11px]"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl shadow-xl">
-                            <SelectItem value="cm">cm</SelectItem>
-                            <SelectItem value="mm">mm</SelectItem>
-                            <SelectItem value="inch">inch</SelectItem>
+                            <SelectItem value="px">Pixels (px)</SelectItem>
+                            <SelectItem value="cm">Centimeters (cm)</SelectItem>
+                            <SelectItem value="mm">Millimeters (mm)</SelectItem>
+                            <SelectItem value="inch">Inches (inch)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

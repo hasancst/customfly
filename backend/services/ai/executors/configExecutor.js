@@ -1,4 +1,5 @@
 import prisma from '../../../config/database.js';
+import cache from '../../../config/cache.js';
 
 /**
  * Executes configuration changes suggested by AI.
@@ -17,7 +18,7 @@ class ConfigExecutor {
             'paperSize', 'unit', 'customPaperDimensions',
             'buttonText', 'headerTitle', 'designerLayout',
             'showRulers', 'showSafeArea', 'safeAreaPadding',
-            'printArea'
+            'printArea', 'views'
         ];
 
         const cleanData = {};
@@ -64,6 +65,10 @@ class ConfigExecutor {
                 ...cleanData
             }
         });
+
+        // Clear cache
+        cache.del(`product_${shopId}_${productId}`);
+        cache.del(`pub_prod_${shopId}_${productId}`);
 
         return { result, previousState };
     }

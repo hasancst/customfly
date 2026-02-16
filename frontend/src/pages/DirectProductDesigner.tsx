@@ -9,20 +9,12 @@ import { PublicCustomizationPanel } from '../components/PublicCustomizationPanel
 import { Button } from "@/components/ui/button";
 import { getProxiedUrl } from '@/utils/urlUtils';
 import { evaluateVisibility } from '../utils/logicEvaluator';
-
-const PAPER_DIMENSIONS: Record<string, { width: number; height: number }> = {
-    'Default': { width: 264.5833, height: 264.5833 }, // Square fallback in mm (~1000px at 3.77)
-    'A3': { width: 297, height: 420 },
-    'A4': { width: 210, height: 297 },
-    'A5': { width: 148, height: 210 },
-    'Letter': { width: 215.9, height: 279.4 },
-    'Legal': { width: 215.9, height: 355.6 },
-    'Tabloid': { width: 279.4, height: 431.8 },
-};
+import { getPaperSizeMM, mmToPx } from '../constants/paperSizes';
 
 const getCanvasDimensions = (config: any) => {
-    const unit: 'mm' | 'cm' | 'inch' = config?.unit || 'cm';
+    const unit: 'mm' | 'cm' | 'inch' | 'px' = config?.unit || 'cm';
     const pxPerUnit: Record<string, number> = {
+        'px': 1,
         'mm': 3.7795275591,
         'cm': 37.795275591,
         'inch': 96
@@ -40,15 +32,20 @@ const getCanvasDimensions = (config: any) => {
         }
     }
 
-    // 2. Standard Paper Sizes (Map to MM first, then to pixels)
+    // 2. Standard Paper Sizes
     const paperSizeKey = config?.paperSize || 'Default';
-    const dimensions = PAPER_DIMENSIONS[paperSizeKey] || PAPER_DIMENSIONS['Default'];
+    
+    // Special case: Default is already in pixels, no conversion needed
+    if (paperSizeKey === 'Default') {
+        return { width: 1000, height: 1000 };
+    }
+    
+    // For other paper sizes, use exact dimensions from constants
+    const dimensions = getPaperSizeMM(paperSizeKey);
 
-    // We treat PAPER_DIMENSIONS as MM. Convert MM -> Pixels.
-    const mmToPx = 3.7795275591;
-
-    const w = (dimensions.width || 264.5833) * mmToPx;
-    const h = (dimensions.height || 264.5833) * mmToPx;
+    // Convert MM to Pixels
+    const w = mmToPx(dimensions.width);
+    const h = mmToPx(dimensions.height);
 
     return {
         width: w || 1000,

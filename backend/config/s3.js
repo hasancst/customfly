@@ -63,14 +63,36 @@ export const transformAssetValue = (value) => {
     if (!value || typeof value !== 'string') return value;
 
     // Check if it's a multiline/composite value
-    if (value.includes('|') || value.includes('\n')) {
-        return value.split('\n').map(line => {
+    if (value.includes('|')) {
+        // Handle both newline-separated and comma-separated formats
+        let lines;
+        if (value.includes('\n')) {
+            lines = value.split('\n');
+        } else if (value.includes(',') && !value.includes('base64,')) {
+            // Comma-separated format (for color palettes)
+            lines = value.split(',').map(s => s.trim());
+        } else {
+            lines = [value];
+        }
+        
+        const transformed = lines.map(line => {
             if (line.includes('|')) {
-                const [name, url] = line.split('|');
+                const parts = line.split('|');
+                const name = parts[0];
+                const url = parts.slice(1).join('|'); // Handle cases where | appears in URL
                 return `${name}|${getCDNUrl(url)}`;
             }
             return getCDNUrl(line);
-        }).join('\n');
+        });
+        
+        // Return in the same format as input
+        if (value.includes('\n')) {
+            return transformed.join('\n');
+        } else if (value.includes(',') && !value.includes('base64,')) {
+            return transformed.join(', ');
+        } else {
+            return transformed[0];
+        }
     }
 
     return getCDNUrl(value);

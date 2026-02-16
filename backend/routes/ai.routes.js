@@ -4,6 +4,9 @@ import prisma from "../config/database.js";
 import configExecutor from "../services/ai/executors/configExecutor.js";
 import bulkExecutor from "../services/ai/executors/bulkExecutor.js";
 import productExecutor from "../services/ai/executors/productExecutor.js";
+import designExecutor from "../services/ai/executors/designExecutor.js";
+import assetExecutor from "../services/ai/executors/assetExecutor.js";
+import settingsExecutor from "../services/ai/executors/settingsExecutor.js";
 import profilerService from "../services/ai/core/profilerService.js";
 import analyticsService from "../services/ai/core/analyticsService.js";
 import logger from "../config/logger.js";
@@ -74,34 +77,117 @@ router.post("/actions/:id/execute", asyncHandler(async (req, res) => {
     const output = action.output; // This is the JSON from Gemini
     let result;
 
-    if (output.type === 'UPDATE_CONFIG') {
-        result = await configExecutor.applyChanges(
+    try {
+        if (output.type === 'UPDATE_CONFIG') {
+            result = await configExecutor.applyChanges(
+                shop,
+                output.payload.productId,
+                output.payload.changes
+            );
+        } else if (output.type === 'BULK_UPDATE_CONFIG') {
+            const productIds = req.body.productIds || output.payload.productIds;
+            result = await bulkExecutor.applyBulkChanges(
+                shop,
+                productIds,
+                output.payload.changes
+            );
+        } else if (output.type === 'ADD_ELEMENT') {
+            result = await productExecutor.addElement(
+                shop,
+                output.payload.productId,
+                output.payload.element
+            );
+        } else if (output.type === 'REMOVE_UNUSED') {
+            result = await productExecutor.removeUnusedElements(
+                shop,
+                output.payload.productId,
+                output.payload.layerIds
+            );
+        } else if (output.type === 'ADD_SIDE') {
+            result = await designExecutor.addSide(
+                shop,
+                output.payload.productId,
+                output.payload.side
+            );
+        } else if (output.type === 'REMOVE_SIDE') {
+            result = await designExecutor.removeSide(
+                shop,
+                output.payload.productId,
+                output.payload.sideId
+            );
+        } else if (output.type === 'CREATE_ASSET') {
+            result = await assetExecutor.createAsset(
+                shop,
+                output.payload.asset
+            );
+        } else if (output.type === 'UPDATE_ASSET') {
+            result = await assetExecutor.updateAsset(
+                shop,
+                output.payload.assetId,
+                output.payload.updates
+            );
+        } else if (output.type === 'DELETE_ASSET') {
+            result = await assetExecutor.deleteAsset(
+                shop,
+                output.payload.assetId
+            );
+        } else if (output.type === 'CREATE_COLOR_PALETTE') {
+            result = await assetExecutor.createColorPalette(
+                shop,
+                output.payload.palette
+            );
+        } else if (output.type === 'CREATE_FONT_GROUP') {
+            result = await assetExecutor.createFontGroup(
+                shop,
+                output.payload.fontGroup
+            );
+        } else if (output.type === 'CREATE_GALLERY') {
+            result = await assetExecutor.createGallery(
+                shop,
+                output.payload.gallery
+            );
+        } else if (output.type === 'UPDATE_SETTINGS') {
+            result = await settingsExecutor.updateGlobalSettings(
+                shop,
+                output.payload.settings
+            );
+        } else if (output.type === 'UPDATE_DESIGNER_SETTINGS') {
+            result = await settingsExecutor.updateDesignerSettings(
+                shop,
+                output.payload.productId || 'GLOBAL',
+                output.payload.settings
+            );
+        } else if (output.type === 'UPDATE_CANVAS_SETTINGS') {
+            result = await settingsExecutor.updateCanvasSettings(
+                shop,
+                output.payload.productId || 'GLOBAL',
+                output.payload.settings
+            );
+        } else {
+            logger.error('[AI Action] Unknown action type', { shop, actionId: id, type: output.type });
+            return res.status(400).json({ error: `Execution for type ${output.type} not yet implemented.` });
+        }
+    } catch (executionError) {
+        console.error('[AI Action] Execution failed:', {
             shop,
-            output.payload.productId,
-            output.payload.changes
-        );
-    } else if (output.type === 'BULK_UPDATE_CONFIG') {
-        const productIds = req.body.productIds || output.payload.productIds;
-        result = await bulkExecutor.applyBulkChanges(
-            shop,
-            productIds,
-            output.payload.changes
-        );
-    } else if (output.type === 'ADD_ELEMENT') {
-        result = await productExecutor.addElement(
-            shop,
-            output.payload.productId,
-            output.payload.element
-        );
-    } else if (output.type === 'REMOVE_UNUSED') {
-        result = await productExecutor.removeUnusedElements(
-            shop,
-            output.payload.productId,
-            output.payload.layerIds
-        );
-    } else {
-        logger.error('[AI Action] Unknown action type', { shop, actionId: id, type: output.type });
-        return res.status(400).json({ error: `Execution for type ${output.type} not yet implemented.` });
+            actionId: id,
+            type: output.type,
+            error: executionError.message,
+            stack: executionError.stack,
+            payload: output.payload
+        });
+        logger.error('[AI Action] Execution failed', { 
+            shop, 
+            actionId: id, 
+            type: output.type,
+            error: executionError.message,
+            stack: executionError.stack,
+            payload: output.payload
+        });
+        return res.status(500).json({ 
+            error: `Failed to execute action: ${executionError.message}`,
+            details: executionError.message
+        });
     }
 
     // 3. Mark as executed and store previous state for rollback

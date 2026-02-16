@@ -1,5 +1,6 @@
 import prisma from '../../../config/database.js';
 import logger from '../../../config/logger.js';
+import cache from '../../../config/cache.js';
 
 /**
  * Executes product-level changes (adding elements/options).
@@ -128,6 +129,12 @@ class ProductExecutor {
 
         console.log('[Product Executor] Config updated successfully');
 
+        // Clear cache so frontend sees the changes immediately
+        cache.del(`product_${shopId}_${productId}`);
+        cache.del(`pub_prod_${shopId}_${productId}`);
+        cache.del(`assets_${shopId}_all`);
+        cache.del(`assets_${shopId}_option`);
+
         logger.info('[Product Executor] Element added successfully', {
             shop: shopId,
             productId,
@@ -183,6 +190,10 @@ class ProductExecutor {
                 printArea: printArea
             }
         });
+
+        // Clear cache
+        cache.del(`product_${shopId}_${productId}`);
+        cache.del(`pub_prod_${shopId}_${productId}`);
 
         return { result, previousState: { printArea: previousPrintArea } };
     }

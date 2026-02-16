@@ -55,6 +55,51 @@ export const shopify = shopifyApp({
         afterAuth: async ({ session }) => {
             console.log("[Auth] Completed for shop:", session.shop);
             shopify.registerWebhooks({ session });
+            
+            // Fetch and store shop locale for AI language detection
+            try {
+                const client = new shopify.clients.Graphql({ session });
+                const shopQuery = `
+                    query {
+                        shop {
+                            primaryDomain {
+                                host
+                            }
+                            currencyCode
+                            ianaTimezone
+                            enabledPresentmentCurrencies
+                        }
+                    }
+                `;
+                
+                const response = await client.request(shopQuery);
+                
+                // Store locale in session (we'll use a simple approach)
+                // Note: Shopify doesn't directly expose shop language in GraphQL
+                // We'll infer from shop domain or use default
+                const shopDomain = response.data?.shop?.primaryDomain?.host || session.shop;
+                
+                // Simple heuristic: if domain contains .id or shop name suggests Indonesian
+                let locale = 'en-US'; // Default to English
+                if (shopDomain.includes('.id') || session.shop.includes('.id')) {
+                    locale = 'id-ID';
+                }
+                
+                // Store in database for later retrieval
+                const { PrismaClient } = await import('@prisma/client');
+                const prisma = new PrismaClient();
+                
+                await prisma.session.updateMany({
+                    where: { shop: session.shop },
+                    data: { locale }
+                });
+                
+                await prisma.$disconnect();
+                
+                console.log("[Auth] Stored shop locale:", locale, "for shop:", session.shop);
+            } catch (error) {
+                console.error("[Auth] Failed to fetch/store shop locale:", error.message);
+            }
         },
     },
 });

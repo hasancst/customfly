@@ -97,7 +97,7 @@ export default function GlobalSettingsDesigner() {
     const [productData] = useState<any>(DUMMY_PRODUCT);
     const [selectedVariantId] = useState<string>('dummy_variant');
     const [showRulers, setShowRulers] = useState(false);
-    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>('cm');
+    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>('cm');
     const [paperSize, setPaperSize] = useState<string>('Custom');
     const [customPaperDimensions, setCustomPaperDimensions] = useState({ width: 264.5833, height: 264.5833 });
 

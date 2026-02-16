@@ -42,26 +42,36 @@ const AIChat: React.FC = () => {
 
     // Get productId from route params OR from URL pathname
     const params = useParams<{ productId: string }>();
-    const productId = React.useMemo(() => {
+    
+    // Detect context type and productId
+    const context = React.useMemo(() => {
         // First try route params (when AIChat is inside route)
         if (params.productId) {
-            console.log('[AIChat] ProductId from params:', params.productId);
-            return params.productId;
+            return { type: 'product', productId: params.productId };
         }
         
         // Then try to extract from pathname (when AIChat is global)
         // Match /designer/:productId pattern
         const match = location.pathname.match(/\/designer\/(\d+)/);
         if (match) {
-            console.log('[AIChat] ProductId from pathname:', match[1]);
-            return match[1];
+            return { type: 'product', productId: match[1] };
         }
         
-        console.log('[AIChat] No productId found. Pathname:', location.pathname);
-        return null;
+        // Check if we're in Assets page
+        if (location.pathname.includes('/assets')) {
+            return { type: 'assets', productId: null };
+        }
+        
+        // Check if we're in Settings page
+        if (location.pathname.includes('/settings')) {
+            return { type: 'settings', productId: null };
+        }
+        
+        // Default: global context
+        return { type: 'global', productId: null };
     }, [params.productId, location.pathname]);
 
-    console.log('[AIChat] Final productId:', productId);
+    const productId = context.productId;
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -108,7 +118,8 @@ const AIChat: React.FC = () => {
                 body: JSON.stringify({ 
                     message: userMessage,
                     context: {
-                        productId: productId // Send current productId to AI
+                        type: context.type, // 'product', 'assets', 'settings', or 'global'
+                        productId: context.productId // null for assets/settings/global
                     }
                 })
             });
@@ -159,10 +170,32 @@ const AIChat: React.FC = () => {
             
             toast.success("Tindakan berhasil dijalankan!");
 
-            // Reload page after 1 second to show changes
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+            // Dispatch custom events for asset operations
+            const assetActionTypes = [
+                'CREATE_ASSET', 
+                'CREATE_COLOR_PALETTE', 
+                'CREATE_FONT_GROUP',
+                'UPDATE_ASSET',
+                'DELETE_ASSET'
+            ];
+            
+            if (assetActionTypes.includes(action.type)) {
+                const eventType = action.type.startsWith('CREATE') ? 'ai-asset-created' :
+                                 action.type.startsWith('UPDATE') ? 'ai-asset-updated' :
+                                 'ai-asset-deleted';
+                
+                console.log(`[AIChat] Dispatching ${eventType} event`);
+                window.dispatchEvent(new CustomEvent(eventType, { 
+                    detail: { actionType: action.type, actionId } 
+                }));
+            }
+
+            // Reload page after 1 second to show changes (for non-asset actions)
+            if (!assetActionTypes.includes(action.type)) {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
 
         } catch (error) {
             console.error("Execution error:", error);

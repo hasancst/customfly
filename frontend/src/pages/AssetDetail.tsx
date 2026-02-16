@@ -63,6 +63,7 @@ export default function AssetDetail() {
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [itemToRename, setItemToRename] = useState<ListItem | null>(null);
     const [newItemName, setNewItemName] = useState('');
+    const [newItemHex, setNewItemHex] = useState('');
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
     const [optionItemType, setOptionItemType] = useState<'text' | 'image' | 'color'>('text');
@@ -111,6 +112,21 @@ export default function AssetDetail() {
 
     useEffect(() => {
         fetchDetail();
+    }, [fetchDetail]);
+
+    // Auto-refresh when AI updates this asset
+    useEffect(() => {
+        const handleAssetUpdate = () => {
+            console.log('[AssetDetail] Detected asset update, refreshing...');
+            fetchDetail();
+        };
+
+        // Listen for custom event from AI Chat
+        window.addEventListener('ai-asset-updated', handleAssetUpdate);
+
+        return () => {
+            window.removeEventListener('ai-asset-updated', handleAssetUpdate);
+        };
     }, [fetchDetail]);
 
 
@@ -183,7 +199,7 @@ export default function AssetDetail() {
         }
 
         if (asset.type === 'gallery') {
-            return safeSplit(asset.value).map(pair => {
+            const result = safeSplit(asset.value).map(pair => {
                 const parts = pair.split('|');
                 // Auto-handle migrated or simple formats
                 if (parts.length >= 2) {
@@ -193,6 +209,13 @@ export default function AssetDetail() {
                 }
                 return { name: pair, url: '', id: pair };
             }).filter(i => i.name);
+            
+            // Debug: Log first item
+            if (result.length > 0) {
+                console.log('[Gallery] First item:', result[0]);
+            }
+            
+            return result;
         }
         if (asset.type === 'option') {
             return safeSplit(asset.value).map(pair => {
@@ -373,6 +396,12 @@ export default function AssetDetail() {
                 if (parts.length >= 2) {
                     const newParts = [...parts];
                     newParts[newParts.length - 2] = newItemName;
+                    
+                    // For color type, also update hex code if provided
+                    if (asset.type === 'color' && newItemHex) {
+                        newParts[newParts.length - 1] = newItemHex.startsWith('#') ? newItemHex : `#${newItemHex}`;
+                    }
+                    
                     return newParts.join('|');
                 }
                 return newItemName;
@@ -380,7 +409,7 @@ export default function AssetDetail() {
             return pair;
         });
 
-        const newListStr = nameChangedList.join('\n');
+        const newListStr = nameChangedList.join(asset.type === 'color' ? ', ' : '\n');
 
         setIsSubmitting(true);
         try {
@@ -395,13 +424,14 @@ export default function AssetDetail() {
             });
 
             if (response.ok) {
-                showToast(`Renamed to "${newItemName}"`);
+                showToast(`Updated "${newItemName}"`);
                 fetchDetail();
                 setIsRenameModalOpen(false);
                 setItemToRename(null);
                 setNewItemName('');
+                setNewItemHex('');
             } else {
-                alert("Failed to rename item");
+                alert("Failed to update item");
             }
         } catch (err) {
             console.error(err);
@@ -791,7 +821,7 @@ export default function AssetDetail() {
     return (
         <Page
             fullWidth
-            backAction={{ content: 'Assets', url: '/assets' }}
+            backAction={{ content: 'Assets', onAction: () => navigate('/assets') }}
             title={asset.name}
             primaryAction={{
                 content: asset.type === 'font' ? 'Add Font' :
@@ -965,6 +995,17 @@ export default function AssetDetail() {
                                                     <div className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-indigo-600">
                                                         <Icon source={DragHandleIcon} />
                                                     </div>
+                                                    {/* Gallery thumbnail */}
+                                                    {asset.type === 'gallery' && item.url && (
+                                                        <div className="w-12 h-12 rounded border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0 shadow-sm">
+                                                            <img 
+                                                                src={item.url.replace(/ /g, '%20')} 
+                                                                alt={item.name} 
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => console.error('[Gallery Drag] Image failed to load:', item.url)}
+                                                            />
+                                                        </div>
+                                                    )}
                                                     {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
                                                         <div
                                                             className="w-12 h-12 rounded border border-gray-200 shadow-sm"
@@ -993,22 +1034,25 @@ export default function AssetDetail() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-2">
-                                                    {asset.type === 'gallery' && (
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-20 h-20 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
-                                                                <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
-                                                            </div>
-                                                            <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                        </div>
-                                                    )}
-                                                    {asset.type === 'font' && (
-                                                        <div className="mr-8">
-                                                            <span style={{ fontFamily: item.name, fontSize: '18px' }}>{item.name}</span>
-                                                        </div>
-                                                    )}
+                                                {asset.type === 'font' && (
+                                                    <div className="flex-1 px-8 text-right">
+                                                        <span style={{ fontFamily: item.name, fontSize: '16px' }}>
+                                                            Customfly 123
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {asset.type === 'option' && (
+                                                    <div className="flex-1 px-8 text-right">
+                                                        <Text variant="bodySm" tone="subdued" as="span">
+                                                            {item.hex || (item.isPattern ? 'Image' : 'Text Option')}
+                                                        </Text>
+                                                    </div>
+                                                )}
+
+                                                <div className="shrink-0 ml-4 flex items-center gap-2">
                                                     {asset.config?.enablePricing && (asset.config?.pricingType === 'single' || asset.config?.pricingType === 'individual') && (
-                                                        <div className="w-24 shrink-0 mr-2">
+                                                        <div className="w-24 shrink-0">
                                                             <TextField
                                                                 label="Price"
                                                                 labelHidden
@@ -1028,6 +1072,10 @@ export default function AssetDetail() {
                                                             onClick={() => {
                                                                 setItemToRename(item);
                                                                 setNewItemName(item.name);
+                                                                // For color items, also set hex code
+                                                                if (asset.type === 'color' && item.value) {
+                                                                    setNewItemHex(item.value);
+                                                                }
                                                                 setIsRenameModalOpen(true);
                                                             }}
                                                         />
@@ -1091,6 +1139,18 @@ export default function AssetDetail() {
                                         >
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-3 flex-1">
+                                                    {/* Gallery thumbnail */}
+                                                    {asset.type === 'gallery' && item.url && (
+                                                        <div className="w-12 h-12 rounded border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0 shadow-sm">
+                                                            <img 
+                                                                src={item.url.replace(/ /g, '%20')} 
+                                                                alt={item.name} 
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => console.error('[Gallery] Image failed to load:', item.url)}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    {/* Color/Option preview */}
                                                     {(asset.type === 'color' || asset.type === 'option') && (item.hex || item.isPattern) && (
                                                         <div
                                                             className="w-12 h-12 rounded border border-gray-200 shadow-sm"
@@ -1101,12 +1161,14 @@ export default function AssetDetail() {
                                                             }}
                                                         />
                                                     )}
+                                                    {/* Shape preview */}
                                                     {asset.type === 'shape' && item.url && (
                                                         <div
                                                             className="w-12 h-12 rounded border border-gray-100 bg-gray-50 p-1 flex items-center justify-center shrink-0 overflow-hidden"
                                                             dangerouslySetInnerHTML={{ __html: item.url }}
                                                         />
                                                     )}
+                                                    {/* Item name and details */}
                                                     <div className="flex flex-col gap-1">
                                                         {asset.type === 'font' ? (
                                                             <span style={{ fontFamily: item.name, fontSize: '18px', fontWeight: 'bold' }}>
@@ -1124,17 +1186,6 @@ export default function AssetDetail() {
                                                         )}
                                                     </div>
                                                 </div>
-
-                                                {asset.type === 'gallery' && (
-                                                    <div className="flex-1 px-8">
-                                                        <div className="flex items-center gap-4 justify-end">
-                                                            <Text variant="bodyMd" fontWeight="bold" as="span">{item.name}</Text>
-                                                            <div className="w-24 h-24 rounded border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
-                                                                <img src={item.url} alt={item.name} className="max-w-full max-h-full object-contain" />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
 
                                                 {asset.type === 'font' && (
                                                     <div className="flex-1 px-8 text-right">
@@ -1175,6 +1226,10 @@ export default function AssetDetail() {
                                                                 e?.stopPropagation();
                                                                 setItemToRename(item);
                                                                 setNewItemName(item.name);
+                                                                // For color items, also set hex code
+                                                                if (asset.type === 'color' && item.value) {
+                                                                    setNewItemHex(item.value);
+                                                                }
                                                                 setIsRenameModalOpen(true);
                                                             }}
                                                         />
@@ -1669,7 +1724,7 @@ export default function AssetDetail() {
             <Modal
                 open={isRenameModalOpen}
                 onClose={() => setIsRenameModalOpen(false)}
-                title="Rename Item"
+                title={asset?.type === 'color' ? 'Edit Color' : 'Rename Item'}
                 primaryAction={{
                     content: 'Save',
                     onAction: handleRenameItem,
@@ -1685,6 +1740,28 @@ export default function AssetDetail() {
                             onChange={setNewItemName}
                             autoComplete="off"
                         />
+                        {asset?.type === 'color' && (
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                                <div style={{ flex: 1 }}>
+                                    <TextField
+                                        label="Hex Code"
+                                        value={newItemHex}
+                                        onChange={setNewItemHex}
+                                        autoComplete="off"
+                                        prefix="#"
+                                        placeholder="000000"
+                                    />
+                                </div>
+                                <div style={{ 
+                                    width: '50px', 
+                                    height: '50px', 
+                                    backgroundColor: newItemHex.startsWith('#') ? newItemHex : `#${newItemHex}`, 
+                                    border: '2px solid #ddd',
+                                    borderRadius: '8px',
+                                    marginBottom: '4px'
+                                }} />
+                            </div>
+                        )}
                     </FormLayout>
                 </Modal.Section>
             </Modal>

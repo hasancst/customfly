@@ -129,7 +129,7 @@ export function DesignerOpenCore({
     const [showSafeArea, setShowSafeArea] = useState(initialConfig.showSafeArea ?? true);
     const [showRulers, setShowRulers] = useState(isPublicMode ? false : (initialConfig.showRulers ?? false));
     const [showGrid, setShowGrid] = useState(initialConfig.showGrid ?? false);
-    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch'>(initialConfig.unit || 'cm');
+    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>(initialConfig.unit || 'cm');
     const [paperSize, setPaperSize] = useState(initialConfig.paperSize || 'Custom');
     const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
     const [safeAreaPadding] = useState(initialConfig.safeAreaPadding ?? 10);
@@ -582,26 +582,56 @@ export function DesignerOpenCore({
         };
 
         const paperSizes: Record<string, { width: number; height: number }> = {
+            'Default': { width: 1000, height: 1000 }, // Direct pixels (no conversion)
             'A4': { width: 210, height: 297 },
             'A3': { width: 297, height: 420 },
             'A5': { width: 148, height: 210 },
-            'Letter': { width: 216, height: 279 },
-            'Legal': { width: 216, height: 356 },
-            'Tabloid': { width: 279, height: 432 },
+            'A6': { width: 105, height: 148 },
+            'Letter': { width: 215.9, height: 279.4 }, // Exact: 8.5" × 11"
+            'Legal': { width: 215.9, height: 355.6 },  // Exact: 8.5" × 14"
+            'Tabloid': { width: 279.4, height: 431.8 }, // Exact: 11" × 17"
+            '4x6': { width: 101.6, height: 152.4 },
+            '5x7': { width: 127, height: 177.8 },
+            '8x10': { width: 203.2, height: 254 },
+            'BusinessCard': { width: 85.6, height: 53.98 },
+            'Postcard': { width: 101.6, height: 152.4 },
             'Custom': safeCustom,
         };
 
         const paper = paperSizes[paperSize] || paperSizes['A4'];
         const mmToPx = 3.7795275591;
 
-        const w = Number(paper.width || 210) * mmToPx;
-        const h = Number(paper.height || 297) * mmToPx;
+        // Get conversion factor based on unit
+        const unitToPx: Record<string, number> = {
+            'px': 1,
+            'mm': 3.7795275591,
+            'cm': 37.795275591,
+            'inch': 96
+        };
+        const pxPerUnit = unitToPx[unit] || 37.795275591;
+
+        // Calculate dimensions based on paper size type
+        let w, h;
+        
+        if (paperSize === 'Default') {
+            // Default: direct pixels, no conversion
+            w = Number(paper.width || 1000);
+            h = Number(paper.height || 1000);
+        } else if (paperSize === 'Custom') {
+            // Custom: use unit-based conversion
+            w = Number(paper.width || 210) * pxPerUnit;
+            h = Number(paper.height || 297) * pxPerUnit;
+        } else {
+            // Standard paper sizes: convert from mm to px
+            w = Number(paper.width || 210) * mmToPx;
+            h = Number(paper.height || 297) * mmToPx;
+        }
 
         return {
             width: isNaN(w) ? 1000 : w,
             height: isNaN(h) ? 1000 : h
         };
-    }, [paperSize, customPaperDimensions]);
+    }, [paperSize, customPaperDimensions, unit]);
 
     const addElement = useCallback((element: CanvasElement) => {
         const canvas = getCanvasPx();

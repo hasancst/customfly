@@ -20,15 +20,19 @@ class AIService {
    * shopId is strictly extracted from verified session context.
    */
     async processUserMessage(shopId, userId, message, context = {}) {
+        // Detect context type
+        const contextType = context.type || 'global';
+        const productId = context.productId;
+        
         logger.info('[AIService] Processing message', { 
             shop: shopId, 
             userId, 
             messageLength: message.length,
-            hasContext: !!context.productId 
+            contextType: contextType,
+            productId: productId
         });
 
         // Convert product handle to ID if needed
-        let productId = context.productId;
         if (productId && isNaN(productId)) {
             // productId is a handle (string), need to convert to ID
             logger.info('[AIService] Converting product handle to ID', { handle: productId });
@@ -36,17 +40,27 @@ class AIService {
             // TODO: Add handle-to-ID conversion if needed
         }
 
-        // Step 0: Detect Language
-        const language = translationService.detectLanguage(message);
+        // Step 0: Get shop locale and detect language
+        const shopLocale = await this._getShopLocale(shopId);
+        const defaultLanguage = translationService.mapShopifyLocale(shopLocale);
+        const language = translationService.detectLanguage(message, defaultLanguage);
         const languagePrompt = translationService.getLanguagePrompt(language);
+        
+        logger.info('[AIService] Language detection', { 
+            shop: shopId, 
+            shopLocale, 
+            defaultLanguage, 
+            detectedLanguage: language 
+        });
 
         // 1. Initial shop data loading (ISOLATED)
+        // Only load product-specific data if we're in product context
         const [shopContext, assets, diagnostic, optimizations, deepDiagnostic, assetInsights, shopProfile] = await Promise.all([
-            this._getShopContext(shopId, context.productId),
+            this._getShopContext(shopId, productId),
             this._getAvailableAssets(shopId),
-            context.productId ? productAnalyzer.getDiagnostic(shopId, context.productId) : Promise.resolve(null),
-            context.productId ? configAnalyzer.analyzeConfig(shopId, context.productId) : Promise.resolve({ suggestions: [] }),
-            context.productId ? diagnosticService.performFullDiagnostic(shopId, context.productId) : Promise.resolve(null),
+            (contextType === 'product' && productId) ? productAnalyzer.getDiagnostic(shopId, productId) : Promise.resolve(null),
+            (contextType === 'product' && productId) ? configAnalyzer.analyzeConfig(shopId, productId) : Promise.resolve({ suggestions: [] }),
+            (contextType === 'product' && productId) ? diagnosticService.performFullDiagnostic(shopId, productId) : Promise.resolve(null),
             assetAnalyzer.analyzeAssetDiversity(shopId),
             profilerService.getProfile(shopId)
         ]);
@@ -59,9 +73,43 @@ class AIService {
         }
 
         // 2. Build system prompt with strictly defined guardrails and JSON schema
+        // Add context-specific guidance
+        let contextGuidance = '';
+        if (contextType === 'assets') {
+            contextGuidance = `
+      CURRENT CONTEXT: Assets Management
+      - User is in the Assets page (not product-specific)
+      - Focus on asset-related actions: CREATE_COLOR_PALETTE, CREATE_FONT_GROUP, CREATE_GALLERY, CREATE_ASSET, UPDATE_ASSET, DELETE_ASSET
+      - DO NOT suggest product-specific actions like UPDATE_CONFIG or ADD_ELEMENT
+      - When creating assets, DO NOT set productId (assets are global)
+      `;
+        } else if (contextType === 'settings') {
+            contextGuidance = `
+      CURRENT CONTEXT: Settings Management
+      - User is in the Settings page (global settings)
+      - Focus on settings actions: UPDATE_SETTINGS, UPDATE_DESIGNER_SETTINGS, UPDATE_CANVAS_SETTINGS
+      - Use productId: 'GLOBAL' for global settings
+      `;
+        } else if (contextType === 'product' && productId) {
+            contextGuidance = `
+      CURRENT CONTEXT: Product Configuration
+      - User is configuring product: ${productId}
+      - You can suggest product-specific actions: UPDATE_CONFIG, ADD_ELEMENT, ADD_SIDE, REMOVE_SIDE
+      - You can also suggest asset and settings actions
+      `;
+        } else {
+            contextGuidance = `
+      CURRENT CONTEXT: Global
+      - User is in a general area
+      - You can suggest any appropriate action based on their request
+      `;
+        }
+        
         const systemPrompt = `
       You are an AI Configuration Assistant for a Product Customizer Shopify App.
       Your task is to help the merchant configure their product customizer settings.
+      
+      ${contextGuidance}
       
       GUARDRAILS:
       - You can ONLY manage data/configuration.
@@ -77,19 +125,74 @@ class AIService {
         "actions": [
           {
             "id": "unique_action_id",
-            "type": "UPDATE_CONFIG | BULK_UPDATE_CONFIG | ADD_ELEMENT",
+            "type": "UPDATE_CONFIG | BULK_UPDATE_CONFIG | ADD_ELEMENT | ADD_SIDE | REMOVE_SIDE | CREATE_ASSET | UPDATE_ASSET | DELETE_ASSET | CREATE_COLOR_PALETTE | CREATE_FONT_GROUP | CREATE_GALLERY | UPDATE_SETTINGS | UPDATE_DESIGNER_SETTINGS | UPDATE_CANVAS_SETTINGS",
             "description": "Change canvas to 25x30cm",
             "requiresApproval": true,
             "payload": {
-              "target": "merchantConfig",
+              "target": "merchantConfig | asset | settings",
               "productId": "string",
-              "changes": { "paperSize": "Custom", "unit": "cm", "customPaperDimensions": { "width": 25, "height": 30 } },
+              "changes": { 
+                "paperSize": "Custom", 
+                "unit": "cm | mm | inch | px", 
+                "customPaperDimensions": { "width": 25, "height": 30 } 
+              },
               "productIds": ["id1", "id2"],
-              "element": { "type": "text | image | monogram | gallery", "label": "string", "font": "string", "color": "string" }
+              "element": { "type": "text | image | monogram | gallery", "label": "string", "font": "string", "color": "string" },
+              "side": { "id": "string", "name": "string", "baseImage": "string", "elements": [] },
+              "sideId": "string",
+              "asset": { "type": "font | color | gallery | shape | option", "name": "string", "value": "string", "label": "string", "config": {} },
+              "assetId": "string",
+              "updates": {},
+              "palette": { "name": "string", "category": "string", "colors": [{"name": "Red", "hex": "#FF0000"}] },
+              "fontGroup": { "name": "string", "category": "string", "fontType": "google | uploaded", "fonts": ["Inter", "Roboto"] },
+              "settings": {}
             }
           }
         ]
       }
+
+      ASSET MANAGEMENT ACTIONS:
+      - CREATE_COLOR_PALETTE: Create a new color palette
+        Example: { "type": "CREATE_COLOR_PALETTE", "payload": { "palette": { "name": "Product Colors", "category": "Custom", "colors": [{"name": "Red", "hex": "#FF0000"}, {"name": "Blue", "hex": "#0000FF"}] } } }
+      
+      - CREATE_FONT_GROUP: Create a new font group
+        Example: { "type": "CREATE_FONT_GROUP", "payload": { "fontGroup": { "name": "Modern Fonts", "category": "Custom", "fontType": "google", "fonts": ["Inter", "Roboto", "Poppins"] } } }
+      
+      - CREATE_GALLERY: Create a gallery with images downloaded from URLs
+        Example: { "type": "CREATE_GALLERY", "payload": { "gallery": { "name": "Product Photos", "category": "Custom", "images": [{"name": "Photo 1", "url": "https://images.unsplash.com/photo-..."}, {"name": "Photo 2", "url": "https://images.unsplash.com/photo-..."}] } } }
+        IMPORTANT: You CAN use free image URLs from Unsplash, Pexels, or other sources. The system will automatically download and upload them to our S3 storage.
+      
+      - CREATE_ASSET: Create any asset (generic)
+        Example: { "type": "CREATE_ASSET", "payload": { "asset": { "type": "option", "name": "Sizes", "value": "Small, Medium, Large", "label": "Product Sizes" } } }
+      
+      - UPDATE_ASSET: Update existing asset
+        Example: { "type": "UPDATE_ASSET", "payload": { "assetId": "uuid_or_asset_name", "updates": { "name": "New Name", "value": "New Value" } } }
+      
+      - DELETE_ASSET: Delete an asset (use exact asset name from context)
+        Example: { "type": "DELETE_ASSET", "payload": { "assetId": "Customfly Default Font" } }
+        IMPORTANT: Use the exact asset name as shown in the context, NOT a placeholder like "uuid_for_..."
+
+      SETTINGS ACTIONS:
+      - UPDATE_SETTINGS: Update global app settings
+        Example: { "type": "UPDATE_SETTINGS", "payload": { "settings": { "designerLayout": "modal", "buttonText": "Customize Now" } } }
+      
+      - UPDATE_DESIGNER_SETTINGS: Update designer UI settings
+        Example: { "type": "UPDATE_DESIGNER_SETTINGS", "payload": { "productId": "GLOBAL", "settings": { "showGrid": true, "showRulers": false, "headerTitle": "Design Your Product" } } }
+      
+      - UPDATE_CANVAS_SETTINGS: Update canvas settings
+        Example: { "type": "UPDATE_CANVAS_SETTINGS", "payload": { "productId": "GLOBAL", "settings": { "paperSize": "A4", "unit": "mm", "safeAreaPadding": 10 } } }
+
+      UNIT CONVERSION REFERENCE:
+      - px (pixels): Direct pixel values, no conversion (1px = 1px)
+      - mm (millimeters): 1mm = 3.78px at 96 DPI
+      - cm (centimeters): 1cm = 37.8px at 96 DPI
+      - inch (inches): 1in = 96px at 96 DPI
+      
+      EXAMPLES:
+      - "Set canvas to 1000x1000 pixels" → paperSize: "Custom", unit: "px", customPaperDimensions: {width: 1000, height: 1000}
+      - "Change canvas to 21x29.7cm" → paperSize: "Custom", unit: "cm", customPaperDimensions: {width: 21, height: 29.7}
+      - "Make it 210x297mm" → paperSize: "Custom", unit: "mm", customPaperDimensions: {width: 210, height: 297}
+      - "Set to 8.5x11 inches" → paperSize: "Custom", unit: "inch", customPaperDimensions: {width: 8.5, height: 11}
 
       CONTEXT:
       - Available Fonts: ${assets.fonts.join(', ')}
@@ -194,6 +297,29 @@ class AIService {
                 status: aiOutput.requiresApproval ? "pending" : "executed"
             }
         });
+    }
+
+    /**
+     * Get shop locale from Shopify session or cache
+     */
+    async _getShopLocale(shopId) {
+        try {
+            // Try to get from session storage first
+            const session = await prisma.session.findFirst({
+                where: { shop: shopId },
+                orderBy: { updatedAt: 'desc' }
+            });
+
+            if (session && session.locale) {
+                return session.locale;
+            }
+
+            // If not in session, return default
+            return 'id-ID'; // Default to Indonesian
+        } catch (error) {
+            logger.error('[AIService] Failed to get shop locale', { shop: shopId, error: error.message });
+            return 'id-ID'; // Default to Indonesian on error
+        }
     }
 }
 

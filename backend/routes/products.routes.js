@@ -1,12 +1,11 @@
 import express from "express";
 import { shopify } from "../config/shopify.js";
 import prisma from "../config/database.js";
-import NodeCache from "node-cache";
+import cache from "../config/cache.js";
 
 import { transformDesignUrls } from "../config/s3.js";
 
 const router = express.Router();
-const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 // Get Merchant Config
 router.get("/config/:productId", async (req, res) => {

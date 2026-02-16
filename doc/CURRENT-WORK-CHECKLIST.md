@@ -1,3 +1,47 @@
+# Current Work Checklist - 2026-02-15
+
+## ✅ Recently Completed
+
+### Custom Size Unit Conversion Bug Fix (2026-02-15)
+**Status**: ✅ Complete  
+**Priority**: 🔴 Critical
+
+- [x] Fixed Custom size always being treated as millimeters
+- [x] Added unit-based conversion in DesignerOpenCore.tsx
+  - px: multiply by 1 (no conversion)
+  - mm: multiply by 3.78
+  - cm: multiply by 37.8
+  - inch: multiply by 96
+- [x] Added unit-based conversion in Canvas.tsx
+- [x] Added unit to dependency array for reactive updates
+- [x] Frontend rebuilt successfully
+- [x] Documentation: `doc/fix-custom-size-unit-conversion-2026-02-15.md`
+
+**Result**: Custom 800px now correctly displays as 800px (smaller than Default 1000px). All units (px, mm, cm, inch) work correctly.
+
+### Paper Size WYSIWYG Complete Implementation (2026-02-15)
+**Status**: ✅ Complete  
+**Priority**: 🔴 Critical
+
+- [x] Fixed incorrect US paper size values in DesignerOpenCore.tsx
+  - Letter: 216 × 279 → 215.9 × 279.4 mm (exact 8.5" × 11")
+  - Legal: 216 × 356 → 215.9 × 355.6 mm (exact 8.5" × 14")
+  - Tabloid: 279 × 432 → 279.4 × 431.8 mm (exact 11" × 17")
+- [x] Added all paper sizes to Summary.tsx dropdown (14 options total)
+  - ISO: A3, A4, A5, A6
+  - ANSI: Letter, Legal, Tabloid
+  - Photo: 4×6, 5×7, 8×10
+  - Business: Business Card, Postcard
+  - Digital: Default (1000px), Custom
+- [x] Fixed Default size handling (direct pixels, no conversion)
+- [x] Updated dropdown labels to show correct dimensions
+- [x] Frontend rebuilt successfully
+- [x] Documentation: `doc/fix-paper-size-wysiwyg-complete-2026-02-15.md`
+
+**Result**: All paper sizes now use exact ISO 216 and ANSI standard dimensions for true WYSIWYG accuracy.
+
+---
+
 # AI Integration Work Checklist - 2026-02-14
 
 Checklist khusus untuk pengerjaan AI Integration pada Product Customizer.

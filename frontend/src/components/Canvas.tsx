@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { CanvasElement, ProductVariant } from '../types';
 import { DraggableElement } from './DraggableElement';
+import { getPaperSizeMM } from '../constants/paperSizes';
 
 interface CanvasProps {
   elements: CanvasElement[];
@@ -17,7 +18,7 @@ interface CanvasProps {
   showSafeArea: boolean;
   productVariant: ProductVariant;
   showRulers: boolean;
-  unit: 'cm' | 'mm' | 'inch';
+  unit: 'cm' | 'mm' | 'inch' | 'px';
   enableBounce: boolean;
   paperSize: string;
   customPaperDimensions: { width: number; height: number };
@@ -98,6 +99,7 @@ export function Canvas({
 
   const getPixelsPerUnit = () => {
     switch (unit) {
+      case 'px': return 1;
       case 'mm': return 3.7795275591;
       case 'cm': return 37.795275591;
       case 'inch': return 96;
@@ -113,22 +115,41 @@ export function Canvas({
     height: Number(customPaperDimensions?.height) || 297
   };
 
-  const paperSizes: Record<string, { width: number; height: number }> = {
-    'Default': { width: 1000 / 3.7795275591, height: 1000 / 3.7795275591 },
-    'A4': { width: 210, height: 297 },
-    'A3': { width: 297, height: 420 },
-    'A5': { width: 148, height: 210 },
-    'Letter': { width: 216, height: 279 },
-    'Legal': { width: 216, height: 356 },
-    'Tabloid': { width: 279, height: 432 },
-    'Custom': safeCustom,
-  };
-
-  const paperMM = paperSizes[paperSize] || paperSizes['Default'];
+  // Special case: Default is already in pixels
+  const isDefaultSize = paperSize === 'Default';
+  
+  let paperSizeMM;
+  if (isDefaultSize) {
+    paperSizeMM = { width: 1000, height: 1000 }; // Already in pixels
+  } else if (paperSize === 'Custom') {
+    paperSizeMM = safeCustom;
+  } else {
+    paperSizeMM = getPaperSizeMM(paperSize);
+  }
+  
   const mmToPx = 3.7795275591;
 
-  const baseWidth = Number(propWidth) || (paperMM.width * mmToPx);
-  const baseHeight = Number(propHeight) || (paperMM.height * mmToPx);
+  // Calculate base dimensions based on paper size type
+  let baseWidth, baseHeight;
+  
+  if (Number(propWidth) && Number(propHeight)) {
+    // Use provided dimensions if available
+    baseWidth = Number(propWidth);
+    baseHeight = Number(propHeight);
+  } else if (isDefaultSize) {
+    // Default: direct pixels, no conversion
+    baseWidth = paperSizeMM.width;
+    baseHeight = paperSizeMM.height;
+  } else if (paperSize === 'Custom') {
+    // Custom: use unit-based conversion
+    baseWidth = paperSizeMM.width * pxPerUnit;
+    baseHeight = paperSizeMM.height * pxPerUnit;
+  } else {
+    // Standard paper sizes: convert from mm to px
+    baseWidth = paperSizeMM.width * mmToPx;
+    baseHeight = paperSizeMM.height * mmToPx;
+  }
+  
   const currentWidth = Math.max(1, baseWidth * (validZoom / 100));
   const currentHeight = Math.max(1, baseHeight * (validZoom / 100));
 
