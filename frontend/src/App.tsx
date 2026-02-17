@@ -9,6 +9,8 @@ import GlobalSettingsDesigner from '@/pages/GlobalSettingsDesigner';
 import Pricing from '@/pages/Pricing';
 import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
+import StoreTemplates from '@/pages/StoreTemplates';
+import TemplateDesigner from '@/pages/TemplateDesigner';
 import AIChat from '@/components/ai/AIChat';
 import { RoutePropagator } from '@/components/RoutePropagator';
 import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
@@ -94,6 +96,10 @@ function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic:
                             destination: '/dashboard',
                         },
                         {
+                            label: 'Store Templates',
+                            destination: '/templates',
+                        },
+                        {
                             label: 'Pricing',
                             destination: '/pricing',
                         },
@@ -119,6 +125,9 @@ function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic:
             <Routes>
                 <Route path="/dashboard" element={<AdminDashboard />} />
                 <Route path="/" element={<Navigate to={`/dashboard${cleanSearch}`} replace />} />
+                <Route path="/templates" element={<StoreTemplates />} />
+                <Route path="/template-designer/:templateId" element={<TemplateDesigner />} />
+                <Route path="/template-designer" element={<TemplateDesigner />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/exitiframe" element={<ExitIframe />} />

@@ -248,3 +248,29 @@ model AIFeedback {
 
   @@index([shop])
 }
+
+model DesignTemplate {
+  id                    String   @id @default(uuid())
+  shop                  String
+  name                  String
+  description           String?
+  
+  // Canvas Settings
+  paperSize             String   @default("Custom")
+  unit                  String   @default("px")
+  customPaperDimensions Json?    // {width, height}
+  
+  // Design Data
+  pages                 Json     // Same structure as SavedDesign.designJson
+  
+  // Metadata
+  thumbnail             String?  // Preview image URL
+  tags                  String[] @default([])
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@index([shop])
+  @@index([shop, name])
+  @@index([shop, createdAt])
+}

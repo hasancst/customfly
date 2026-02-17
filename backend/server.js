@@ -21,6 +21,7 @@ import webhookRoutes from "./routes/webhooks.routes.js";
 import publicRoutes from "./routes/public.routes.js";
 import proxyRoutes from "./routes/proxy.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import templateRoutes from "./routes/templates.routes.js";
 
 // Middleware
 import { validateShopParam } from "./middleware/auth.js";
@@ -128,6 +129,7 @@ app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolat
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, designRoutes);
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, assetRoutes);
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, promoRoutes);
+app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, templateRoutes);
 // AI routes have their own per-shop rate limiter (aiRateLimiter in ai.routes.js)
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, aiRoutes);
 
