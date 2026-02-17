@@ -139,10 +139,11 @@ export function DesignerCore({
     const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>(initialConfig.unit || 'cm');
     const [paperSize, setPaperSize] = useState<string>(initialConfig.paperSize || 'Custom');
     const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
-    const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
+    const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'modal');
     const [outputSettings, setOutputSettings] = useState<any>(initialConfig.outputSettings || null);
     const [showGrid] = useState(initialConfig.showGrid ?? false);
     const [baseImageScale, setBaseImageScale] = useState(initialConfig.baseImageScale ?? 80);
+    const [baseImageLocked, setBaseImageLocked] = useState(initialConfig.baseImageLocked ?? false);
     const [baseImageColorMode, setBaseImageColorMode] = useState<'opaque' | 'transparent'>(initialConfig.baseImageColorMode || 'transparent');
 
     // Toolbar Feature Flags
@@ -436,7 +437,30 @@ export function DesignerCore({
     const activeBasePaletteColors = React.useMemo(() => {
         if (!selectedBaseColorAssetId || !userColors) return [];
         const asset = userColors.find(a => String(a.id) === String(selectedBaseColorAssetId));
-        if (!asset || !asset.value) return [];
+        if (!asset) return [];
+        
+        // Prefer config.colors if available (proper format)
+        if (asset.config?.colors && Array.isArray(asset.config.colors)) {
+            return asset.config.colors.map((c: any) => ({
+                name: c.name || '',
+                value: c.hex || c.value || ''
+            }));
+        }
+        
+        // Fallback to parsing value field
+        if (!asset.value) return [];
+        
+        // Try comma-separated format first
+        if (asset.value.includes(',') && asset.value.includes('|')) {
+            return asset.value.split(',')
+                .filter(Boolean)
+                .map((item: string) => {
+                    const [name, color] = item.trim().split('|');
+                    return { name: name.trim(), value: (color || name).trim() };
+                });
+        }
+        
+        // Fallback to newline-separated format
         return asset.value.split('\n')
             .filter(Boolean)
             .map((line: string) => {
@@ -890,6 +914,7 @@ export function DesignerCore({
                         baseImageAsMask={activePage?.baseImageAsMask ?? false}
                         baseImageMaskInvert={activePage?.baseImageMaskInvert ?? false}
                         baseImageScale={resolvedBaseScale}
+                        baseImageLocked={baseImageLocked}
                         onUpdateBaseImage={(props) => {
                             setPages(prev => prev.map(p => p.id === activePageId ? {
                                 ...p,
@@ -1054,6 +1079,8 @@ export function DesignerCore({
                             }}
                             baseImageColorMode={baseImageColorMode}
                             onBaseImageColorModeChange={setBaseImageColorMode}
+                            baseImageLocked={baseImageLocked}
+                            onBaseImageLockedChange={setBaseImageLocked}
                             baseImage={resolvedBaseImage}
                             selectedBaseColorAssetId={selectedBaseColorAssetId}
                             onSelectedBaseColorAssetIdChange={setSelectedBaseColorAssetId}

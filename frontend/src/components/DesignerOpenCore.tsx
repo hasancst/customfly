@@ -147,7 +147,7 @@ export function DesignerOpenCore({
     const [enabledReset, setEnabledReset] = useState(initialConfig.enabledReset ?? true);
 
     // Fixed Admin Settings
-    const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'redirect');
+    const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'modal');
     const [buttonText, setButtonText] = useState(initialConfig.buttonText || 'Design It');
     const [headerTitle, setHeaderTitle] = useState(initialConfig.headerTitle || 'Product Customizer');
     const [productOutputSettings, setProductOutputSettings] = useState(initialConfig.productOutputSettings || null);

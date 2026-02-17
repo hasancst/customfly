@@ -1,48 +1,65 @@
 const { PrismaClient } = require('@prisma/client');
+require('dotenv').config();
+
 const prisma = new PrismaClient();
 
 async function checkColorAsset() {
-  try {
-    const shop = 'uploadfly-lab.myshopify.com';
-    
-    // Get latest color asset
-    const asset = await prisma.asset.findFirst({
-      where: {
-        shop,
-        type: 'color',
-        name: 'Default Colors'
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    
-    if (!asset) {
-      console.log('No "Default Colors" asset found');
-      return;
+    console.log('=== CHECK COLOR ASSET ===\n');
+
+    try {
+        // Find color assets
+        const colorAssets = await prisma.asset.findMany({
+            where: {
+                type: 'color',
+                shop: 'uploadfly-lab.myshopify.com'
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        console.log(`Found ${colorAssets.length} color assets:\n`);
+
+        for (const asset of colorAssets) {
+            console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+            console.log(`Asset ID: ${asset.id}`);
+            console.log(`Name: ${asset.name}`);
+            console.log(`Type: ${asset.type}`);
+            console.log(`\nValue (raw):`);
+            console.log(asset.value);
+            console.log(`\nValue length: ${asset.value ? asset.value.length : 0} characters`);
+            
+            // Try to parse the value
+            if (asset.value) {
+                console.log(`\nParsed colors:`);
+                const colors = asset.value.split('\n')
+                    .filter(Boolean)
+                    .map((line, index) => {
+                        const [name, color] = line.split('|');
+                        return {
+                            index,
+                            name: name ? name.trim() : '',
+                            value: color ? color.trim() : (name ? name.trim() : '')
+                        };
+                    });
+                
+                console.log(JSON.stringify(colors, null, 2));
+                console.log(`Total colors: ${colors.length}`);
+            }
+            
+            console.log(`\nConfig:`);
+            console.log(JSON.stringify(asset.config, null, 2));
+            console.log(`\nCreated: ${asset.createdAt}`);
+            console.log(`Updated: ${asset.updatedAt}`);
+        }
+
+        console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`\n✅ Done!`);
+
+    } catch (error) {
+        console.error('Error:', error);
+        process.exit(1);
+    } finally {
+        await prisma.$disconnect();
     }
-    
-    console.log('Asset Details:');
-    console.log('ID:', asset.id);
-    console.log('Name:', asset.name);
-    console.log('Type:', asset.type);
-    console.log('Created:', asset.createdAt);
-    console.log('\nValue (raw):');
-    console.log(asset.value);
-    console.log('\nValue length:', asset.value.length);
-    
-    // Parse colors
-    const colorPairs = asset.value.split(',').map(pair => pair.trim());
-    console.log('\nColors count:', colorPairs.length);
-    console.log('\nColors:');
-    colorPairs.forEach((pair, i) => {
-      const [name, hex] = pair.split('|').map(s => s.trim());
-      console.log(`${i + 1}. ${name} - ${hex}`);
-    });
-    
-  } catch (error) {
-    console.error('Error:', error.message);
-  } finally {
-    await prisma.$disconnect();
-  }
 }
 
 checkColorAsset();

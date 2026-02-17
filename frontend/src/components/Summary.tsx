@@ -126,6 +126,8 @@ interface SummaryProps {
   isGlobalSettings?: boolean;
   baseImageScale?: number;
   onBaseImageScaleChange?: (val: number) => void;
+  baseImageLocked?: boolean;
+  onBaseImageLockedChange?: (locked: boolean) => void;
   showSummary?: boolean;
   baseImageColorMode?: 'opaque' | 'transparent';
   onBaseImageColorModeChange?: (mode: 'opaque' | 'transparent') => void;
@@ -206,6 +208,8 @@ export const Summary: React.FC<SummaryProps> = ({
   isGlobalSettings = false,
   baseImageScale,
   onBaseImageScaleChange,
+  baseImageLocked,
+  onBaseImageLockedChange,
   baseImageColorMode = 'transparent',
   onBaseImageColorModeChange,
 }) => {
@@ -556,15 +560,22 @@ export const Summary: React.FC<SummaryProps> = ({
                         <Label className="text-[10px] text-gray-400">Palette</Label>
                         <Select
                           value={selectedBaseColorAssetId ? String(selectedBaseColorAssetId) : ""}
-                          onValueChange={(val) => onSelectedBaseColorAssetIdChange(val)}
+                          onValueChange={(val) => {
+                            console.log('[Mockup Color] Selected palette:', val);
+                            onSelectedBaseColorAssetIdChange(val === "" ? null : val);
+                          }}
                         >
                           <SelectTrigger className="h-6 w-40 text-[10px] px-2 rounded-lg border-gray-200">
                             <SelectValue placeholder="Select Palette" />
                           </SelectTrigger>
                           <SelectContent>
-                            {userColors.map((asset) => (
-                              <SelectItem key={asset.id} value={String(asset.id)}>{asset.name}</SelectItem>
-                            ))}
+                            {userColors.length === 0 ? (
+                              <SelectItem value="none" disabled>No color palettes available</SelectItem>
+                            ) : (
+                              userColors.map((asset) => (
+                                <SelectItem key={asset.id} value={String(asset.id)}>{asset.name}</SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -645,6 +656,18 @@ export const Summary: React.FC<SummaryProps> = ({
                     onValueChange={(val) => onBaseImageScaleChange?.(val[0])}
                     className="py-2"
                   />
+                  
+                  {/* Lock Base Image Toggle */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="space-y-0.5">
+                      <Label className="text-[11px] font-medium text-gray-700">Lock Base Image</Label>
+                      <p className="text-[9px] text-gray-400">Prevent base image from being moved</p>
+                    </div>
+                    <Switch
+                      checked={baseImageLocked ?? false}
+                      onCheckedChange={onBaseImageLockedChange}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

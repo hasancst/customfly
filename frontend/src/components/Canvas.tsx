@@ -41,6 +41,7 @@ interface CanvasProps {
   hideSafeAreaLine?: boolean;
   showGrid?: boolean;
   baseImageScale?: number;
+  baseImageLocked?: boolean;
   baseImageColorMode?: 'opaque' | 'transparent';
   width?: number;
   height?: number;
@@ -80,6 +81,7 @@ export function Canvas({
   isPublicMode = false,
   hideSafeAreaLine = false,
   baseImageScale = 80,
+  baseImageLocked = false,
   baseImageColorMode = 'transparent',
   width: propWidth,
   height: propHeight,
@@ -389,17 +391,8 @@ export function Canvas({
           opacity: '1 !important' as any
         }}
       >
-        <motion.div
-          drag
-          dragMomentum={false}
-          onDrag={(_e, info) => {
-            const zoomMult = (validZoom / 100);
-            onUpdateBaseImage({
-              x: (baseImageProperties?.x || 0) + info.delta.x / zoomMult,
-              y: (baseImageProperties?.y || 0) + info.delta.y / zoomMult,
-            });
-          }}
-          className="absolute cursor-move pointer-events-auto"
+        <div
+          className="absolute pointer-events-none"
           style={{
             width: 'fit-content',
             height: 'fit-content',
@@ -408,7 +401,6 @@ export function Canvas({
             left: '50%',
             top: '50%',
             transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageScale ? (baseImageScale / 100) : (baseImageProperties?.scale || 1)})`,
-            pointerEvents: 'auto',
             display: 'block !important' as any,
             visibility: 'visible !important' as any,
             opacity: '1 !important' as any
@@ -421,10 +413,65 @@ export function Canvas({
             style={{
               width: (baseImageProperties?.width || 600) * (validZoom / 100),
               height: (baseImageProperties?.height || 600) * (validZoom / 100),
+              pointerEvents: 'none', // Container doesn't intercept events
             }}
           >
             <img
               key={baseImage || 'system-default'}
+              className={baseImageLocked ? 'cursor-not-allowed' : 'cursor-move'}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'block',
+                position: 'relative',
+                zIndex: 1,
+                objectFit: 'contain',
+                pointerEvents: 'auto', // Only image intercepts events
+                opacity: baseImageLocked ? 0.7 : 1,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                touchAction: 'none',
+              }}
+              onPointerDown={(e) => {
+                if (baseImageLocked) {
+                  e.stopPropagation();
+                  return;
+                }
+                
+                e.stopPropagation();
+                e.preventDefault();
+                
+                const target = e.currentTarget;
+                target.setPointerCapture(e.pointerId);
+                
+                const startPos = { x: e.clientX, y: e.clientY };
+                const startBasePos = { x: baseImageProperties?.x || 0, y: baseImageProperties?.y || 0 };
+                const zoomMult = (validZoom / 100);
+
+                const onMove = (moveEvent: PointerEvent) => {
+                  moveEvent.preventDefault();
+                  const dx = (moveEvent.clientX - startPos.x) / zoomMult;
+                  const dy = (moveEvent.clientY - startPos.y) / zoomMult;
+                  onUpdateBaseImage({
+                    x: startBasePos.x + dx,
+                    y: startBasePos.y + dy,
+                  });
+                };
+
+                const onUp = (upEvent: PointerEvent) => {
+                  if (target.hasPointerCapture(upEvent.pointerId)) {
+                    target.releasePointerCapture(upEvent.pointerId);
+                  }
+                  target.removeEventListener('pointermove', onMove);
+                  target.removeEventListener('pointerup', onUp);
+                  target.removeEventListener('pointercancel', onUp);
+                };
+
+                target.addEventListener('pointermove', onMove);
+                target.addEventListener('pointerup', onUp);
+                target.addEventListener('pointercancel', onUp);
+              }}
+              onDragStart={(e) => e.preventDefault()}
               src={(() => {
                 if (!baseImage || baseImage === 'none') {
                   return '/imcst_assets/system-placeholder.png'; // Updated path for built assets
@@ -458,18 +505,10 @@ export function Canvas({
                   e.currentTarget.src = baseImage!;
                 }
               }}
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'block',
-                position: 'relative',
-                zIndex: 1,
-                objectFit: 'contain'
-              }}
               draggable={false}
             />
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Color Overlay - Behind transparent areas using CSS mask */}
@@ -625,49 +664,41 @@ export function Canvas({
 
                               let newWPercent = startWPercent;
                               let newHPercent = startHPercent;
-                              let newOffsetX = startOffset.x;
-                              let newOffsetY = startOffset.y;
 
-                              // Width Logic
+                              // Width Logic - ONLY change width, NOT offset
                               if (handle.type.includes('e')) {
                                 // Right edge moves right (+dx)
                                 const dW = dx;
                                 const newW = (bW * (startWPercent / 100)) + dW;
                                 newWPercent = (newW / bW) * 100;
-                                newOffsetX = startOffset.x + (dx / 2);
                               } else if (handle.type.includes('w')) {
                                 // Left edge moves left (+dx is right, so we want -dx to increase width)
                                 // Actually if we move mouse left (dx negative), width INCREASES.
                                 const dW = -dx;
                                 const newW = (bW * (startWPercent / 100)) + dW;
                                 newWPercent = (newW / bW) * 100;
-                                newOffsetX = startOffset.x + (dx / 2);
                               }
 
-                              // Height Logic
+                              // Height Logic - ONLY change height, NOT offset
                               if (handle.type.includes('s')) {
                                 // Bottom edge moves down (+dy)
                                 const dH = dy;
                                 const newH = (bH * (startHPercent / 100)) + dH;
                                 newHPercent = (newH / bH) * 100;
-                                newOffsetY = startOffset.y + (dy / 2);
                               } else if (handle.type.includes('n')) {
                                 // Top edge moves up (dy negative -> width increases)
                                 const dH = -dy;
                                 const newH = (bH * (startHPercent / 100)) + dH;
                                 newHPercent = (newH / bH) * 100;
-                                newOffsetY = startOffset.y + (dy / 2);
                               }
 
-                              // Updates
+                              // Updates - ONLY update width/height, NOT offset
                               if (handle.type.includes('e') || handle.type.includes('w')) {
                                 onUpdateSafeAreaWidth(Math.max(1, Math.min(100, newWPercent)));
                               }
                               if (handle.type.includes('n') || handle.type.includes('s')) {
                                 onUpdateSafeAreaHeight(Math.max(1, Math.min(100, newHPercent)));
                               }
-
-                              onUpdateSafeAreaOffset({ x: newOffsetX, y: newOffsetY }, true);
                             };
 
                             const onUp = () => {

@@ -11,7 +11,7 @@ export default function Settings() {
 
     // Form Stats
     const [buttonText, setButtonText] = useState('Design It');
-    const [designerLayout, setDesignerLayout] = useState('redirect');
+    const [designerLayout, setDesignerLayout] = useState('modal');
     const [unit, setUnit] = useState('cm');
     const [showRulers, setShowRulers] = useState(false);
     const [showSafeArea, setShowSafeArea] = useState(true);
@@ -124,7 +124,6 @@ export default function Settings() {
                                     <Select
                                         label="Default Designer Layout"
                                         options={[
-                                            { label: 'Redirect (New Page)', value: 'redirect' },
                                             { label: 'Direct Customize (On Page)', value: 'inline' },
                                             { label: 'Popup Modal', value: 'modal' },
                                             { label: 'Wizard (Step by Step)', value: 'wizard' }

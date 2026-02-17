@@ -326,7 +326,6 @@ export default function AdminDashboard() {
     const tabs = [
         { id: 'all-products', content: 'Semua Produk', panelID: 'all-products-content' },
         { id: 'custom-products', content: 'Produk Aktif', panelID: 'custom-products-content' },
-        { id: 'ai-recommendations', content: 'Rekomendasi AI', panelID: 'ai-recs-content' },
     ];
 
     const renderProductItem = (product: Product) => {
@@ -375,12 +374,11 @@ export default function AdminDashboard() {
                                         label="Layout"
                                         labelHidden
                                         options={[
-                                            { label: 'Redirect', value: 'redirect' },
                                             { label: 'Direct Customize', value: 'inline' },
                                             { label: 'Modal', value: 'modal' },
                                             { label: 'Wizard', value: 'wizard' },
                                         ]}
-                                        value={configs.find(c => c.shopifyProductId === product.id)?.designerLayout || 'redirect'}
+                                        value={configs.find(c => c.shopifyProductId === product.id)?.designerLayout || 'modal'}
                                         onChange={(value) => handleLayoutChange(product.id, value)}
                                     />
                                 </div>
