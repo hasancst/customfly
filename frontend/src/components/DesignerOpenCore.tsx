@@ -139,6 +139,7 @@ export function DesignerOpenCore({
     const [safeAreaHeight] = useState(initialConfig.safeAreaHeight);
     const [safeAreaOffset, setSafeAreaOffset] = useState(initialConfig.safeAreaOffset || { x: 0, y: 0 });
     const [hideSafeAreaLine, setHideSafeAreaLine] = useState(initialConfig.hideSafeAreaLine ?? false);
+    const [baseImageLocked] = useState(initialConfig.baseImageLocked ?? true); // Default locked for customers
 
     // Toolbar Feature Flags
     const [enabledGrid, setEnabledGrid] = useState(initialConfig.enabledGrid ?? true);
@@ -1516,6 +1517,7 @@ export function DesignerOpenCore({
                                 baseImageColorEnabled={currentPages.baseImageColorEnabled}
                                 baseImageColorMode={currentPages.baseImageColorMode || initialConfig.baseImageColorMode || 'transparent'}
                                 baseImageScale={resolvedBaseScale}
+                                baseImageLocked={baseImageLocked}
                                 onUpdateBaseImage={(props) => {
                                     setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageProperties: { ...p.baseImageProperties, ...props } as any } : p));
                                 }}

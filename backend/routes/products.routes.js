@@ -59,7 +59,7 @@ router.post("/config", async (req, res) => {
             'showRulers', 'showSafeArea', 'unit', 'baseImageAsMask', 'safeAreaHeight',
             'safeAreaRadius', 'safeAreaWidth', 'variantBaseImages', 'variantBaseScales',
             'baseImageScale', 'baseImageColorMode', 'baseImageMaskInvert', 'buttonStyle',
-            'selectedBaseColorAssetId',
+            'selectedBaseColorAssetId', 'baseImageLocked',
             'buttonText', 'headerTitle', 'designerLayout', 'enabledTools', 'inlineSettings',
             'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
             'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId',

@@ -606,6 +606,7 @@ export function DesignerCore({
                     shapeAssetId: selectedShapeAssetId,
                     baseImageScale,
                     baseImageColorMode,
+                    baseImageLocked,
                 },
                 designJson: finalGlobal.map(p => ({
                     ...p,
