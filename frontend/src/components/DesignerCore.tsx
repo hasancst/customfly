@@ -36,6 +36,7 @@ import { useDesignerExport } from '@/hooks/designer/useDesignerExport';
 
 export interface DesignerCoreProps {
     isPublicMode: boolean;
+    isTemplateMode?: boolean;
     productId: string | undefined;
     productData: ShopifyProduct | null;
     initialPages?: PageData[];
@@ -62,6 +63,7 @@ export interface DesignerCoreProps {
 
 export function DesignerCore({
     isPublicMode,
+    isTemplateMode = false,
     productId,
     productData,
     initialPages = [{ id: 'default', name: 'Side 1', elements: [] }],
@@ -756,6 +758,7 @@ export function DesignerCore({
                     onToggleSummary={() => setShowSummary(!showSummary)}
                     onClose={onBack}
                     isPublicMode={isPublicMode}
+                    isTemplateMode={isTemplateMode}
                     lastSavedTime={lastSavedTime}
                     productId={productId}
                     pricingConfigComponent={pricingConfigComponent}

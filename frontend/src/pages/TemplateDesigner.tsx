@@ -136,6 +136,7 @@ export default function TemplateDesigner() {
             <Toaster />
             <DesignerCore
                 isPublicMode={false}
+                isTemplateMode={true}
                 initialPages={initialPages}
                 initialConfig={initialConfig}
                 initialDesignId={template?.id}

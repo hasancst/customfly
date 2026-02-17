@@ -50,6 +50,7 @@ interface HeaderProps {
   onToggleSummary?: () => void;
   onClose?: () => void;
   isPublicMode?: boolean;
+  isTemplateMode?: boolean;
   buttonText?: string;
   lastSavedTime?: Date | null;
   pricingConfigComponent?: React.ReactNode;
@@ -80,6 +81,7 @@ export function Header({
   onToggleSummary,
   onClose,
   isPublicMode = false,
+  isTemplateMode = false,
   buttonText = 'Design It',
   lastSavedTime,
   pricingConfigComponent,
@@ -440,7 +442,7 @@ export function Header({
 
           <div className="flex items-center">
             {
-              !isPublicMode ? (
+              !isPublicMode && !isTemplateMode ? (
                 <DropdownMenu>
                   <Tooltip>
                     <TooltipTrigger asChild>
