@@ -201,7 +201,7 @@ export default function StoreTemplates() {
 
     return (
         <Page
-            title="Store Templates"
+            title="Templates"
             primaryAction={{
                 content: 'Create Template',
                 icon: PlusIcon,

@@ -96,7 +96,7 @@ function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic:
                             destination: '/dashboard',
                         },
                         {
-                            label: 'Store Templates',
+                            label: 'Templates',
                             destination: '/templates',
                         },
                         {
