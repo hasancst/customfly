@@ -29,6 +29,7 @@ export default function Assets() {
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [isSettingDefault, setIsSettingDefault] = useState<string | null>(null);  // NEW
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
+    const [deleteConfirmAsset, setDeleteConfirmAsset] = useState<Asset | null>(null); // For delete confirmation
 
     // Search & Pagination states
     const [searchQuery, setSearchQuery] = useState('');
@@ -184,6 +185,7 @@ export default function Assets() {
             if (response.ok) {
                 showToast("Asset deleted successfully");
                 setAssets(prev => prev.filter(a => a.id !== id));
+                setDeleteConfirmAsset(null); // Close confirmation modal
             }
         } catch (error) {
             console.error("Failed to delete asset:", error);
@@ -449,7 +451,10 @@ export default function Assets() {
                                     tone="critical"
                                     variant="plain"
                                     loading={isDeleting === id}
-                                    onClick={() => handleDeleteAsset(id)}
+                                    onClick={(e) => {
+                                        e?.stopPropagation();
+                                        setDeleteConfirmAsset(asset);
+                                    }}
                                 />
                             </div>
                         </div>
@@ -725,6 +730,44 @@ export default function Assets() {
                     )}
                 </Modal.Section>
             </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                open={!!deleteConfirmAsset}
+                onClose={() => setDeleteConfirmAsset(null)}
+                title="Delete Asset Group?"
+                primaryAction={{
+                    content: 'Delete',
+                    onAction: () => deleteConfirmAsset && handleDeleteAsset(deleteConfirmAsset.id),
+                    destructive: true,
+                    loading: isDeleting === deleteConfirmAsset?.id
+                }}
+                secondaryActions={[{ 
+                    content: 'Cancel', 
+                    onAction: () => setDeleteConfirmAsset(null) 
+                }]}
+            >
+                <Modal.Section>
+                    {deleteConfirmAsset && (
+                        <BlockStack gap="400">
+                            <Text as="p">
+                                Are you sure you want to delete <Text as="span" fontWeight="bold">"{deleteConfirmAsset.name}"</Text>?
+                            </Text>
+                            <Text as="p" tone="critical">
+                                This action cannot be undone. All items in this group will be permanently deleted.
+                            </Text>
+                            {deleteConfirmAsset.isDefault && (
+                                <Box padding="400" background="bg-fill-warning-secondary" borderRadius="200">
+                                    <Text as="p" tone="warning" fontWeight="semibold">
+                                        ⚠️ This is the default {deleteConfirmAsset.type} group. Deleting it may affect your configurations.
+                                    </Text>
+                                </Box>
+                            )}
+                        </BlockStack>
+                    )}
+                </Modal.Section>
+            </Modal>
+
             {toastActive && (
                 <Toast content={toastContent} onDismiss={() => setToastActive(false)} duration={3000} />
             )}

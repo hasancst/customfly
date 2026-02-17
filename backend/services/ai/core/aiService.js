@@ -79,7 +79,8 @@ class AIService {
             contextGuidance = `
       CURRENT CONTEXT: Assets Management
       - User is in the Assets page (not product-specific)
-      - Focus on asset-related actions: CREATE_COLOR_PALETTE, CREATE_FONT_GROUP, CREATE_GALLERY, CREATE_ASSET, UPDATE_ASSET, DELETE_ASSET
+      - Focus on asset-related actions: ADD_ITEMS_TO_ASSET, CREATE_COLOR_PALETTE, CREATE_FONT_GROUP, CREATE_GALLERY, CREATE_ASSET, UPDATE_ASSET, DELETE_ASSET
+      - IMPORTANT: If user says "add to [group name]", use ADD_ITEMS_TO_ASSET, NOT CREATE_ASSET
       - DO NOT suggest product-specific actions like UPDATE_CONFIG or ADD_ELEMENT
       - When creating assets, DO NOT set productId (assets are global)
       `;
@@ -109,6 +110,24 @@ class AIService {
       You are an AI Configuration Assistant for a Product Customizer Shopify App.
       Your task is to help the merchant configure their product customizer settings.
       
+      🚨 CRITICAL RULE - READ THIS FIRST:
+      
+      WHEN USER SAYS "add [items] to [existing group name]":
+      - ❌ DO NOT use CREATE_ASSET or CREATE_COLOR_PALETTE or CREATE_FONT_GROUP
+      - ❌ DO NOT create new group
+      - ✅ ALWAYS use ADD_ITEMS_TO_ASSET action
+      - ✅ Set assetIdentifier to the group name user mentioned
+      
+      EXAMPLES:
+      - "add 5 shapes to Custom" → Use ADD_ITEMS_TO_ASSET with assetIdentifier="Custom"
+      - "add colors to Brand Colors" → Use ADD_ITEMS_TO_ASSET with assetIdentifier="Brand Colors"
+      - "add fonts to My Fonts" → Use ADD_ITEMS_TO_ASSET with assetIdentifier="My Fonts"
+      
+      ONLY use CREATE_ASSET when user EXPLICITLY says:
+      - "create new group"
+      - "make new group"
+      - "buat group baru"
+      
       ${contextGuidance}
       
       GUARDRAILS:
@@ -125,7 +144,7 @@ class AIService {
         "actions": [
           {
             "id": "unique_action_id",
-            "type": "UPDATE_CONFIG | BULK_UPDATE_CONFIG | ADD_ELEMENT | ADD_SIDE | REMOVE_SIDE | CREATE_ASSET | UPDATE_ASSET | DELETE_ASSET | CREATE_COLOR_PALETTE | CREATE_FONT_GROUP | CREATE_GALLERY | UPDATE_SETTINGS | UPDATE_DESIGNER_SETTINGS | UPDATE_CANVAS_SETTINGS",
+            "type": "UPDATE_CONFIG | BULK_UPDATE_CONFIG | ADD_ELEMENT | ADD_SIDE | REMOVE_SIDE | CREATE_ASSET | UPDATE_ASSET | DELETE_ASSET | ADD_ITEMS_TO_ASSET | CREATE_COLOR_PALETTE | CREATE_FONT_GROUP | CREATE_GALLERY | UPDATE_SETTINGS | UPDATE_DESIGNER_SETTINGS | UPDATE_CANVAS_SETTINGS",
             "description": "Change canvas to 25x30cm",
             "requiresApproval": true,
             "payload": {
@@ -142,6 +161,8 @@ class AIService {
               "sideId": "string",
               "asset": { "type": "font | color | gallery | shape | option", "name": "string", "value": "string", "label": "string", "config": {} },
               "assetId": "string",
+              "assetIdentifier": "string (asset ID or name)",
+              "items": ["item1", "item2"],
               "updates": {},
               "palette": { "name": "string", "category": "string", "colors": [{"name": "Red", "hex": "#FF0000"}] },
               "fontGroup": { "name": "string", "category": "string", "fontType": "google | uploaded", "fonts": ["Inter", "Roboto"] },
@@ -162,10 +183,32 @@ class AIService {
         Example: { "type": "CREATE_GALLERY", "payload": { "gallery": { "name": "Product Photos", "category": "Custom", "images": [{"name": "Photo 1", "url": "https://images.unsplash.com/photo-..."}, {"name": "Photo 2", "url": "https://images.unsplash.com/photo-..."}] } } }
         IMPORTANT: You CAN use free image URLs from Unsplash, Pexels, or other sources. The system will automatically download and upload them to our S3 storage.
       
-      - CREATE_ASSET: Create any asset (generic)
+      - CREATE_ASSET: Create any asset (generic) - ONLY use when user explicitly says "create new group"
         Example: { "type": "CREATE_ASSET", "payload": { "asset": { "type": "option", "name": "Sizes", "value": "Small, Medium, Large", "label": "Product Sizes" } } }
       
-      - UPDATE_ASSET: Update existing asset
+      - ADD_ITEMS_TO_ASSET: Add items to an EXISTING asset group - Use this when user wants to add items to existing group
+        🚨 CRITICAL: This is the MOST IMPORTANT action for adding items!
+        When to use: User says "add [items] to [group name]" or "tambah [items] ke [group name]"
+        DO NOT use CREATE_ASSET when user mentions existing group name!
+        
+        Example for shapes: { "type": "ADD_ITEMS_TO_ASSET", "payload": { "assetIdentifier": "Custom", "items": ["Circle|<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><circle cx='50' cy='50' r='40' fill='#FF6B6B'/></svg>", "Square|<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect x='10' y='10' width='80' height='80' fill='#4ECDC4'/></svg>"] } }
+        Example for colors: { "type": "ADD_ITEMS_TO_ASSET", "payload": { "assetIdentifier": "Brand Colors", "items": ["Navy|#001F3F", "Coral|#FF6B6B"] } }
+        Example for fonts: { "type": "ADD_ITEMS_TO_ASSET", "payload": { "assetIdentifier": "My Fonts", "items": ["Arial", "Helvetica"] } }
+        
+        IMPORTANT: 
+        - Use assetIdentifier (asset name or ID) to specify which group to add to
+        - For shapes: items must be complete SVG code in format "Name|<svg>...</svg>"
+        - For colors: items must be in format "Name|#HEX"
+        - For fonts: items can be just font names
+        - DO NOT use CREATE_ASSET when user wants to add to existing group!
+        
+        USER PHRASES THAT MEAN "ADD TO EXISTING":
+        - "add 5 shapes to Custom" → ADD_ITEMS_TO_ASSET with assetIdentifier="Custom"
+        - "tambah shapes ke Custom" → ADD_ITEMS_TO_ASSET with assetIdentifier="Custom"
+        - "add colors to Brand Colors" → ADD_ITEMS_TO_ASSET with assetIdentifier="Brand Colors"
+        - "insert fonts to My Fonts" → ADD_ITEMS_TO_ASSET with assetIdentifier="My Fonts"
+      
+      - UPDATE_ASSET: Update existing asset properties (name, config, etc.)
         Example: { "type": "UPDATE_ASSET", "payload": { "assetId": "uuid_or_asset_name", "updates": { "name": "New Name", "value": "New Value" } } }
       
       - DELETE_ASSET: Delete an asset (use exact asset name from context)

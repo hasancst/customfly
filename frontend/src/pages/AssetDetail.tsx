@@ -64,6 +64,7 @@ export default function AssetDetail() {
     const [itemToRename, setItemToRename] = useState<ListItem | null>(null);
     const [newItemName, setNewItemName] = useState('');
     const [newItemHex, setNewItemHex] = useState('');
+    const [newItemSvg, setNewItemSvg] = useState(''); // For shape SVG code
     const [toastActive, setToastActive] = useState(false);
     const [toastContent, setToastContent] = useState('');
     const [optionItemType, setOptionItemType] = useState<'text' | 'image' | 'color'>('text');
@@ -86,7 +87,7 @@ export default function AssetDetail() {
 
     // Search & Pagination states
     const [searchQuery, setSearchQuery] = useState('');
-    const [sortOrder, setSortOrder] = useState('custom');
+    const [sortOrder, setSortOrder] = useState('oldest');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -402,6 +403,11 @@ export default function AssetDetail() {
                         newParts[newParts.length - 1] = newItemHex.startsWith('#') ? newItemHex : `#${newItemHex}`;
                     }
                     
+                    // For shape type, also update SVG code if provided
+                    if (asset.type === 'shape' && newItemSvg) {
+                        newParts[newParts.length - 1] = newItemSvg;
+                    }
+                    
                     return newParts.join('|');
                 }
                 return newItemName;
@@ -430,6 +436,7 @@ export default function AssetDetail() {
                 setItemToRename(null);
                 setNewItemName('');
                 setNewItemHex('');
+                setNewItemSvg('');
             } else {
                 alert("Failed to update item");
             }
@@ -1076,6 +1083,10 @@ export default function AssetDetail() {
                                                                 if (asset.type === 'color' && item.value) {
                                                                     setNewItemHex(item.value);
                                                                 }
+                                                                // For shape items, also set SVG code
+                                                                if (asset.type === 'shape' && item.url) {
+                                                                    setNewItemSvg(item.url);
+                                                                }
                                                                 setIsRenameModalOpen(true);
                                                             }}
                                                         />
@@ -1229,6 +1240,10 @@ export default function AssetDetail() {
                                                                 // For color items, also set hex code
                                                                 if (asset.type === 'color' && item.value) {
                                                                     setNewItemHex(item.value);
+                                                                }
+                                                                // For shape items, also set SVG code
+                                                                if (asset.type === 'shape' && item.url) {
+                                                                    setNewItemSvg(item.url);
                                                                 }
                                                                 setIsRenameModalOpen(true);
                                                             }}
@@ -1724,7 +1739,11 @@ export default function AssetDetail() {
             <Modal
                 open={isRenameModalOpen}
                 onClose={() => setIsRenameModalOpen(false)}
-                title={asset?.type === 'color' ? 'Edit Color' : 'Rename Item'}
+                title={
+                    asset?.type === 'color' ? 'Edit Color' : 
+                    asset?.type === 'shape' ? 'Edit Shape' : 
+                    'Rename Item'
+                }
                 primaryAction={{
                     content: 'Save',
                     onAction: handleRenameItem,
@@ -1760,6 +1779,38 @@ export default function AssetDetail() {
                                     borderRadius: '8px',
                                     marginBottom: '4px'
                                 }} />
+                            </div>
+                        )}
+                        {asset?.type === 'shape' && (
+                            <div>
+                                <TextField
+                                    label="SVG Code"
+                                    value={newItemSvg}
+                                    onChange={setNewItemSvg}
+                                    autoComplete="off"
+                                    multiline={4}
+                                    placeholder="<svg>...</svg>"
+                                    helpText="Enter complete SVG code"
+                                />
+                                {newItemSvg && (
+                                    <div style={{ marginTop: '12px' }}>
+                                        <Text variant="bodyMd" as="p" fontWeight="semibold">Preview:</Text>
+                                        <div 
+                                            style={{ 
+                                                marginTop: '8px',
+                                                padding: '16px',
+                                                border: '2px solid #ddd',
+                                                borderRadius: '8px',
+                                                backgroundColor: '#f9fafb',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                minHeight: '100px'
+                                            }}
+                                            dangerouslySetInnerHTML={{ __html: newItemSvg }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </FormLayout>

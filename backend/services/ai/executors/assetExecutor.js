@@ -393,6 +393,124 @@ class AssetExecutor {
     }
 
     /**
+     * Add items to an existing asset (shapes, fonts, colors, etc.)
+     * @param {string} shop - Shop domain
+     * @param {string} assetIdentifier - Asset ID or name
+     * @param {Array<string>} items - Array of items to add
+     * @returns {Promise<Object>} - Result with updated asset
+     */
+    async addItemsToAsset(shop, assetIdentifier, items) {
+        logger.info('[Asset Executor] Adding items to asset', { 
+            shop, 
+            assetIdentifier,
+            itemsCount: items?.length 
+        });
+
+        try {
+            // Find asset by ID or name (case-insensitive)
+            let asset = await prisma.asset.findFirst({
+                where: { id: assetIdentifier, shop }
+            });
+
+            if (!asset) {
+                // Try exact name match
+                asset = await prisma.asset.findFirst({
+                    where: { name: assetIdentifier, shop }
+                });
+            }
+
+            if (!asset) {
+                // Try case-insensitive name match
+                const allAssets = await prisma.asset.findMany({
+                    where: { shop }
+                });
+                
+                asset = allAssets.find(a => 
+                    a.name.toLowerCase() === assetIdentifier.toLowerCase()
+                );
+            }
+
+            if (!asset) {
+                // List available assets
+                const availableAssets = await prisma.asset.findMany({
+                    where: { shop },
+                    select: { name: true, type: true }
+                });
+                
+                throw new Error(`Asset "${assetIdentifier}" not found. Available: ${availableAssets.map(a => a.name).join(', ')}`);
+            }
+
+            logger.info('[Asset Executor] Found asset', { 
+                shop, 
+                assetId: asset.id,
+                assetName: asset.name,
+                assetType: asset.type
+            });
+
+            // Determine separator based on asset type
+            const separator = (asset.type === 'color' || asset.type === 'option') ? ', ' : '\n';
+
+            // Parse existing items
+            const currentItems = asset.value ? asset.value.split(separator).filter(Boolean) : [];
+            
+            logger.info('[Asset Executor] Current items', { 
+                shop, 
+                currentCount: currentItems.length 
+            });
+
+            // Add new items
+            const allItems = [...currentItems, ...items];
+
+            // Update asset
+            const updatedAsset = await prisma.asset.update({
+                where: { id: asset.id },
+                data: {
+                    value: allItems.join(separator),
+                    config: {
+                        ...asset.config,
+                        [`${asset.type}Count`]: allItems.length,
+                        lastUpdated: new Date().toISOString()
+                    },
+                    updatedAt: new Date()
+                }
+            });
+
+            logger.info('[Asset Executor] Items added', { 
+                shop, 
+                assetId: asset.id,
+                addedCount: items.length,
+                totalCount: allItems.length
+            });
+
+            // Clear cache
+            cache.del(`assets_${shop}_all`);
+            cache.del(`assets_${shop}_${asset.type}`);
+
+            return {
+                success: true,
+                result: {
+                    message: `Added ${items.length} items to ${asset.type} "${asset.name}". Total: ${allItems.length}`,
+                    asset: updatedAsset,
+                    addedCount: items.length,
+                    totalCount: allItems.length
+                },
+                previousState: {
+                    assetId: asset.id,
+                    value: asset.value,
+                    config: asset.config
+                }
+            };
+        } catch (error) {
+            logger.error('[Asset Executor] Failed to add items', { 
+                shop, 
+                assetIdentifier, 
+                error: error.message 
+            });
+            throw error;
+        }
+    }
+
+    /**
      * Rollback asset creation (delete it)
      */
     async rollbackCreate(shop, assetId) {

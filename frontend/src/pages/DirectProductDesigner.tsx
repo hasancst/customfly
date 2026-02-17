@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getProxiedUrl } from '@/utils/urlUtils';
 import { evaluateVisibility } from '../utils/logicEvaluator';
 import { getPaperSizeMM, mmToPx } from '../constants/paperSizes';
+import { SYSTEM_PLACEHOLDER_URL } from '../constants/images';
 
 const getCanvasDimensions = (config: any) => {
     const unit: 'mm' | 'cm' | 'inch' | 'px' = config?.unit || 'cm';
@@ -772,13 +773,13 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
 
                         // 4. System placeholder (no selection made)
                         console.log('[DirectProductDesigner] No base image selected, using system placeholder');
-                        return '/images/system-placeholder.png';
+                        return SYSTEM_PLACEHOLDER_URL;
                     })()}
                     baseImageColor={activePage?.baseImageColor || config?.baseImageColor}
                     baseImageColorEnabled={activePage?.baseImageColorEnabled || config?.baseImageColorEnabled}
                     baseImageColorMode={activePage?.baseImageColorMode || config?.baseImageColorMode || 'transparent'}
-                    baseImageAsMask={activePage?.baseImageAsMask || config?.baseImageAsMask}
-                    baseImageMaskInvert={activePage?.baseImageMaskInvert || config?.baseImageMaskInvert}
+                    baseImageAsMask={activePage?.baseImageAsMask ?? config?.baseImageAsMask ?? false}
+                    baseImageMaskInvert={activePage?.baseImageMaskInvert ?? config?.baseImageMaskInvert ?? false}
                     baseImageScale={(() => {
                         const vid = String(selectedVariantId || '');
                         const vKey = vid.match(/\d+/)?.[0] || vid;

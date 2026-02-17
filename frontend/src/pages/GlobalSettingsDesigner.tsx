@@ -20,6 +20,7 @@ import {
     DialogTrigger
 } from '@/components/ui/dialog';
 import { PricingTab } from '../components/PricingTab';
+import { SYSTEM_PLACEHOLDER_URL, LEGACY_PLACEHOLDER_PATH } from '../constants/images';
 
 const parseAssetColors = (value: string) => {
     if (!value) return [];
@@ -40,13 +41,13 @@ const parseAssetColors = (value: string) => {
 const DUMMY_PRODUCT = {
     id: 'global_dummy',
     title: 'Global Default Settings',
-    variants: [{ id: 'dummy_variant', title: 'Default Variant', price: '0.00', image: '/images/system-placeholder.png' }],
+    variants: [{ id: 'dummy_variant', title: 'Default Variant', price: '0.00', image: SYSTEM_PLACEHOLDER_URL }],
     options: [{ name: 'Size', position: 1, values: ['S', 'M', 'L'] }],
-    images: ['/images/system-placeholder.png']
+    images: [SYSTEM_PLACEHOLDER_URL]
 };
 
 // Dummy Base Image (Placeholder)
-const DUMMY_BASE_IMAGE = '/images/system-placeholder.png';
+const DUMMY_BASE_IMAGE = SYSTEM_PLACEHOLDER_URL;
 
 const DEFAULT_ELEMENTS: CanvasElement[] = [
     {

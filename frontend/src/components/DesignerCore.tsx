@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 import { cleanAssetName } from '../utils/fonts';
 import { getProxiedUrl } from '@/utils/urlUtils';
+import { SYSTEM_PLACEHOLDER_URL } from '../constants/images';
 
 // Hooks
 import { useCanvasState } from '@/hooks/designer/useCanvasState';
@@ -461,7 +462,7 @@ export function DesignerCore({
         if (activePage?.baseImage === 'none') {
             // User explicitly removed the mockup for this page
             // Skip Shopify fallbacks and use system default
-            return '/images/system-placeholder.png';
+            return SYSTEM_PLACEHOLDER_URL;
         }
 
         const isPlaceholder = activePage?.baseImage?.includes('placehold.co') || activePage?.baseImage?.includes('placeholder.co') || !activePage?.baseImage;
@@ -483,7 +484,7 @@ export function DesignerCore({
         if (productFallback) return getProxiedUrl(productFallback);
 
         // 5. System Placeholder (ULTIMATE FALLBACK - Custom Fly Branded)
-        return '/images/system-placeholder.png';
+        return SYSTEM_PLACEHOLDER_URL;
     }, [activePage, selectedVariantId, productData]);
 
     const resolvedBaseScale = React.useMemo(() => {
@@ -886,8 +887,8 @@ export function DesignerCore({
                         baseImageColor={activePage?.baseImageColor}
                         baseImageColorEnabled={activePage?.baseImageColorEnabled}
                         baseImageColorMode={baseImageColorMode}
-                        baseImageAsMask={activePage?.baseImageAsMask}
-                        baseImageMaskInvert={activePage?.baseImageMaskInvert}
+                        baseImageAsMask={activePage?.baseImageAsMask ?? false}
+                        baseImageMaskInvert={activePage?.baseImageMaskInvert ?? false}
                         baseImageScale={resolvedBaseScale}
                         onUpdateBaseImage={(props) => {
                             setPages(prev => prev.map(p => p.id === activePageId ? {

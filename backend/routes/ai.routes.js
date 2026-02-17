@@ -146,6 +146,12 @@ router.post("/actions/:id/execute", asyncHandler(async (req, res) => {
                 shop,
                 output.payload.gallery
             );
+        } else if (output.type === 'ADD_ITEMS_TO_ASSET') {
+            result = await assetExecutor.addItemsToAsset(
+                shop,
+                output.payload.assetIdentifier,
+                output.payload.items
+            );
         } else if (output.type === 'UPDATE_SETTINGS') {
             result = await settingsExecutor.updateGlobalSettings(
                 shop,

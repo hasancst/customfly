@@ -14,6 +14,7 @@ import { POPULAR_GOOGLE_FONTS } from '../constants/fonts';
 import { cleanAssetName } from '../utils/fonts';
 import { evaluateVisibility } from '@/utils/logicEvaluator';
 import { getProxiedUrl } from '@/utils/urlUtils';
+import { SYSTEM_PLACEHOLDER_URL } from '../constants/images';
 import {
     Tooltip,
     TooltipContent,
@@ -413,7 +414,7 @@ export function DesignerOpenCore({
 
         // 3. System placeholder (no selection made)
         console.log('[DesignerOpenCore] No base image selected, using system placeholder');
-        return '/images/system-placeholder.png';
+        return SYSTEM_PLACEHOLDER_URL;
 
     }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseImages, initialConfig.baseImage]);
 

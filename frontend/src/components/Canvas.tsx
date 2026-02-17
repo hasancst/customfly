@@ -384,7 +384,7 @@ export function Canvas({
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none imcst-base-image"
         style={{
-          zIndex: 20,
+          zIndex: baseImageAsMask ? 30 : 20, // If mask enabled, put base image ABOVE elements to mask them
           visibility: 'visible !important' as any,
           opacity: '1 !important' as any
         }}
@@ -408,7 +408,6 @@ export function Canvas({
             left: '50%',
             top: '50%',
             transform: `translate(-50%, -50%) translate(${(baseImageProperties?.x || 0) * (validZoom / 100)}px, ${(baseImageProperties?.y || 0) * (validZoom / 100)}px) scale(${baseImageScale ? (baseImageScale / 100) : (baseImageProperties?.scale || 1)})`,
-            zIndex: 20,
             pointerEvents: 'auto',
             display: 'block !important' as any,
             visibility: 'visible !important' as any,

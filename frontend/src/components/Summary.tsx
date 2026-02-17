@@ -32,6 +32,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { CanvasElement } from '../types';
 import { toast } from 'sonner';
+import { SYSTEM_PLACEHOLDER_URL, LEGACY_PLACEHOLDER_PATH } from '../constants/images';
 
 interface SummaryProps {
   elements: CanvasElement[];
@@ -494,9 +495,8 @@ export const Summary: React.FC<SummaryProps> = ({
                 }}>
                   <div className="w-full aspect-square rounded-xl border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center relative">
                     {(() => {
-                      const systemPlaceholder = '/images/system-placeholder.png';
-                      const isDefault = !baseImage || baseImage === 'none' || baseImage === systemPlaceholder;
-                      const displayUrl = isDefault ? systemPlaceholder : baseImage;
+                      const isDefault = !baseImage || baseImage === 'none' || baseImage === LEGACY_PLACEHOLDER_PATH || baseImage === SYSTEM_PLACEHOLDER_URL;
+                      const displayUrl = isDefault ? SYSTEM_PLACEHOLDER_URL : baseImage;
 
                       return (
                         <>

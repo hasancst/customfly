@@ -24,6 +24,8 @@ interface BaseImageModalProps {
     currentBaseImage?: string;
 }
 
+import { SYSTEM_PLACEHOLDER_URL } from '../constants/images';
+
 export function BaseImageModal({
     isOpen,
     onClose,
@@ -236,14 +238,14 @@ export function BaseImageModal({
                                         <div className="grid grid-cols-4 gap-4">
                                             {/* System Default Mockup Option */}
                                             <div
-                                                onClick={() => handleSelect('/images/system-placeholder.png', 'system')}
-                                                className={`group relative aspect-square rounded-2xl border-2 transition-all cursor-pointer overflow-hidden bg-white ${(activeTargetId === 'all' && currentBaseImage === '/images/system-placeholder.png') || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png')) ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-gray-200 hover:border-indigo-300 shadow-sm'}`}
+                                                onClick={() => handleSelect(SYSTEM_PLACEHOLDER_URL, 'system')}
+                                                className={`group relative aspect-square rounded-2xl border-2 transition-all cursor-pointer overflow-hidden bg-white ${(activeTargetId === 'all' && (currentBaseImage === SYSTEM_PLACEHOLDER_URL || currentBaseImage === '/images/system-placeholder.png')) || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === SYSTEM_PLACEHOLDER_URL || variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === SYSTEM_PLACEHOLDER_URL || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png')) ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-gray-200 hover:border-indigo-300 shadow-sm'}`}
                                             >
-                                                <img src="/images/system-placeholder.png" className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="System Default" />
+                                                <img src={SYSTEM_PLACEHOLDER_URL} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="System Default" />
                                                 <div className="absolute inset-x-0 bottom-0 bg-indigo-600/90 backdrop-blur-sm p-1.5 text-center">
                                                     <span className="text-[8px] text-white font-black uppercase tracking-widest">System Default</span>
                                                 </div>
-                                                {((activeTargetId === 'all' && currentBaseImage === '/images/system-placeholder.png') || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png'))) && (
+                                                {((activeTargetId === 'all' && (currentBaseImage === SYSTEM_PLACEHOLDER_URL || currentBaseImage === '/images/system-placeholder.png')) || (activeTargetId !== 'all' && (variantBaseImages[activeTargetId] === SYSTEM_PLACEHOLDER_URL || variantBaseImages[activeTargetId] === '/images/system-placeholder.png' || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === SYSTEM_PLACEHOLDER_URL || variantBaseImages[String(activeTargetId).match(/\d+/)?.[0] || ''] === '/images/system-placeholder.png'))) && (
                                                     <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1 shadow-lg">
                                                         <CheckCircle2 className="w-4 h-4" />
                                                     </div>
