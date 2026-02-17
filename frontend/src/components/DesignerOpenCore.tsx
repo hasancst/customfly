@@ -130,9 +130,9 @@ export function DesignerOpenCore({
     const [showSafeArea, setShowSafeArea] = useState(initialConfig.showSafeArea ?? true);
     const [showRulers, setShowRulers] = useState(isPublicMode ? false : (initialConfig.showRulers ?? false));
     const [showGrid, setShowGrid] = useState(initialConfig.showGrid ?? false);
-    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>(initialConfig.unit || 'cm');
+    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>(initialConfig.unit || 'px');
     const [paperSize, setPaperSize] = useState(initialConfig.paperSize || 'Custom');
-    const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
+    const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 1000, height: 1000 });
     const [safeAreaPadding] = useState(initialConfig.safeAreaPadding ?? 10);
     const [safeAreaRadius, setSafeAreaRadius] = useState(initialConfig.safeAreaRadius ?? 0);
     const [safeAreaWidth] = useState(initialConfig.safeAreaWidth);

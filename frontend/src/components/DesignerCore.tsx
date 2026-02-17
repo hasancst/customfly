@@ -136,9 +136,9 @@ export function DesignerCore({
     const [safeAreaHeight, setSafeAreaHeight] = useState<number | undefined>(initialConfig.safeAreaHeight);
     const [safeAreaOffset, setSafeAreaOffset] = useState(initialConfig.safeAreaOffset || { x: 0, y: 0 });
     const [showRulers, setShowRulers] = useState(initialConfig.showRulers ?? false);
-    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>(initialConfig.unit || 'cm');
+    const [unit, setUnit] = useState<'cm' | 'mm' | 'inch' | 'px'>(initialConfig.unit || 'px');
     const [paperSize, setPaperSize] = useState<string>(initialConfig.paperSize || 'Custom');
-    const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 264.5833, height: 264.5833 });
+    const [customPaperDimensions, setCustomPaperDimensions] = useState(initialConfig.customPaperDimensions || { width: 1000, height: 1000 });
     const [designerLayout, setDesignerLayout] = useState(initialConfig.designerLayout || 'modal');
     const [outputSettings, setOutputSettings] = useState<any>(initialConfig.outputSettings || null);
     const [showGrid] = useState(initialConfig.showGrid ?? false);
