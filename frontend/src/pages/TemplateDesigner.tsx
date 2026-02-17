@@ -107,6 +107,30 @@ export default function TemplateDesigner() {
         baseImageProperties: { x: 0, y: 0, scale: 1, width: 1000, height: 1000 }
     }];
 
+    // Create mock product data for template mode
+    const mockProductData = {
+        id: 'template',
+        gid: 'gid://shopify/Product/template',
+        title: template?.name || 'New Template',
+        shop: '',
+        variants: [{
+            id: 'template-variant',
+            gid: 'gid://shopify/ProductVariant/template-variant',
+            title: 'Default',
+            price: '0',
+            sku: '',
+            image: null
+        }],
+        options: [],
+        images: [],
+        handle: 'template',
+        status: 'ACTIVE',
+        vendor: '',
+        tags: '',
+        collections: [],
+        createdAt: new Date().toISOString()
+    };
+
     return (
         <>
             <Toaster />
@@ -116,20 +140,16 @@ export default function TemplateDesigner() {
                 initialConfig={initialConfig}
                 initialDesignId={template?.id}
                 productId="template"
-                productData={{
-                    id: 'template',
-                    title: template?.name || 'New Template',
-                    shop: '',
-                    variants: [],
-                    options: []
-                }}
+                productData={mockProductData}
                 userFonts={assets.fonts}
                 userColors={assets.colors}
                 userOptions={assets.options}
                 userGalleries={assets.galleries}
                 savedDesigns={[]}
+                allDesigns={[]}
                 onDeleteDesign={() => {}}
                 onClearAllDesigns={() => {}}
+                onRefreshProduct={() => {}}
                 customFetch={fetch}
                 onSave={async (data) => {
                     try {
