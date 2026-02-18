@@ -76,6 +76,7 @@ model MerchantConfig {
   baseImageColorMode       String?  @default("transparent")
   baseImageMaskInvert      Boolean? @default(false)
   baseImageScale           Float?
+  baseImageLocked          Boolean? @default(false)
   variantBaseScales        Json?
 
   @@unique([shop, shopifyProductId])
