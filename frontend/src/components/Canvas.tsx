@@ -426,7 +426,7 @@ export function Canvas({
                 position: 'relative',
                 zIndex: 1,
                 objectFit: 'contain',
-                pointerEvents: 'auto', // Only image intercepts events
+                pointerEvents: baseImageLocked ? 'none' : 'auto', // When locked, let events pass through
                 opacity: baseImageLocked ? 0.7 : 1,
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
@@ -434,7 +434,7 @@ export function Canvas({
               }}
               onPointerDown={(e) => {
                 if (baseImageLocked) {
-                  e.stopPropagation();
+                  // Don't handle event when locked, let it pass through
                   return;
                 }
                 
