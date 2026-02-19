@@ -1,0 +1,31 @@
+<div 
+  class="customfly-canvas"
+  data-product-id="{{ product.id }}"
+  data-shop="{{ shop.permanent_domain }}"
+  data-mode="direct" 
+></div>
+
+<div class="customfly-area"></div>
+
+<script src="https://custom.duniasantri.com/imcst_public_api/loader.js?v={{ 'now' | date: '%s' }}" async></script>
+
+<style>
+  /* When the designer is active, hide the theme's main product image gallery */
+  body.imcst-split-mode-active .product__media-list,
+  body.imcst-split-mode-active .product-media-container,
+  body.imcst-split-mode-active .product__media-wrapper,
+  body.imcst-split-mode-active .product-single__media-group,
+  body.imcst-split-mode-active .product-gallery,
+  body.imcst-split-mode-active [data-product-media-type="image"] {
+    display: none !important;
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Customfly Direct Area",
+  "target": "section",
+  "templates": ["product"],
+  "settings": []
+}
+{% endschema %}
