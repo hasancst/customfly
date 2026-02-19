@@ -110,7 +110,9 @@ async function initApp() {
     (window as any).IMCST_INITIALIZED = true;
     console.log('[IMCST] Initializing storefront loader...');
     const shop = document.querySelector('[data-shop]')?.getAttribute('data-shop') || (window as any).Shopify?.shop;
-    const productId = document.querySelector('[data-product-id]')?.getAttribute('data-product-id') || (window as any).meta?.product?.id;
+    const productId = document.querySelector('[data-product-id]')?.getAttribute('data-product-id') 
+        || (window as any).meta?.product?.id 
+        || (window as any).ShopifyAnalytics?.meta?.product?.id;
 
     if (!shop || !productId) {
         console.log('[IMCST] Missing shop or product ID, attempting legacy mount...');

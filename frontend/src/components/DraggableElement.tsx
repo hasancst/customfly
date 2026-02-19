@@ -1248,9 +1248,23 @@ export const DraggableElement = memo(({
   }, [element, zoom, textScale, filterString, localState.width, localState.height, localState.fontSize, curveGeometry]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    console.log('[DraggableElement] Pointer down:', {
+      elementId: element.id,
+      elementType: element.type,
+      'element.lockMove': element.lockMove,
+      isPublicMode,
+      'will allow drag': !element.lockMove || isPublicMode
+    });
+    
     if (isResizing || isRotating || (interactionRef.current as any).isResizingFlag) {
       e.stopPropagation();
       e.preventDefault();
+      return;
+    }
+
+    // In public mode, always allow dragging regardless of lockMove
+    if (element.lockMove && !isPublicMode) {
+      console.log('[DraggableElement] Drag prevented - element locked in admin mode');
       return;
     }
 
@@ -1258,38 +1272,55 @@ export const DraggableElement = memo(({
     setIsDragging(true);
     onSelect();
 
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+
     const startX = e.clientX;
     const startY = e.clientY;
     const startElementX = element.x;
     const startElementY = element.y;
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      if (element.lockMove) return; // Enforce lock
       const dx = (moveEvent.clientX - startX) / (zoom / 100);
       const dy = (moveEvent.clientY - startY) / (zoom / 100);
 
       const newX = startElementX + dx;
       const newY = startElementY + dy;
 
+      console.log('[DraggableElement] Moving element:', {
+        elementId: element.id,
+        startX: startElementX,
+        startY: startElementY,
+        dx,
+        dy,
+        newX,
+        newY,
+        'calling onUpdate': true
+      });
+
       setLocalState(prev => ({ ...prev, x: newX, y: newY }));
       onUpdate({ x: newX, y: newY }, true);
     };
 
     const handlePointerUp = (upEvent: PointerEvent) => {
-      if (!element.lockMove) {
-        const dx = (upEvent.clientX - startX) / (zoom / 100);
-        const dy = (upEvent.clientY - startY) / (zoom / 100);
-        const finalX = startElementX + dx;
-        const finalY = startElementY + dy;
-        onUpdate({ x: finalX, y: finalY }, false);
-      }
+      const dx = (upEvent.clientX - startX) / (zoom / 100);
+      const dy = (upEvent.clientY - startY) / (zoom / 100);
+      const finalX = startElementX + dx;
+      const finalY = startElementY + dy;
+      onUpdate({ x: finalX, y: finalY }, false);
+      
       setIsDragging(false);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      if (target.hasPointerCapture(upEvent.pointerId)) {
+        target.releasePointerCapture(upEvent.pointerId);
+      }
+      target.removeEventListener('pointermove', handlePointerMove);
+      target.removeEventListener('pointerup', handlePointerUp);
+      target.removeEventListener('pointercancel', handlePointerUp);
     };
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+    target.addEventListener('pointermove', handlePointerMove);
+    target.addEventListener('pointerup', handlePointerUp);
+    target.addEventListener('pointercancel', handlePointerUp);
   };
 
   return (
@@ -1308,6 +1339,16 @@ export const DraggableElement = memo(({
         zIndex: (element.zIndex || 0) + (isSelected ? 1000 : 0),
         willChange: 'transform, left, top, width, height',
         pointerEvents: renderMode === 'view' ? 'none' : (element.isCurved ? 'none' : 'auto')
+      }}
+      onPointerEnter={() => {
+        console.log('[DraggableElement] Pointer enter:', {
+          elementId: element.id,
+          renderMode,
+          'element.isCurved': element.isCurved,
+          'element.lockMove': element.lockMove,
+          isPublicMode,
+          'computed pointerEvents': renderMode === 'view' ? 'none' : (element.isCurved ? 'none' : 'auto')
+        });
       }}
     >
       <div style={{ opacity: renderMode === 'interactive' ? 0 : 1, width: '100%', height: '100%' }}>

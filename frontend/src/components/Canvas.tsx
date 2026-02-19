@@ -413,7 +413,7 @@ export function Canvas({
             style={{
               width: (baseImageProperties?.width || 600) * (validZoom / 100),
               height: (baseImageProperties?.height || 600) * (validZoom / 100),
-              pointerEvents: 'none', // Container doesn't intercept events
+              pointerEvents: baseImageLocked ? 'none' : 'auto', // Block all pointer events when locked
             }}
           >
             <img
@@ -426,15 +426,28 @@ export function Canvas({
                 position: 'relative',
                 zIndex: 1,
                 objectFit: 'contain',
-                pointerEvents: baseImageLocked ? 'none' : 'auto', // When locked, let events pass through
+                pointerEvents: baseImageLocked ? 'none' : 'auto',
                 opacity: baseImageLocked ? 0.7 : 1,
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
-                touchAction: 'none',
+                touchAction: baseImageLocked ? 'none' : 'auto',
+              }}
+              onLoad={() => {
+                console.log('[Canvas] Base image loaded:', {
+                  baseImageLocked,
+                  'computed pointerEvents': baseImageLocked ? 'none' : 'auto',
+                  'computed opacity': baseImageLocked ? 0.7 : 1
+                });
               }}
               onPointerDown={(e) => {
+                console.log('[Canvas] Base image pointer down:', {
+                  baseImageLocked,
+                  'should be blocked': baseImageLocked
+                });
+                
                 if (baseImageLocked) {
-                  // Don't handle event when locked, let it pass through
+                  e.preventDefault();
+                  e.stopPropagation();
                   return;
                 }
                 

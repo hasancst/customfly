@@ -590,6 +590,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         onDeleteElement={deleteElement}
                         hideVariantSelector={true}
                         useMinimalStyling={true}
+                        showLayersPanel={config?.showLayersInDirect ?? true}
                     />
                 </div>
 
@@ -798,6 +799,7 @@ export function DirectProductDesigner({ productId, shop }: DirectProductDesigner
                         ...(activePage?.baseImageProperties || {})
                     }}
                     isPublicMode={true}
+                    baseImageLocked={config?.baseImageLocked ?? true}
                     onUpdateBaseImage={(updates) => {
                         updateElement('FAKE_ID_NOT_NEEDED_FOR_BASE', {}, true);
                         setPages(prev => prev.map(p => {

@@ -78,6 +78,8 @@ model MerchantConfig {
   baseImageScale           Float?
   baseImageLocked          Boolean? @default(false)
   variantBaseScales        Json?
+  showLayersInDirect       Boolean? @default(true)
+  showLayersInModal        Boolean? @default(true)
 
   @@unique([shop, shopifyProductId])
 }

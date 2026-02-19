@@ -149,6 +149,31 @@ export function PublicCustomizationPanel({
         return parseAssetColors(asset.value);
     }, [userColors, selectedBaseColorAssetId]);
 
+    // Debug logging
+    useEffect(() => {
+        console.log('[PublicCustomizationPanel v2.0] Layers Visibility Debug:', {
+            timestamp: new Date().toISOString(),
+            isDirectMode,
+            showLayersInDirect,
+            showLayersInModal,
+            shouldShowLayers: isDirectMode ? showLayersInDirect : showLayersInModal,
+            editableElementsCount: editableElements.length,
+            willRenderLayers: editableElements.length > 0 && (isDirectMode ? showLayersInDirect : showLayersInModal)
+        });
+        
+        console.log('[PublicCustomizationPanel] Debug:', {
+            hasProductData: !!productData,
+            productDataKeys: productData ? Object.keys(productData) : [],
+            shopifyOptions: shopifyOptions,
+            shopifyOptionsLength: shopifyOptions.length,
+            selectedVariant: selectedVariant,
+            hasHandleOptionChange: !!handleOptionChange,
+            isDirectMode,
+            showLayersInDirect,
+            showLayersInModal,
+            shouldShowLayers: isDirectMode ? showLayersInDirect : showLayersInModal
+        });
+    }, [productData, shopifyOptions, selectedVariant, handleOptionChange, isDirectMode, showLayersInDirect, showLayersInModal]);
 
     // Filter elements that are editable by customer and have a label
     const editableElements = useMemo(() => {

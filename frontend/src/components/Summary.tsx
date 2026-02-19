@@ -132,6 +132,11 @@ interface SummaryProps {
   baseImageColorMode?: 'opaque' | 'transparent';
   onBaseImageColorModeChange?: (mode: 'opaque' | 'transparent') => void;
   onSyncVariantImages?: (variants: any[]) => Promise<void>;
+  // Layers panel visibility
+  showLayersInDirect?: boolean;
+  onToggleShowLayersInDirect?: () => void;
+  showLayersInModal?: boolean;
+  onToggleShowLayersInModal?: () => void;
 }
 
 export const Summary: React.FC<SummaryProps> = ({
@@ -212,6 +217,10 @@ export const Summary: React.FC<SummaryProps> = ({
   onBaseImageLockedChange,
   baseImageColorMode = 'transparent',
   onBaseImageColorModeChange,
+  showLayersInDirect = true,
+  onToggleShowLayersInDirect,
+  showLayersInModal = true,
+  onToggleShowLayersInModal,
 }) => {
   const [isOutputOpen, setIsOutputOpen] = React.useState(false);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = React.useState(false);
@@ -690,8 +699,29 @@ export const Summary: React.FC<SummaryProps> = ({
 
               {isWorkspaceOpen && (
                 <div className="space-y-6 mt-6 pt-4 border-t border-gray-50">
-                  {/* 0. Independent Mode Behavior */}
+                  {/* 0. Layers Panel Visibility */}
                   <div className="space-y-3">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Layers Panel</Label>
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between pl-4 border-l-2 border-purple-50">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] font-medium text-gray-700">Show Layers Panel</Label>
+                          <p className="text-[9px] text-gray-400">Display layers panel in both direct customize and modal modes</p>
+                        </div>
+                        <Switch 
+                          checked={showLayersInDirect ?? true} 
+                          onCheckedChange={() => {
+                            onToggleShowLayersInDirect?.();
+                            onSave?.(false);
+                          }} 
+                          className="scale-75" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. Independent Mode Behavior */}
+                  <div className="space-y-3 pt-2 border-t border-gray-50">
                     <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Unique Design Logic</Label>
                     <div className="space-y-4 pt-1">
                       <div className="space-y-2">

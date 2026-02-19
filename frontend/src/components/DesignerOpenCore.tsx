@@ -110,13 +110,45 @@ export function DesignerOpenCore({
             baseImageScale: p.baseImageScale || initialConfig.baseImageScale,
             variantBaseScales: p.variantBaseScales || initialConfig.variantBaseScales,
             elements: p.elements.map(el => {
-                if (!isPublicMode) return el;
-                if ((el.type === 'text' || el.type === 'textarea' || el.type === 'monogram') && el.hideTextPreview) {
-                    return { ...el, text: '' };
+                // In public mode, unlock all elements so customers can move them
+                // Admin locks are for admin convenience, not customer restrictions
+                if (isPublicMode) {
+                    console.log('[DesignerOpenCore] Unlocking element:', {
+                        id: el.id,
+                        type: el.type,
+                        'original lockMove': el.lockMove,
+                        'original lockResize': el.lockResize,
+                        'original lockRotate': el.lockRotate
+                    });
+                    
+                    const unlocked = { 
+                        ...el, 
+                        lockMove: false, 
+                        lockResize: false, 
+                        lockRotate: false 
+                    };
+                    
+                    if ((el.type === 'text' || el.type === 'textarea' || el.type === 'monogram') && el.hideTextPreview) {
+                        return { ...unlocked, text: '' };
+                    }
+                    return unlocked;
                 }
                 return el;
             })
         }));
+        
+        console.log('[DesignerOpenCore] Pages initialized:', {
+            isPublicMode,
+            pagesCount: mergedPages.length,
+            firstPageElements: mergedPages[0]?.elements.map(e => ({
+                id: e.id,
+                type: e.type,
+                lockMove: e.lockMove,
+                lockResize: e.lockResize,
+                lockRotate: e.lockRotate
+            }))
+        });
+        
         return mergedPages;
     });
     const [activePageId, setActivePageId] = useState<string>(initialPages[0]?.id || 'default');
@@ -140,6 +172,16 @@ export function DesignerOpenCore({
     const [safeAreaOffset, setSafeAreaOffset] = useState(initialConfig.safeAreaOffset || { x: 0, y: 0 });
     const [hideSafeAreaLine, setHideSafeAreaLine] = useState(initialConfig.hideSafeAreaLine ?? false);
     const [baseImageLocked] = useState(initialConfig.baseImageLocked ?? true); // Default locked for customers
+
+    console.log('[DesignerOpenCore] Base Image Lock Status:', {
+        'initialConfig.baseImageLocked': initialConfig.baseImageLocked,
+        'baseImageLocked (final)': initialConfig.baseImageLocked ?? true,
+        'meaning': (initialConfig.baseImageLocked ?? true) ? 'Base image LOCKED (cannot move)' : 'Base image UNLOCKED (can move)',
+        'initialConfig.showLayersInModal': initialConfig.showLayersInModal,
+        'initialConfig.showLayersInDirect': initialConfig.showLayersInDirect,
+        'showLayersPanel prop value': initialConfig?.showLayersInDirect ?? true,
+        'all initialConfig keys': Object.keys(initialConfig)
+    });
 
     // Toolbar Feature Flags
     const [enabledGrid, setEnabledGrid] = useState(initialConfig.enabledGrid ?? true);
@@ -301,157 +343,63 @@ export function DesignerOpenCore({
         }
     }, [productData]); // Run when productData loads. DO NOT include selectedVariantId to avoid loops, relying on initial mount check.
 
-    // Robust Base Image Resolution
-    // The backend merges template data into initialConfig and normalizes all base image data
-    // We only need to check initialConfig for explicit admin selections
+    // Robust Base Image Resolution - MUST MATCH DesignerCore.tsx logic
     const resolvedBaseImage = useMemo(() => {
         const activePage = pages.find(p => p.id === activePageId);
-        if (activePage?.baseImage === 'none') return undefined;
-
         const rawSelectedId = String(selectedVariantId || '');
         const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
 
-        // Helper to normalize base image data (supports both legacy string and new object format)
-        const normalizeBaseImage = (img: any) => {
-            if (!img) return null;
+        // 1. Explicit Assignment for THIS variant (Highest Priority)
+        const variantImage = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
+        if (variantImage && variantImage !== 'none') return getProxiedUrl(variantImage);
 
-            // New format (object with source)
-            if (typeof img === 'object' && img.source && img.url) {
-                return img;
-            }
+        // 2. Explicit Global Selection for THIS page (Middle Priority)
+        if (activePage?.baseImage === 'none') {
+            return SYSTEM_PLACEHOLDER_URL;
+        }
 
-            // Legacy format (plain string URL)
-            if (typeof img === 'string' && img !== 'none') {
-                return {
-                    source: 'manual',
-                    url: img,
-                    metadata: {}
-                };
-            }
+        const isPlaceholder = activePage?.baseImage?.includes('placehold.co') || activePage?.baseImage?.includes('placeholder.co') || !activePage?.baseImage;
+        if (activePage?.baseImage && !isPlaceholder) {
+            return getProxiedUrl(activePage.baseImage);
+        }
 
-            return null;
-        };
-
-        // Helper to clean "Label|URL" and Proxy
-        const processUrl = (u: any): string | undefined => {
-            if (!u || u === 'none') return undefined;
-
-            let rawUrl: any = undefined;
-
-            if (typeof u === 'string') {
-                rawUrl = u;
-            } else if (typeof u === 'object') {
-                // Cari di kunci-kunci umum di mana URL biasanya disimpan
-                rawUrl = u.url || u.src || u.image || u.default?.url || u.previewUrl || u.originalUrl;
-
-                // Jika masih belum ketemu, coba ambil string pertama yang mirip URL
-                if (!rawUrl) {
-                    const values = Object.values(u);
-                    rawUrl = values.find(v => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:') || v.startsWith('/')));
-                }
-            }
-
-            if (typeof rawUrl !== 'string' || !rawUrl) return undefined;
-
-            const cleaned = rawUrl.includes('|') ? rawUrl.split('|')[1].trim() : rawUrl;
-            return getProxiedUrl(cleaned);
-        };
-
-        // Helper to check if URL is a placeholder
-        const isPlaceholder = (url: any): boolean => {
-            if (!url || typeof url !== 'string') return false;
-            return url.includes('placehold.co') || url.includes('placeholder.co');
-        };
-
-        console.log('[DesignerOpenCore] Base Image Resolution:', {
-            selectedVariantId,
-            rawSelectedId,
-            vKey,
-            'activePage.variantBaseImages': activePage?.variantBaseImages,
-            'initialConfig.variantBaseImages': initialConfig?.variantBaseImages,
-            'activePage.baseImage': activePage?.baseImage,
-            'initialConfig.baseImage': initialConfig?.baseImage,
+        // 3. Shopify Variant Image (Automated Fallback)
+        const sVariant = productData?.variants?.find((v: any) => {
+            const vid = String(v.id).match(/\d+/)?.[0] || String(v.id);
+            return vid === vKey || String(v.id) === rawSelectedId;
         });
+        const sVariantImage = (typeof sVariant?.image === 'string' ? sVariant.image : (sVariant?.image as any)?.url || (sVariant?.image as any)?.src);
+        if (sVariantImage) return getProxiedUrl(sVariantImage);
 
-        // 1. Check variant-specific selection from activePage FIRST (from design/template)
-        const pageVariantSelection = activePage?.variantBaseImages?.[rawSelectedId] || activePage?.variantBaseImages?.[vKey];
-        if (pageVariantSelection) {
-            const normalized = normalizeBaseImage(pageVariantSelection);
-            if (normalized?.url) {
-                const processed = processUrl(normalized.url);
-                if (processed && !isPlaceholder(processed)) {
-                    console.log('[DesignerOpenCore] Using page variant-specific selection:', normalized.source, processed);
-                    return processed;
-                }
-            }
-        }
+        // 4. Shopify Product Image (Lower Priority)
+        const sProductImage = productData?.images?.[0];
+        const productFallback = (typeof sProductImage === 'string' ? sProductImage : (sProductImage as any)?.url || (sProductImage as any)?.src);
+        if (productFallback) return getProxiedUrl(productFallback);
 
-        // 2. Check variant-specific selection from config (admin explicitly selected for this variant)
-        const variantSelection = initialConfig?.variantBaseImages?.[rawSelectedId] || initialConfig?.variantBaseImages?.[vKey];
-        if (variantSelection) {
-            const normalized = normalizeBaseImage(variantSelection);
-            if (normalized?.url) {
-                const processed = processUrl(normalized.url);
-                if (processed && !isPlaceholder(processed)) {
-                    console.log('[DesignerOpenCore] Using config variant-specific selection:', normalized.source, processed);
-                    return processed;
-                    return processed;
-                }
-            }
-        }
-
-        // 2. Check global selection (admin explicitly selected global base image)
-        const globalSelection = initialConfig?.baseImage;
-        if (globalSelection) {
-            const normalized = normalizeBaseImage(globalSelection);
-            if (normalized?.url) {
-                const processed = processUrl(normalized.url);
-                if (processed && !isPlaceholder(processed)) {
-                    console.log('[DesignerOpenCore] Using global selection:', normalized.source, processed);
-                    return processed;
-                }
-            }
-        }
-
-        // 3. System placeholder (no selection made)
-        console.log('[DesignerOpenCore] No base image selected, using system placeholder');
+        // 5. System Placeholder (ULTIMATE FALLBACK)
         return SYSTEM_PLACEHOLDER_URL;
 
-    }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseImages, initialConfig.baseImage]);
+    }, [pages, activePageId, selectedVariantId, productData]);
 
-    // Resolve base image scale (per-variant or global)
+    // Resolve base image scale (per-variant or global) - MUST MATCH DesignerCore.tsx
     const resolvedBaseScale = useMemo(() => {
         const activePage = pages.find(p => p.id === activePageId);
         const rawSelectedId = String(selectedVariantId || '');
         const vKey = rawSelectedId.match(/\d+/)?.[0] || rawSelectedId;
 
-        // 1. Check variant-specific scale
-        if (selectedVariantId && activePage?.variantBaseScales?.[rawSelectedId]) {
-            return activePage.variantBaseScales[rawSelectedId];
-        }
-        if (selectedVariantId && activePage?.variantBaseScales?.[vKey]) {
-            return activePage.variantBaseScales[vKey];
-        }
-        if (selectedVariantId && initialConfig?.variantBaseScales?.[rawSelectedId]) {
-            return initialConfig.variantBaseScales[rawSelectedId];
-        }
-        if (selectedVariantId && initialConfig?.variantBaseScales?.[vKey]) {
-            return initialConfig.variantBaseScales[vKey];
-        }
+        // 1. Explicit Scale for THIS variant
+        const variantScale = activePage?.variantBaseScales?.[rawSelectedId] || activePage?.variantBaseScales?.[vKey];
+        if (variantScale !== undefined) return variantScale;
 
-        // 2. Check page-specific scale
-        if (activePage?.baseImageScale) {
-            return activePage.baseImageScale;
-        }
+        // 2. Explicit Scale for THIS page
+        if (activePage?.baseImageScale !== undefined) return activePage.baseImageScale;
 
-        // 3. Check global config scale
-        if (initialConfig?.baseImageScale) {
-            return initialConfig.baseImageScale;
-        }
+        // 3. Global Scale from initialConfig
+        if (initialConfig?.baseImageScale !== undefined) return initialConfig.baseImageScale;
 
         // 4. Default
         return 80;
-    }, [pages, activePageId, selectedVariantId, initialConfig.variantBaseScales, initialConfig.baseImageScale]);
+    }, [pages, activePageId, selectedVariantId, initialConfig.baseImageScale]);
 
     // Debug logging for base image color settings
     useEffect(() => {
@@ -1224,6 +1172,7 @@ export function DesignerOpenCore({
                             onBaseImageColorChange={(color) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColor: color } : p))}
                             onBaseImageColorEnabledChange={(enabled) => setPages(prev => prev.map(p => p.id === activePageId ? { ...p, baseImageColorEnabled: enabled } : p))}
                             selectedBaseColorAssetId={selectedBaseColorAssetId}
+                            showLayersPanel={initialConfig?.showLayersInDirect ?? true}
                         />
                     </div>
                 ) : (

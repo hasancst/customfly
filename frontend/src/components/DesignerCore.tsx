@@ -145,7 +145,9 @@ export function DesignerCore({
     const [outputSettings, setOutputSettings] = useState<any>(initialConfig.outputSettings || null);
     const [showGrid] = useState(initialConfig.showGrid ?? false);
     const [baseImageScale, setBaseImageScale] = useState(initialConfig.baseImageScale ?? 80);
-    const [baseImageLocked, setBaseImageLocked] = useState(initialConfig.baseImageLocked ?? false);
+    const [baseImageLocked, setBaseImageLocked] = useState(initialConfig.baseImageLocked ?? true); // Default locked
+    const [showLayersInDirect, setShowLayersInDirect] = useState(initialConfig.showLayersInDirect ?? true);
+    const [showLayersInModal, setShowLayersInModal] = useState(initialConfig.showLayersInModal ?? true);
     const [baseImageColorMode, setBaseImageColorMode] = useState<'opaque' | 'transparent'>(initialConfig.baseImageColorMode || 'transparent');
 
     // Toolbar Feature Flags
@@ -607,6 +609,8 @@ export function DesignerCore({
                     baseImageScale,
                     baseImageColorMode,
                     baseImageLocked,
+                    showLayersInDirect,
+                    showLayersInModal,
                 },
                 designJson: finalGlobal.map(p => ({
                     ...p,
@@ -1121,6 +1125,11 @@ export function DesignerCore({
                             onToggleEnabledDownload={() => setEnabledDownload(!enabledDownload)}
                             enabledReset={enabledReset}
                             onToggleEnabledReset={() => setEnabledReset(!enabledReset)}
+                            // Layers panel visibility
+                            showLayersInDirect={showLayersInDirect}
+                            onToggleShowLayersInDirect={() => setShowLayersInDirect(!showLayersInDirect)}
+                            showLayersInModal={showLayersInModal}
+                            onToggleShowLayersInModal={() => setShowLayersInModal(!showLayersInModal)}
                         />
                     </div>
                 )

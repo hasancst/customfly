@@ -64,7 +64,9 @@ router.post("/config", async (req, res) => {
             'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
             'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId',
             // Toolbar feature flags
-            'enabledGrid', 'enabledUndoRedo', 'enabledDownload', 'enabledReset', 'showGrid'
+            'enabledGrid', 'enabledUndoRedo', 'enabledDownload', 'enabledReset', 'showGrid',
+            // Layers panel visibility
+            'showLayersInDirect', 'showLayersInModal'
         ];
 
         const cleanData = {};
@@ -74,10 +76,8 @@ router.post("/config", async (req, res) => {
 
         console.log('[Config Save] Data to save:', {
             productId,
-            'cleanData.baseImage': cleanData.baseImage,
-            'cleanData.variantBaseImages': cleanData.variantBaseImages,
-            'cleanData.baseImageScale': cleanData.baseImageScale,
-            'cleanData.variantBaseScales': cleanData.variantBaseScales
+            'cleanData.baseImageLocked': cleanData.baseImageLocked,
+            'typeof baseImageLocked': typeof cleanData.baseImageLocked
         });
 
         // Ensure mandatory printArea is present for creation
@@ -443,7 +443,8 @@ router.post("/global_design", async (req, res) => {
             'buttonText', 'headerTitle', 'designerLayout', 'enabledTools', 'inlineSettings',
             'modalSettings', 'wizardSettings', 'outputSettings', 'colorAssetId',
             'fontAssetId', 'galleryAssetId', 'optionAssetId', 'shapeAssetId',
-            'enabledGrid', 'enabledUndoRedo', 'enabledDownload', 'enabledReset', 'showGrid'
+            'enabledGrid', 'enabledUndoRedo', 'enabledDownload', 'enabledReset', 'showGrid',
+            'showLayersInDirect', 'showLayersInModal'
         ];
 
         const cleanConfig = {};

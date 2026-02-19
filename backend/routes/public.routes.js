@@ -98,14 +98,20 @@ router.get(["/loader.js", "/storefront.js"], async (req, res) => {
         const jsUrl = toAbsolute(jsMatch[1]);
         const cssUrls = cssMatches.map(match => toAbsolute(match[1]));
 
+        // Use static build version as cache buster (matches BUILD_VERSION in PublicCustomizationPanel)
+        // This ensures consistent cache busting across all requests until next build
+        const BUILD_VERSION = '2026-02-19T10:10:00Z';
+        const jsUrlWithCache = `${jsUrl}?v=${BUILD_VERSION}`;
+        const cssUrlsWithCache = cssUrls.map(url => `${url}?v=${BUILD_VERSION}`);
+
         let loaderScript = `
 (function() {
     console.log("[IMCST] Initializing storefront loader...");
     window.IMCST_BASE_URL = '${baseUrl}';
     
     // 1. Load Assets
-    ${cssUrls.map(url => `
-    if (!document.querySelector('link[href="${url}"]')) {
+    ${cssUrlsWithCache.map(url => `
+    if (!document.querySelector('link[href^="${url.split('?')[0]}"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
@@ -116,7 +122,7 @@ router.get(["/loader.js", "/storefront.js"], async (req, res) => {
     // 2. Load Main Bundle
     const script = document.createElement('script');
     script.type = 'module';
-    script.src = '${jsUrl}';
+    script.src = '${jsUrlWithCache}';
     document.head.appendChild(script);
 })();
         `;
@@ -289,6 +295,10 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
             if (!config.baseImageProperties && firstPage.baseImageProperties) {
                 config.baseImageProperties = firstPage.baseImageProperties;
             }
+
+            // Lock setting - ALWAYS force to true for public mode (customer safety)
+            // Customers should NOT be able to move the base image (mockup)
+            config.baseImageLocked = true;
         } else if (config) {
             // No template, but ensure config data is extracted to URL strings
             if (config.baseImage) {
@@ -310,6 +320,10 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
             if (config.baseImageAsMask === undefined) config.baseImageAsMask = false;
             if (config.baseImageMaskInvert === undefined) config.baseImageMaskInvert = false;
             if (config.baseImageScale === undefined) config.baseImageScale = 80;
+            
+            // FORCE baseImageLocked to true for customer safety
+            // This overrides any old false values from database
+            config.baseImageLocked = true;
         }
 
         const responseData = {
@@ -318,10 +332,19 @@ router.get("/product/:shop/:shopifyProductId", async (req, res) => {
             product: productData
         };
 
+        // Ensure layers visibility settings are included in config
+        if (responseData.config) {
+            // Use the actual database values, default to true only if config doesn't exist
+            responseData.config.showLayersInDirect = config?.showLayersInDirect !== undefined ? config.showLayersInDirect : true;
+            responseData.config.showLayersInModal = config?.showLayersInModal !== undefined ? config.showLayersInModal : true;
+        }
+
         console.log('[Public API] Response Data:', {
             productId: shopifyProductId,
             'config.baseImage': responseData.config?.baseImage,
             'config.variantBaseImages': responseData.config?.variantBaseImages,
+            'config.showLayersInDirect': responseData.config?.showLayersInDirect,
+            'config.showLayersInModal': responseData.config?.showLayersInModal,
             'design[0].baseImage': responseData.design?.[0]?.baseImage,
             'design[0].variantBaseImages': responseData.design?.[0]?.variantBaseImages,
             hasConfig: !!responseData.config,
