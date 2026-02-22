@@ -11,6 +11,7 @@ import Help from '@/pages/Help';
 import ExitIframe from '@/pages/ExitIframe';
 import StoreTemplates from '@/pages/StoreTemplates';
 import TemplateDesigner from '@/pages/TemplateDesigner';
+import PrintfulPage from '@/pages/PrintfulPage';
 import AIChat from '@/components/ai/AIChat';
 import { RoutePropagator } from '@/components/RoutePropagator';
 import { BrowserRouter, Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
@@ -133,6 +134,7 @@ function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic:
                 <Route path="/exitiframe" element={<ExitIframe />} />
                 <Route path="/assets" element={<Assets />} />
                 <Route path="/orders" element={<Orders />} />
+                <Route path="/printful" element={<PrintfulPage />} />
                 <Route path="/production/:designId" element={<ProductionExport />} />
                 <Route path="/designer/:productId" element={<Designer />} />
                 <Route path="/designer" element={<Designer />} />

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Toast, Modal, TextField, EmptyState, Spinner, InlineStack, Icon, Badge } from '@shopify/polaris';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Button, Toast, Modal, TextField, EmptyState, Spinner, InlineStack, Icon, Badge, Tabs } from '@shopify/polaris';
 import { PlusIcon, DeleteIcon, DuplicateIcon, EditIcon } from '@shopify/polaris-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
+import CatalogTab from '../components/printful/CatalogTab';
 
 interface DesignTemplate {
     id: string;
@@ -26,6 +27,9 @@ export default function StoreTemplates() {
     const [toastContent, setToastContent] = useState('');
     const [deleteModalActive, setDeleteModalActive] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
+    const [selectedTab, setSelectedTab] = useState(0);
+    const [printfulConnected, setPrintfulConnected] = useState(false);
+    const [checkingPrintful, setCheckingPrintful] = useState(true);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -38,7 +42,23 @@ export default function StoreTemplates() {
 
     useEffect(() => {
         fetchTemplates();
+        checkPrintfulConnection();
     }, []);
+
+    const checkPrintfulConnection = async () => {
+        try {
+            setCheckingPrintful(true);
+            const response = await fetch('/imcst_api/printful/status');
+            if (response.ok) {
+                const data = await response.json();
+                setPrintfulConnected(data.connected === true);
+            }
+        } catch (error) {
+            console.error('Failed to check Printful connection:', error);
+        } finally {
+            setCheckingPrintful(false);
+        }
+    };
 
     const fetchTemplates = async () => {
         try {
@@ -119,6 +139,24 @@ export default function StoreTemplates() {
             day: 'numeric'
         });
     };
+
+    // Build tabs dynamically based on Printful connection
+    const tabs = [
+        {
+            id: 'my-templates',
+            content: 'My Templates',
+            panelID: 'my-templates-panel',
+        }
+    ];
+
+    // Add Printful tab only if connected
+    if (printfulConnected) {
+        tabs.push({
+            id: 'printful',
+            content: 'Printful',
+            panelID: 'printful-panel',
+        });
+    }
 
     const renderItem = (template: DesignTemplate) => {
         const { id, name, description, thumbnail, tags, updatedAt } = template;
@@ -202,41 +240,56 @@ export default function StoreTemplates() {
     return (
         <Page
             title="Templates"
-            primaryAction={{
+            primaryAction={selectedTab === 0 ? {
                 content: 'Create Template',
                 icon: PlusIcon,
                 onAction: handleCreateTemplate
-            }}
+            } : undefined}
         >
             <Layout>
                 <Layout.Section>
-                    <Card padding="0">
-                        {isLoading ? (
-                            <div className="flex justify-center items-center p-8">
-                                <Spinner size="large" />
-                            </div>
-                        ) : templates.length === 0 ? (
-                            <EmptyState
-                                heading="Create your first template"
-                                action={{
-                                    content: 'Create Template',
-                                    onAction: handleCreateTemplate
-                                }}
-                                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                            >
-                                <p>
-                                    Templates allow you to create reusable designs that can be applied to multiple products.
-                                    Start by creating your first template.
-                                </p>
-                            </EmptyState>
-                        ) : (
-                            <ResourceList
-                                resourceName={{ singular: 'template', plural: 'templates' }}
-                                items={templates}
-                                renderItem={renderItem}
-                            />
-                        )}
-                    </Card>
+                    <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab}>
+                        <Card padding="0">
+                            {selectedTab === 0 && (
+                                <>
+                                    {isLoading ? (
+                                        <div className="flex justify-center items-center p-8">
+                                            <Spinner size="large" />
+                                        </div>
+                                    ) : templates.length === 0 ? (
+                                        <EmptyState
+                                            heading="Create your first template"
+                                            action={{
+                                                content: 'Create Template',
+                                                onAction: handleCreateTemplate
+                                            }}
+                                            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                                        >
+                                            <p>
+                                                Templates allow you to create reusable designs that can be applied to multiple products.
+                                                Start by creating your first template.
+                                            </p>
+                                        </EmptyState>
+                                    ) : (
+                                        <ResourceList
+                                            resourceName={{ singular: 'template', plural: 'templates' }}
+                                            items={templates}
+                                            renderItem={renderItem}
+                                        />
+                                    )}
+                                </>
+                            )}
+                            
+                            {selectedTab === 1 && printfulConnected && (
+                                <div className="p-4">
+                                    <CatalogTab 
+                                        connected={true}
+                                        isTemplateMode={true}
+                                    />
+                                </div>
+                            )}
+                        </Card>
+                    </Tabs>
                 </Layout.Section>
             </Layout>
 

@@ -22,6 +22,7 @@ import publicRoutes from "./routes/public.routes.js";
 import proxyRoutes from "./routes/proxy.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import templateRoutes from "./routes/templates.routes.js";
+import printfulRoutes from "./routes/printful.routes.js";
 
 // Middleware
 import { validateShopParam } from "./middleware/auth.js";
@@ -102,24 +103,38 @@ app.use("/imcst_public_api", publicRoutes); // Storefront APIs
 // 4. Admin Auth Routes
 app.get(shopify.config.auth.path, validateShopParam, async (req, res, next) => {
     const { shop, host, embedded } = req.query;
+    console.log('[Auth] Request received:', { shop, host, embedded, url: req.url });
 
-    console.log('[Auth Handler] shop:', shop, 'host:', host, 'embedded:', embedded);
-
-    // If this is an embedded request, redirect to exitiframe first
+    // If embedded in iframe, must break out first before starting OAuth
+    // Otherwise Shopify OAuth will fail (X-Frame-Options blocks accounts.shopify.com in iframe)
     if (embedded === '1' || host) {
-        console.log('[Auth Handler] Redirecting to exitiframe');
-        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_API_KEY}&scope=${process.env.SCOPES}&redirect_uri=${encodeURIComponent(process.env.SHOPIFY_APP_URL + '/api/auth/callback')}`;
-
-        return res.redirect(`/exitiframe?redirectUri=${encodeURIComponent(authUrl)}&shop=${shop}&host=${host || ''}`);
+        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_API_KEY}&scope=${encodeURIComponent(process.env.SCOPES || '')}&redirect_uri=${encodeURIComponent(process.env.SHOPIFY_APP_URL + '/api/auth/callback')}`;
+        const params = new URLSearchParams({ ...req.query, redirectUri: authUrl }).toString();
+        console.log('[Auth] Embedded/host detected → redirecting to exitiframe first');
+        return res.redirect(`/exitiframe?${params}`);
     }
 
-    console.log('[Auth Handler] Using default Shopify auth');
-    // Otherwise use default Shopify auth
+    // Non-embedded: let library handle
     return shopify.auth.begin()(req, res, next);
 });
 app.get(
     shopify.config.auth.callbackPath,
+    (req, res, next) => {
+        console.log('[Auth Callback] Request received:', {
+            shop: req.query.shop,
+            code: req.query.code ? 'present' : 'missing',
+            url: req.url
+        });
+        next();
+    },
     shopify.auth.callback(),
+    (req, res, next) => {
+        console.log('[Auth Callback] Session created:', {
+            shop: res.locals.shopify?.session?.shop,
+            sessionId: res.locals.shopify?.session?.id
+        });
+        next();
+    },
     shopify.redirectToShopifyOrAppRoot()
 );
 
@@ -132,17 +147,26 @@ app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolat
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, templateRoutes);
 // AI routes have their own per-shop rate limiter (aiRateLimiter in ai.routes.js)
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, aiRoutes);
+// Printful routes
+app.use("/imcst_api/printful", (req, res, next) => {
+    console.log('[Printful Middleware] Request received:', req.method, req.path);
+    console.log('[Printful Middleware] Body:', req.body);
+    next();
+}, shopify.validateAuthenticatedSession(), ensureTenantIsolation, printfulRoutes);
+console.log('[Server] Printful routes registered at /imcst_api/printful');
 
 // --- Storefront Loader Support ---
 app.get("/loader.js", publicRoutes); // Handled by public.routes.js
 
 // --- Exit Iframe Helper ---
 app.get("/exitiframe", (req, res) => {
-    const { redirectUri, shop, host } = req.query;
+    const { redirectUri, host } = req.query;
 
     if (!redirectUri) return res.status(400).send("Missing redirectUri");
 
-    const apiKey = process.env.SHOPIFY_API_KEY;
+    const safeRedirectUri = String(redirectUri);
+    const safeHost = String(host || '');
+    const apiKey = process.env.SHOPIFY_API_KEY || '';
 
     res.status(200).set("Content-Type", "text/html").send(`
 <!DOCTYPE html>
@@ -151,38 +175,77 @@ app.get("/exitiframe", (req, res) => {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Redirecting...</title>
-    <script src="https://unpkg.com/@shopify/app-bridge@3"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var redirectUri = "${redirectUri}";
-            var host = "${host || ''}";
-            var apiKey = "${apiKey || ''}";
-
-            if (window.top === window.self) {
-                // Not in an iframe, redirect normally
-                window.location.href = redirectUri;
-            } else {
-                // In an iframe, use App Bridge or fallback
-                if (apiKey && host) {
-                    var AppBridge = window['app-bridge'];
-                    var createApp = AppBridge.default;
-                    var Redirect = AppBridge.actions.Redirect;
-                    var app = createApp({
-                        apiKey: apiKey,
-                        host: host,
-                        forceRedirect: true
-                    });
-                    var redirect = Redirect.create(app);
-                    redirect.dispatch(Redirect.Action.REMOTE, redirectUri);
-                } else {
-                    window.open(redirectUri, '_top');
-                }
-            }
-        });
-    </script>
+    <style>
+        body { font-family: sans-serif; display: flex; align-items: center; justify-content: center;
+               min-height: 100vh; margin: 0; flex-direction: column; gap: 12px; color: #333; }
+        .btn { padding: 10px 20px; background: #008060; color: white; border: none;
+               border-radius: 6px; cursor: pointer; font-size: 16px; text-decoration: none; }
+    </style>
 </head>
 <body>
     <p>Redirecting to Shopify...</p>
+    <a class="btn" id="manualBtn" href="${safeRedirectUri}" target="_top">Click here if not redirected</a>
+    <script>
+        (function() {
+            var REDIRECT_URI = ${JSON.stringify(safeRedirectUri)};
+            var HOST = ${JSON.stringify(safeHost)};
+            var API_KEY = ${JSON.stringify(apiKey)};
+
+            // Primary: try window.top direct redirect (fastest, most reliable)
+            function doTopRedirect() {
+                try {
+                    if (window.top && window.top !== window.self) {
+                        window.top.location.href = REDIRECT_URI;
+                        return true;
+                    }
+                } catch(e) {
+                    // cross-origin security error, fall through
+                }
+                return false;
+            }
+
+            // If not in iframe at all, just redirect
+            if (window.self === window.top) {
+                window.location.href = REDIRECT_URI;
+                return;
+            }
+
+            // Try direct top-level redirect first
+            if (doTopRedirect()) return;
+
+            // Fallback: try App Bridge (may cause XHR, but with shorter timeout)
+            if (API_KEY && HOST) {
+                var script = document.createElement('script');
+                script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+                script.onload = function() {
+                    try {
+                        var AppBridge = window['app-bridge'];
+                        if (!AppBridge) throw new Error('No AppBridge');
+                        var createApp = AppBridge.default;
+                        var Redirect = AppBridge.actions && AppBridge.actions.Redirect;
+                        var app = createApp({ apiKey: API_KEY, host: HOST, forceRedirect: true });
+                        if (Redirect) {
+                            var redirect = Redirect.create(app);
+                            redirect.dispatch(Redirect.Action.REMOTE, REDIRECT_URI);
+                        } else {
+                            // App Bridge 4+ uses @shopify/app-bridge-utils
+                            window.top.location.href = REDIRECT_URI;
+                        }
+                    } catch(e) {
+                        console.warn('[exitiframe] AppBridge failed:', e);
+                        window.top.location.href = REDIRECT_URI;
+                    }
+                };
+                script.onerror = function() {
+                    console.warn('[exitiframe] Failed to load AppBridge, using window.top fallback');
+                    window.top.location.href = REDIRECT_URI;
+                };
+                document.head.appendChild(script);
+            } else {
+                window.top.location.href = REDIRECT_URI;
+            }
+        })();
+    </script>
 </body>
 </html>
     `);

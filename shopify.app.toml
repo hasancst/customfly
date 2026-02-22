@@ -1,7 +1,7 @@
-# Learn more about the shopify.app.toml file at https://shopify.dev/docs/apps/tools/cli/configuration
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "dc6293234a3444e19402469666332c1e"
-name = "Customfly"
+client_id = "3559876745703748487949a4e27f649b"
+name = "customfly-hasan"
 application_url = "https://custom.duniasantri.com"
 embedded = true
 
@@ -9,22 +9,22 @@ embedded = true
 automatically_update_urls_on_dev = true
 dev_store_url = "uploadfly-lab.myshopify.com"
 
+[webhooks]
+api_version = "2026-01"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_orders,write_products"
 
 [auth]
 redirect_urls = [
-  "https://custom.duniasantri.com/api/auth/callback",
+  "https://custom.duniasantri.com/api/auth/callback"
 ]
-
-[webhooks]
-api_version = "2026-01"
-
-[pos]
-embedded = false
 
 [app_proxy]
 url = "https://custom.duniasantri.com/imcst_api/proxy"
 subpath = "customfly"
 prefix = "apps"
+
+[pos]
+embedded = false

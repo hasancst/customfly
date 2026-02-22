@@ -54,11 +54,13 @@ export const shopify = shopifyApp({
     hooks: {
         afterAuth: async ({ session }) => {
             console.log("[Auth] Completed for shop:", session.shop);
-            shopify.registerWebhooks({ session });
+            
+            // Register webhooks
+            await shopify.api.webhooks.register({ session });
             
             // Fetch and store shop locale for AI language detection
             try {
-                const client = new shopify.clients.Graphql({ session });
+                const client = new shopify.api.clients.Graphql({ session });
                 const shopQuery = `
                     query {
                         shop {

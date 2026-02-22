@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Page, Layout, Card, Text, FormLayout, TextField, Select, InlineStack, Box, Checkbox, Badge, Button, Toast } from '@shopify/polaris';
+import { Page, Layout, Card, Text, FormLayout, TextField, Select, InlineStack, Box, Checkbox, Badge, Button, Toast, Banner, Link } from '@shopify/polaris';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
 
 export default function Settings() {
@@ -16,20 +16,56 @@ export default function Settings() {
     const [showRulers, setShowRulers] = useState(false);
     const [showSafeArea, setShowSafeArea] = useState(true);
 
+    // Printful Connection
+    const [printfulConnected, setPrintfulConnected] = useState<boolean | null>(null); // null = loading, true/false = loaded
+    const [printfulStoreId, setPrintfulStoreId] = useState('');
+    const [printfulApiKey, setPrintfulApiKey] = useState('');
+    const [printfulLoading, setPrintfulLoading] = useState(false);
+    const [printfulError, setPrintfulError] = useState('');
+    const [printfulSuccess, setPrintfulSuccess] = useState('');
+
     const fetchConfig = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await fetch('/imcst_api/shop_config');
-            if (response.ok) {
-                const data = await response.json();
-                if (data.buttonText) setButtonText(data.buttonText);
-                if (data.designerLayout) setDesignerLayout(data.designerLayout);
-                if (data.unit) setUnit(data.unit);
-                if (data.showRulers !== undefined) setShowRulers(data.showRulers);
-                if (data.showSafeArea !== undefined) setShowSafeArea(data.showSafeArea);
+            const [configResponse, printfulResponse] = await Promise.all([
+                fetch('/imcst_api/shop_config'),
+                fetch('/imcst_api/printful/status')
+            ]);
+            
+            if (configResponse.ok) {
+                try {
+                    const data = await configResponse.json();
+                    if (data.buttonText) setButtonText(data.buttonText);
+                    if (data.designerLayout) setDesignerLayout(data.designerLayout);
+                    if (data.unit) setUnit(data.unit);
+                    if (data.showRulers !== undefined) setShowRulers(data.showRulers);
+                    if (data.showSafeArea !== undefined) setShowSafeArea(data.showSafeArea);
+                } catch (jsonError) {
+                    console.error('[Settings] shop_config JSON parse error:', jsonError);
+                }
+            }
+            
+            if (printfulResponse.ok) {
+                try {
+                    const data = await printfulResponse.json();
+                    console.log('[Settings] Printful status response:', data);
+                    setPrintfulConnected(data.connected === true);
+                    setPrintfulStoreId(data.storeId || '');
+                    console.log('[Settings] Set printfulConnected to:', data.connected === true);
+                } catch (jsonError) {
+                    console.error('[Settings] Printful status JSON parse error:', jsonError);
+                    setPrintfulConnected(false);
+                }
+            } else if (printfulResponse.status === 429) {
+                // Rate limit hit - assume connected if we have cached data
+                console.warn('[Settings] Printful API rate limit (429), using cached state');
+                // Don't change state - keep previous value
+            } else {
+                console.error('[Settings] Printful status request failed:', printfulResponse.status);
+                setPrintfulConnected(false);
             }
         } catch (error) {
-            console.error('Failed to fetch shop config:', error);
+            console.error('Failed to fetch config:', error);
         } finally {
             setIsLoading(false);
         }
@@ -61,6 +97,70 @@ export default function Settings() {
             console.error('Failed to save shop config:', error);
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handlePrintfulConnect = async () => {
+        if (!printfulApiKey.trim()) {
+            setPrintfulError('Please enter your Printful API key');
+            return;
+        }
+
+        try {
+            setPrintfulLoading(true);
+            setPrintfulError('');
+            setPrintfulSuccess('');
+
+            const response = await fetch('/imcst_api/printful/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accessToken: printfulApiKey })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setPrintfulSuccess('Printful connected successfully!');
+                setPrintfulApiKey(''); // Clear input after successful connection
+                setPrintfulConnected(true);
+                setPrintfulStoreId(data.storeId || '');
+            } else {
+                setPrintfulError(data.error || 'Failed to connect Printful');
+            }
+        } catch (err: any) {
+            setPrintfulError(err.message || 'Failed to connect Printful');
+        } finally {
+            setPrintfulLoading(false);
+        }
+    };
+
+    const handlePrintfulDisconnect = async () => {
+        if (!confirm('Are you sure you want to disconnect Printful?')) {
+            return;
+        }
+
+        try {
+            setPrintfulLoading(true);
+            setPrintfulError('');
+            setPrintfulSuccess('');
+
+            const response = await fetch('/imcst_api/printful/disconnect', {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setPrintfulSuccess('Printful disconnected successfully');
+                setPrintfulConnected(false);
+                setPrintfulStoreId('');
+            } else {
+                setPrintfulError(data.error || 'Failed to disconnect Printful');
+            }
+        } catch (err: any) {
+            setPrintfulError(err.message || 'Failed to disconnect Printful');
+        } finally {
+            setPrintfulLoading(false);
         }
     };
 
@@ -161,6 +261,122 @@ export default function Settings() {
                                         checked={showSafeArea}
                                         onChange={setShowSafeArea}
                                     />
+                                </FormLayout>
+                            </Box>
+                        </Card>
+                    </Box>
+
+                    <Box paddingBlockStart="400">
+                        <Card>
+                            <Box padding="400">
+                                <FormLayout>
+                                    <Text variant="headingMd" as="h2">Printful Integration</Text>
+                                    
+                                    {printfulError && (
+                                        <Banner title="Error" status="critical" onDismiss={() => setPrintfulError('')}>
+                                            {printfulError}
+                                        </Banner>
+                                    )}
+
+                                    {printfulSuccess && (
+                                        <Banner title="Success" status="success" onDismiss={() => setPrintfulSuccess('')}>
+                                            {printfulSuccess}
+                                        </Banner>
+                                    )}
+
+                                    <Box>
+                                        <InlineStack gap="200" align="start">
+                                            <Text as="p" variant="bodyMd">
+                                                Status:
+                                            </Text>
+                                            {printfulConnected === null ? (
+                                                <Badge tone="info">Checking...</Badge>
+                                            ) : printfulConnected ? (
+                                                <Badge tone="success">Connected</Badge>
+                                            ) : (
+                                                <Badge>Not Connected</Badge>
+                                            )}
+                                        </InlineStack>
+
+                                        {printfulConnected && printfulStoreId && (
+                                            <Box paddingBlockStart="200">
+                                                <Text as="p" variant="bodyMd" tone="subdued">
+                                                    Store ID: {printfulStoreId}
+                                                </Text>
+                                            </Box>
+                                        )}
+                                    </Box>
+
+                                    {printfulConnected === null ? (
+                                        <Box>
+                                            <Text as="p" variant="bodyMd" tone="subdued">
+                                                Loading connection status...
+                                            </Text>
+                                        </Box>
+                                    ) : !printfulConnected ? (
+                                        <>
+                                            <Banner>
+                                                <p>
+                                                    To connect Printful, you need an API key from your Printful dashboard.
+                                                </p>
+                                                <p>
+                                                    <Link url="https://www.printful.com/dashboard/store" external>
+                                                        Get your API key from Printful →
+                                                    </Link>
+                                                </p>
+                                            </Banner>
+
+                                            <TextField
+                                                label="Printful API Key"
+                                                value={printfulApiKey}
+                                                onChange={setPrintfulApiKey}
+                                                placeholder="Enter your Printful API key"
+                                                autoComplete="off"
+                                                type="password"
+                                                helpText="Your API key will be stored securely and used to sync products from Printful"
+                                            />
+
+                                            <Button
+                                                variant="primary"
+                                                onClick={handlePrintfulConnect}
+                                                loading={printfulLoading}
+                                                disabled={!printfulApiKey.trim()}
+                                            >
+                                                Connect Printful
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Banner tone="success">
+                                                <p>
+                                                    Your Printful account is connected and your API key is securely stored.
+                                                </p>
+                                                <p>
+                                                    You can now import products from the Printful catalog.
+                                                </p>
+                                            </Banner>
+
+                                            <InlineStack gap="200">
+                                                <Button url="/printful" variant="primary">
+                                                    Browse Printful Catalog
+                                                </Button>
+                                                <Button
+                                                    variant="plain"
+                                                    tone="critical"
+                                                    onClick={handlePrintfulDisconnect}
+                                                    loading={printfulLoading}
+                                                >
+                                                    Disconnect
+                                                </Button>
+                                            </InlineStack>
+                                        </>
+                                    )}
+
+                                    <Box paddingBlockStart="200">
+                                        <Text as="p" variant="bodyMd" tone="subdued">
+                                            Printful integration allows you to browse products, import to your store, and automatically fulfill orders.
+                                        </Text>
+                                    </Box>
                                 </FormLayout>
                             </Box>
                         </Card>

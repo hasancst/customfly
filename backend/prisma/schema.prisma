@@ -277,3 +277,66 @@ model DesignTemplate {
   @@index([shop, name])
   @@index([shop, createdAt])
 }
+
+model PrintfulConnection {
+  id          String   @id @default(uuid())
+  shop        String   @unique
+  accessToken String
+  storeId     String?
+  connected   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shop])
+}
+
+model PrintfulProduct {
+  id                String   @id @default(uuid())
+  shop              String
+  printfulProductId String
+  printfulVariantId String?
+  shopifyProductId  String?
+  status            String   @default("synced")
+  printArea         Json?
+  mockupUrls        Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([shop, printfulProductId])
+  @@index([shop])
+  @@index([shopifyProductId])
+}
+
+model PrintfulCatalog {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @unique // Printful product ID
+  name        String
+  type        String?
+  brand       String?
+  model       String?
+  image       String?
+  description String?
+  catalogData Json     // Full product data from Printful
+  syncedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type])
+  @@index([syncedAt])
+}
+
+model PrintfulOrder {
+  id              String   @id @default(uuid())
+  shop            String
+  shopifyOrderId  String
+  printfulOrderId String?
+  status          String   @default("pending")
+  orderData       Json?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([shop, shopifyOrderId])
+  @@index([shop])
+  @@index([printfulOrderId])
+  @@index([status])
+}

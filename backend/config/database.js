@@ -21,8 +21,9 @@ export function getPrismaClient() {
                         ];
 
                         // Skip filtering for Session model as it's needed for authentication bootup
+                        // Also skip PrintfulCatalog as it's a global catalog (not per-shop)
                         // Also skip if no shop is in context (e.g., initial auth or internal tasks)
-                        if (shop && model !== 'Session' && model !== 'GoogleFont' && filteredOperations.includes(operation)) {
+                        if (shop && model !== 'Session' && model !== 'GoogleFont' && model !== 'PrintfulCatalog' && filteredOperations.includes(operation)) {
                             args.where = args.where || {};
                             // Ensure the model has a shop field before applying filter
                             // In this schema, almost all major entities have 'shop'
@@ -32,7 +33,7 @@ export function getPrismaClient() {
                         }
 
                         // For create operations, automatically inject shop
-                        if (shop && model !== 'Session' && model !== 'GoogleFont' && (operation === 'create' || operation === 'createMany')) {
+                        if (shop && model !== 'Session' && model !== 'GoogleFont' && model !== 'PrintfulCatalog' && (operation === 'create' || operation === 'createMany')) {
                             if (operation === 'create') {
                                 args.data = args.data || {};
                                 if (!args.data.shop) args.data.shop = shop;

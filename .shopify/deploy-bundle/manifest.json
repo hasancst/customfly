@@ -1,5 +1,5 @@
 {
-  "name": "Customfly",
+  "name": "customfly-hasan",
   "handle": "",
   "modules": [
     {
@@ -78,7 +78,7 @@
       "assets": "branding",
       "target": "",
       "config": {
-        "name": "Customfly"
+        "name": "customfly-hasan"
       }
     }
   ]
