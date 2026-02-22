@@ -907,7 +907,7 @@ router.post('/import', async (req, res) => {
             safeAreaHeight: globalSettings?.safeAreaHeight || null,
             safeAreaRadius: globalSettings?.safeAreaRadius || null,
             buttonText: globalSettings?.buttonText || 'Customize Your Design',
-            designerLayout: globalSettings?.designerLayout || 'redirect',
+            designerLayout: 'inline', // Always use inline/direct design for Printful products
             showRulers: globalSettings?.showRulers !== undefined ? globalSettings.showRulers : false,
             enabledTools: globalSettings?.enabledTools || {
                 text: true,
@@ -922,6 +922,7 @@ router.post('/import', async (req, res) => {
             safeAreaPadding: configData.safeAreaPadding,
             showSafeArea: configData.showSafeArea,
             paperSize: configData.paperSize,
+            designerLayout: configData.designerLayout,
             isTemplateMode
         });
 
