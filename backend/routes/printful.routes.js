@@ -895,12 +895,17 @@ router.post('/import', async (req, res) => {
             shop,
             shopifyProductId,
             printArea: printAreaConfig,
-            baseImage: mockupUrl || null,
+            baseImage: mockupUrl || null, // Always use Printful mockup, never from global settings
             paperSize: globalSettings?.paperSize || 'Default',
             customPaperDimensions: globalSettings?.customPaperDimensions || null,
             unit: globalSettings?.unit || 'px',
             showSafeArea: globalSettings?.showSafeArea !== undefined ? globalSettings.showSafeArea : true,
-            safeAreaPadding: globalSettings?.safeAreaPadding || 0.5,
+            safeAreaPadding: globalSettings?.safeAreaPadding !== undefined ? globalSettings.safeAreaPadding : 0.5,
+            safeAreaOffset: globalSettings?.safeAreaOffset || null,
+            safeAreaShape: globalSettings?.safeAreaShape || null,
+            safeAreaWidth: globalSettings?.safeAreaWidth || null,
+            safeAreaHeight: globalSettings?.safeAreaHeight || null,
+            safeAreaRadius: globalSettings?.safeAreaRadius || null,
             buttonText: globalSettings?.buttonText || 'Customize Your Design',
             designerLayout: globalSettings?.designerLayout || 'redirect',
             showRulers: globalSettings?.showRulers !== undefined ? globalSettings.showRulers : false,
@@ -912,6 +917,14 @@ router.post('/import', async (req, res) => {
             }
         };
 
+        console.log('[Printful Import] Config data:', {
+            baseImage: configData.baseImage,
+            safeAreaPadding: configData.safeAreaPadding,
+            showSafeArea: configData.showSafeArea,
+            paperSize: configData.paperSize,
+            isTemplateMode
+        });
+
         const merchantConfig = await prisma.merchantConfig.upsert({
             where: {
                 shop_shopifyProductId: {
@@ -922,9 +935,11 @@ router.post('/import', async (req, res) => {
             create: configData,
             update: {
                 printArea: printAreaConfig,
-                baseImage: mockupUrl || null,
+                baseImage: mockupUrl || null, // Always use Printful mockup
                 paperSize: configData.paperSize,
                 customPaperDimensions: configData.customPaperDimensions,
+                safeAreaPadding: configData.safeAreaPadding,
+                showSafeArea: configData.showSafeArea,
                 updatedAt: new Date()
             }
         });
