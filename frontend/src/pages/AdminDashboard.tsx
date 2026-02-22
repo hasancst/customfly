@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
-import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, Icon, Toast, Select } from '@shopify/polaris';
+import { Page, Layout, Card, ResourceList, ResourceItem, Text, Badge, Filters, ChoiceList, Tabs, Button, Tooltip, Spinner, Box, InlineStack, Icon, Toast, Select, Pagination } from '@shopify/polaris';
 import { ViewIcon, PlusIcon, MinusIcon, SandboxIcon, StoreIcon } from '@shopify/polaris-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
@@ -65,6 +65,10 @@ export default function AdminDashboard() {
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
     const [sortValue, setSortValue] = useState('newest');
+    
+    // Pagination state
+    const [pageInfo, setPageInfo] = useState<any>(null);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -105,8 +109,14 @@ export default function AdminDashboard() {
                         console.error('[DASHBOARD] Products returned non-JSON:', await prodRes.text());
                     } else {
                         const data = await prodRes.json();
-                        console.log('[DASHBOARD] Products received:', data.length);
-                        if (Array.isArray(data)) prodData = data;
+                        console.log('[DASHBOARD] Products received:', data);
+                        // Handle both old format (array) and new format (object with products and pageInfo)
+                        if (Array.isArray(data)) {
+                            prodData = data;
+                        } else if (data.products && Array.isArray(data.products)) {
+                            prodData = data.products;
+                            setPageInfo(data.pageInfo);
+                        }
                     }
                 }
 
@@ -150,6 +160,35 @@ export default function AdminDashboard() {
         }
         fetchData();
     }, []);
+
+    const loadMoreProducts = useCallback(async (direction: 'next' | 'prev') => {
+        if (isLoadingMore) return;
+        
+        try {
+            setIsLoadingMore(true);
+            const cursor = direction === 'next' ? pageInfo?.endCursor : pageInfo?.startCursor;
+            const param = direction === 'next' ? 'after' : 'before';
+            
+            const response = await fetch(`/imcst_api/products?${param}=${cursor}&limit=50`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.products && Array.isArray(data.products)) {
+                    setProducts(data.products);
+                    setPageInfo(data.pageInfo);
+                    
+                    // Update custom products
+                    const configuredIds = configs.map(c => c.shopifyProductId);
+                    const activeCustomProducts = data.products.filter((p: Product) => configuredIds.includes(p.id));
+                    setCustomProducts(activeCustomProducts);
+                }
+            }
+        } catch (error) {
+            console.error('[DASHBOARD] Load more error:', error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [fetch, pageInfo, configs, isLoadingMore]);
 
     const handleToggleStatus = useCallback(async (product: Product) => {
         setIsUpdating(product.gid);
@@ -476,22 +515,47 @@ export default function AdminDashboard() {
                     <Card padding="0">
                         <Tabs tabs={tabs} selected={selectedTab} onSelect={handleTabChange}>
                             {selectedTab <= 1 ? (
-                                <ResourceList
-                                    resourceName={resourceName}
-                                    items={sortedProducts}
-                                    loading={isLoading}
-                                    filterControl={selectedTab === 0 ? filterControl : undefined}
-                                    sortValue={sortValue}
-                                    sortOptions={[
-                                        { label: 'Newest', value: 'newest' },
-                                        { label: 'Oldest', value: 'oldest' },
-                                        { label: 'A-Z', value: 'a-z' },
-                                        { label: 'Z-A', value: 'z-a' },
-                                    ]}
-                                    onSortChange={(selected) => setSortValue(selected)}
-                                    renderItem={renderProductItem}
-                                    emptyState={emptyState}
-                                />
+                                <>
+                                    <ResourceList
+                                        resourceName={resourceName}
+                                        items={sortedProducts}
+                                        loading={isLoading}
+                                        filterControl={selectedTab === 0 ? filterControl : undefined}
+                                        sortValue={sortValue}
+                                        sortOptions={[
+                                            { label: 'Newest', value: 'newest' },
+                                            { label: 'Oldest', value: 'oldest' },
+                                            { label: 'A-Z', value: 'a-z' },
+                                            { label: 'Z-A', value: 'z-a' },
+                                        ]}
+                                        onSortChange={(selected) => setSortValue(selected)}
+                                        renderItem={renderProductItem}
+                                        emptyState={emptyState}
+                                    />
+                                    {pageInfo && (pageInfo.hasNextPage || pageInfo.hasPreviousPage) && (
+                                        <Box padding="400">
+                                            <InlineStack align="center">
+                                                <Pagination
+                                                    hasPrevious={pageInfo.hasPreviousPage}
+                                                    onPrevious={() => loadMoreProducts('prev')}
+                                                    hasNext={pageInfo.hasNextPage}
+                                                    onNext={() => loadMoreProducts('next')}
+                                                    label="Products"
+                                                />
+                                            </InlineStack>
+                                            {isLoadingMore && (
+                                                <Box paddingBlockStart="200">
+                                                    <InlineStack align="center">
+                                                        <Spinner size="small" />
+                                                        <Text as="span" variant="bodySm" tone="subdued">
+                                                            Loading products...
+                                                        </Text>
+                                                    </InlineStack>
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    )}
+                                </>
                             ) : (
                                 <RecommendationDashboard />
                             )}

@@ -116,11 +116,17 @@ router.get("/products", async (req, res) => {
     try {
         const session = res.locals.shopify.session;
         const client = new shopify.api.clients.Graphql({ session });
+        
+        // Get pagination parameters
+        const limit = parseInt(req.query.limit) || 50;
+        const after = req.query.after || null;
+        const before = req.query.before || null;
 
         const queryString = `
-            query {
-                products(first: 50) {
+            query($first: Int, $after: String, $last: Int, $before: String) {
+                products(first: $first, after: $after, last: $last, before: $before) {
                     edges {
+                        cursor
                         node {
                             id
                             title
@@ -161,18 +167,35 @@ router.get("/products", async (req, res) => {
                             }
                         }
                     }
+                    pageInfo {
+                        hasNextPage
+                        hasPreviousPage
+                        startCursor
+                        endCursor
+                    }
                 }
             }
         `;
 
-        const response = await client.request(queryString);
+        // Build variables for pagination
+        const variables = {};
+        if (before) {
+            variables.last = limit;
+            variables.before = before;
+        } else {
+            variables.first = limit;
+            if (after) variables.after = after;
+        }
+
+        const response = await client.request(queryString, { variables });
         const shopDomain = session.shop;
 
-        const products = response.data.products.edges.map(({ node }) => {
+        const products = response.data.products.edges.map(({ node, cursor }) => {
             const numericId = node.id.split('/').pop();
             return {
                 id: numericId,
                 gid: node.id,
+                cursor: cursor,
                 title: node.title,
                 vendor: node.vendor,
                 tags: node.tags.join(', '),
@@ -209,7 +232,10 @@ router.get("/products", async (req, res) => {
             };
         });
 
-        res.json(products);
+        res.json({
+            products,
+            pageInfo: response.data.products.pageInfo
+        });
     } catch (error) {
         console.error("Error fetching products:", error);
         res.status(500).json({ error: error.message });
