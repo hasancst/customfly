@@ -1,5 +1,5 @@
 shopify.extend('admin.product-details.action.render', (root, api) => {
-  const { data } = api;
+  const { data, close } = api;
   
   // Get product ID from context
   const productGid = data?.selected?.[0]?.id;
@@ -11,17 +11,14 @@ shopify.extend('admin.product-details.action.render', (root, api) => {
   // Extract numeric ID from GID
   const numericId = productGid.split('/').pop();
   
-  // Create action button
-  const button = root.createComponent('Button', {
-    title: 'Customfly Designer',
-    onPress: () => {
-      // Build designer URL
-      const designerUrl = `/admin/apps/customfly-hasan-10/designer/${numericId}`;
-      
-      // Navigate to designer
-      api.navigation.navigate(designerUrl);
-    },
-  });
-
-  root.appendChild(button);
+  // Build designer URL - use full admin path
+  const designerUrl = `shopify://admin/apps/customfly-hasan-10/designer/${numericId}`;
+  
+  // Redirect immediately
+  window.open(designerUrl, '_top');
+  
+  // Close the modal
+  if (close) {
+    close();
+  }
 });
