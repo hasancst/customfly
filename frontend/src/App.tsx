@@ -1,4 +1,5 @@
 import Designer from '@/pages/Designer';
+import DesignerGidHandler from '@/components/DesignerGidHandler';
 import AdminDashboard from '@/pages/AdminDashboard';
 import Assets from '@/pages/Assets';
 import AssetDetail from '@/pages/AssetDetail';
@@ -136,7 +137,7 @@ function MainContent({ cleanSearch, isPublic }: { cleanSearch: string, isPublic:
                 <Route path="/orders" element={<Orders />} />
                 <Route path="/printful" element={<PrintfulPage />} />
                 <Route path="/production/:designId" element={<ProductionExport />} />
-                <Route path="/designer/:productId" element={<Designer />} />
+                <Route path="/designer/:productId" element={<DesignerGidHandler />} />
                 <Route path="/designer" element={<Designer />} />
                 <Route path="/assets/:id" element={<AssetDetail />} />
                 <Route path="/settings" element={<Settings />} />

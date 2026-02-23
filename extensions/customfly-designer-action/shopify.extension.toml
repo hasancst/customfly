@@ -1,11 +1,9 @@
-api_version = "2026-01"
-
 [[extensions]]
 uid = "e8095c54-7fe9-2c5b-dd3f-abaeda940e245d6c1c61"
-type = "ui_extension"
+type = "admin_link"
 name = "Customfly Designer"
 handle = "customfly-designer-action"
 
 [[extensions.targeting]]
-module = "./src/index.jsx"
-target = "admin.product-details.action.render"
+target = "admin.product-details.action.link"
+url = "/designer/:id"

@@ -38,10 +38,11 @@ export default function DesignerAdmin() {
         fetch(`/imcst_api/products/${productId}?_t=${Date.now()}`) // Add cache-busting timestamp
       ]);
 
+      let latestProductData: any = null;
       if (prodRes && prodRes.ok) {
-        const newProductData = await prodRes.json();
-        setProductData(newProductData);
-        console.log('[Designer] Product data refreshed:', newProductData);
+        latestProductData = await prodRes.json();
+        setProductData(latestProductData);
+        console.log('[Designer] Product data refreshed:', latestProductData);
       }
 
       if (assetsRes && assetsRes.ok) {
@@ -55,7 +56,41 @@ export default function DesignerAdmin() {
       }
 
       if (designsRes && designsRes.ok) setSavedDesigns(await designsRes.json());
-      if (configRes && configRes.ok) setConfig(await configRes.json());
+
+      if (configRes && configRes.ok) {
+        const configData = await configRes.json();
+        // Check if product already has a config (non-empty object = already in designer)
+        const hasConfig = configData && Object.keys(configData).length > 0 && !configData.error;
+
+        if (hasConfig) {
+          setConfig(configData);
+        } else if (!isBackground) {
+          // Product not yet in designer (empty config returned) - auto-create initial config
+          // This happens when user clicks "Customfly Designer" from More Actions in Shopify Admin
+          console.log('[Designer] Product has no config, auto-creating for product:', productId);
+          const baseImageSrc = latestProductData?.image?.src || '';
+          const createRes = await fetch('/imcst_api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId,
+              baseImage: baseImageSrc
+            })
+          });
+          if (createRes.ok) {
+            const newConfig = await createRes.json();
+            setConfig(newConfig);
+            let toast = (await import('sonner')).toast;
+            toast.success('✅ Produk berhasil ditambahkan ke Customfly Designer!');
+            console.log('[Designer] Auto-created config for product:', productId);
+          } else {
+            console.error('[Designer] Failed to auto-create config');
+            setConfig({});
+          }
+        } else {
+          setConfig(configData);
+        }
+      }
 
     } catch (err) {
       console.error(err);
@@ -132,10 +167,10 @@ export default function DesignerAdmin() {
 
   // Construct default pages if no designs exist, using config data
   const hasConfig = config && !config.error;
-  
+
   // If config has printArea with layers, use those as initial elements
   const configElements = hasConfig && config.printArea?.layers ? config.printArea.layers : [];
-  
+
   const defaultPages = hasConfig ? [{
     id: 'default',
     name: 'Side 1',
@@ -189,7 +224,7 @@ export default function DesignerAdmin() {
           // 'product' = save for this product only (visible to customers)
           // 'global' = save to template library (reusable across products)
           const finalShopifyProductId = data.saveType === 'global' ? 'GLOBAL' : productId;
-          
+
           console.log('[Designer] Saving design:', {
             saveType: data.saveType,
             isTemplate: data.isTemplate,
