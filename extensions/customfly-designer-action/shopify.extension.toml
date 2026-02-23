@@ -1,9 +1,10 @@
 api_version = "2024-10"
 
 [[extensions]]
-type = "admin_action"
+type = "ui_extension"
 name = "Customfly Designer"
 handle = "customfly-designer-action"
 
 [[extensions.targeting]]
-target = "admin.product-details.more-actions"
+module = "./src/index.jsx"
+target = "admin.product-details.action.render"

@@ -1,33 +1,34 @@
-import { extend, AdminAction } from '@shopify/ui-extensions/admin';
+import React from 'react';
+import { extend, render, Button } from '@shopify/ui-extensions-react/admin';
 
-extend('admin.product-details.more-actions', async (root, api) => {
-  const { data } = api;
-  
+// Extend the admin product details page
+extend('admin.product-details.action.render', (root, api) => {
+  render('CustomflyDesignerAction', root, api);
+});
+
+function CustomflyDesignerAction({ data, shop }) {
   // Get product ID from context
-  const productId = data.selected[0]?.id;
+  const productGid = data?.selected?.[0]?.id;
   
-  if (!productId) {
-    console.error('[Customfly] No product ID found');
-    return;
+  if (!productGid) {
+    return null;
   }
 
   // Extract numeric ID from GID
-  const numericId = productId.split('/').pop();
+  const numericId = productGid.split('/').pop();
   
-  // Create action
-  const action = root.createComponent(AdminAction, {
-    title: 'Customfly Designer',
-    onPress: async () => {
-      // Get current shop domain
-      const shop = api.shop.myshopifyDomain;
-      
-      // Build designer URL
-      const designerUrl = `https://${shop}/admin/apps/customfly-hasan-10/designer/${numericId}`;
-      
-      // Navigate to designer
-      await api.navigation.navigate(designerUrl);
-    },
-  });
+  // Handle button click
+  const handleClick = () => {
+    // Build designer URL
+    const designerUrl = `/admin/apps/customfly-hasan-10/designer/${numericId}`;
+    
+    // Navigate to designer
+    window.open(designerUrl, '_self');
+  };
 
-  root.appendChild(action);
-});
+  return (
+    <Button onPress={handleClick}>
+      Customfly Designer
+    </Button>
+  );
+}
