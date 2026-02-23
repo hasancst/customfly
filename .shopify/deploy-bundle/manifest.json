@@ -10,7 +10,7 @@
       "assets": "e8095c54-7fe9-2c5b-dd3f-abaeda940e245d6c1c61",
       "target": "admin.product-details.action.render",
       "config": {
-        "api_version": "2024-10",
+        "api_version": "2026-01",
         "extension_points": [
           {
             "target": "admin.product-details.action.render",
