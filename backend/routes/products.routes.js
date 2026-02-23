@@ -569,4 +569,81 @@ router.post("/global_design/apply_all", async (req, res) => {
     }
 });
 
+// Import product to designer (for admin action)
+router.post("/products/:id/import", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const shop = res.locals.shopify.session.shop;
+
+        console.log(`[ProductImport] Importing product ${id} for shop ${shop}`);
+
+        // Check if product already has config
+        let config = await prisma.merchantConfig.findUnique({
+            where: {
+                shop_shopifyProductId: {
+                    shop,
+                    shopifyProductId: String(id)
+                }
+            }
+        });
+
+        // If not exists, create with global settings
+        if (!config) {
+            console.log(`[ProductImport] Product ${id} not found, creating from global settings`);
+            
+            // Get global config
+            const globalConfig = await prisma.merchantConfig.findUnique({
+                where: {
+                    shop_shopifyProductId: {
+                        shop,
+                        shopifyProductId: 'GLOBAL'
+                    }
+                }
+            });
+
+            if (!globalConfig) {
+                console.log(`[ProductImport] No global config found, creating with defaults`);
+                // Create with minimal defaults
+                config = await prisma.merchantConfig.create({
+                    data: {
+                        shop,
+                        shopifyProductId: String(id),
+                        printArea: {}
+                    }
+                });
+            } else {
+                console.log(`[ProductImport] Copying from global config, colorAssetId: ${globalConfig.colorAssetId}`);
+                
+                // Copy all settings from global config including asset IDs
+                const { id: globalId, createdAt, updatedAt, shopifyProductId: globalProductId, ...settingsToCopy } = globalConfig;
+                
+                config = await prisma.merchantConfig.create({
+                    data: {
+                        shop,
+                        shopifyProductId: String(id),
+                        ...settingsToCopy
+                    }
+                });
+                
+                console.log(`[ProductImport] Created config with colorAssetId: ${config.colorAssetId}`);
+            }
+        } else {
+            console.log(`[ProductImport] Product ${id} already has config, colorAssetId: ${config.colorAssetId}`);
+        }
+
+        // Clear cache
+        const cacheKey = `pub_prod_${shop}_${id}`;
+        cache.del(cacheKey);
+
+        res.json({ 
+            success: true, 
+            config: transformDesignUrls(config),
+            designerUrl: `/designer/${id}`
+        });
+    } catch (error) {
+        console.error("[ProductImport] Error importing product:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export default router;
