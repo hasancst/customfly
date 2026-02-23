@@ -2,10 +2,6 @@ import React from 'react';
 import { extend, render, Button } from '@shopify/ui-extensions-react/admin';
 
 // Extend the admin product details page
-extend('admin.product-details.action.render', (root, api) => {
-  render('CustomflyDesignerAction', root, api);
-});
-
 function CustomflyDesignerAction({ data, shop }) {
   // Get product ID from context
   const productGid = data?.selected?.[0]?.id;
@@ -32,3 +28,9 @@ function CustomflyDesignerAction({ data, shop }) {
     </Button>
   );
 }
+
+// Default export required for Shopify extension
+export default extend(
+  'admin.product-details.action.render',
+  render(CustomflyDesignerAction)
+);
