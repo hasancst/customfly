@@ -1,24 +1,23 @@
-shopify.extend('admin.product-details.action.render', (root, api) => {
+shopify.extend('admin.product-details.action.render', async (root, api) => {
   const { data, close } = api;
   
   // Get product ID from context
   const productGid = data?.selected?.[0]?.id;
   
   if (!productGid) {
+    close();
     return;
   }
 
-  // Extract numeric ID from GID
+  // Extract numeric ID from GID (format: gid://shopify/Product/123456)
   const numericId = productGid.split('/').pop();
   
-  // Build designer URL - use full admin path
-  const designerUrl = `shopify://admin/apps/customfly-hasan-10/designer/${numericId}`;
+  // Use Shopify's app bridge to navigate
+  const appUrl = `customfly-hasan-10/designer/${numericId}`;
   
-  // Redirect immediately
-  window.open(designerUrl, '_top');
+  // Redirect using the app context
+  await api.redirect.dispatch('APP', appUrl);
   
-  // Close the modal
-  if (close) {
-    close();
-  }
+  // Close modal
+  close();
 });
