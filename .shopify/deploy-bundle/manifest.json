@@ -3,6 +3,36 @@
   "handle": "",
   "modules": [
     {
+      "type": "ui_extension",
+      "handle": "customfly-designer-action",
+      "uid": "e8095c54-7fe9-2c5b-dd3f-abaeda940e245d6c1c61",
+      "uuid": "e8095c54-7fe9-2c5b-dd3f-abaeda940e245d6c1c61",
+      "assets": "e8095c54-7fe9-2c5b-dd3f-abaeda940e245d6c1c61",
+      "target": "admin.product-details.action.render",
+      "config": {
+        "api_version": "2024-10",
+        "extension_points": [
+          {
+            "target": "admin.product-details.action.render",
+            "module": "./src/index.jsx",
+            "metafields": [],
+            "urls": {},
+            "preloads": {},
+            "build_manifest": {
+              "assets": {
+                "main": {
+                  "filepath": "dist/customfly-designer-action.js",
+                  "module": "./src/index.jsx"
+                }
+              }
+            }
+          }
+        ],
+        "name": "Customfly Designer",
+        "localization": {}
+      }
+    },
+    {
       "type": "theme_app_extension",
       "handle": "product-customizer",
       "uid": "1cd0ee6c-cf67-1a8e-b186-644e4c8b7e158f7982b9",
