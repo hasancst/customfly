@@ -540,7 +540,7 @@ export default function AdminDashboard() {
                                                     onPrevious={() => loadMoreProducts('prev')}
                                                     hasNext={pageInfo.hasNextPage}
                                                     onNext={() => loadMoreProducts('next')}
-                                                    label="Products"
+                                                    label="More products"
                                                 />
                                             </InlineStack>
                                             {isLoadingMore && (
