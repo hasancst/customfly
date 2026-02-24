@@ -23,6 +23,7 @@ import proxyRoutes from "./routes/proxy.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import templateRoutes from "./routes/templates.routes.js";
 import printfulRoutes from "./routes/printful.routes.js";
+import seedRoutes from "./routes/seed.routes.js";
 
 // Middleware
 import { validateShopParam } from "./middleware/auth.js";
@@ -145,6 +146,7 @@ app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolat
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, assetRoutes);
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, promoRoutes);
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, templateRoutes);
+app.use("/imcst_api/seed", shopify.validateAuthenticatedSession(), ensureTenantIsolation, seedRoutes);
 // AI routes have their own per-shop rate limiter (aiRateLimiter in ai.routes.js)
 app.use("/imcst_api", shopify.validateAuthenticatedSession(), ensureTenantIsolation, aiRoutes);
 // Printful routes
