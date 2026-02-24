@@ -123,8 +123,8 @@ router.get("/products", async (req, res) => {
         const before = req.query.before || null;
 
         const queryString = `
-            query($first: Int, $after: String, $last: Int, $before: String) {
-                products(first: $first, after: $after, last: $last, before: $before) {
+            query($first: Int, $after: String, $last: Int, $before: String, $sortKey: ProductSortKeys, $reverse: Boolean) {
+                products(first: $first, after: $after, last: $last, before: $before, sortKey: $sortKey, reverse: $reverse) {
                     edges {
                         cursor
                         node {
@@ -178,7 +178,10 @@ router.get("/products", async (req, res) => {
         `;
 
         // Build variables for pagination
-        const variables = {};
+        const variables = {
+            sortKey: 'CREATED_AT',
+            reverse: true  // true = newest first (descending)
+        };
         if (before) {
             variables.last = limit;
             variables.before = before;
