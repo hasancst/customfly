@@ -81,7 +81,7 @@ export function Canvas({
   isPublicMode = false,
   hideSafeAreaLine = false,
   baseImageScale = 80,
-  baseImageLocked = false,
+  baseImageLocked = true,  // Default locked
   baseImageColorMode = 'transparent',
   width: propWidth,
   height: propHeight,

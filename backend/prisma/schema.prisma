@@ -76,7 +76,7 @@ model MerchantConfig {
   baseImageColorMode       String?  @default("transparent")
   baseImageMaskInvert      Boolean? @default(false)
   baseImageScale           Float?
-  baseImageLocked          Boolean? @default(false)
+  baseImageLocked          Boolean? @default(true)
   variantBaseScales        Json?
   showLayersInDirect       Boolean? @default(true)
   showLayersInModal        Boolean? @default(true)

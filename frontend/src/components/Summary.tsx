@@ -673,7 +673,7 @@ export const Summary: React.FC<SummaryProps> = ({
                       <p className="text-[9px] text-gray-400">Prevent base image from being moved</p>
                     </div>
                     <Switch
-                      checked={baseImageLocked ?? false}
+                      checked={baseImageLocked ?? true}  // Default locked
                       onCheckedChange={onBaseImageLockedChange}
                     />
                   </div>
