@@ -621,34 +621,6 @@ export const Summary: React.FC<SummaryProps> = ({
                       </div> */}
                     </div>
                   )}
-
-                  <div className="pt-2 border-t border-gray-100 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label className="text-[11px] font-medium text-gray-700">Use as Mask</Label>
-                        <p className="text-[9px] text-gray-400">Punch design through transparent areas</p>
-                      </div>
-                      <Switch
-                        checked={baseImageAsMask}
-                        onCheckedChange={onToggleBaseImageAsMask}
-                        className="scale-75"
-                      />
-                    </div>
-
-                    {baseImageAsMask && (
-                      <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
-                        <div className="space-y-0.5">
-                          <Label className="text-[11px] font-medium text-gray-700">Invert Mask</Label>
-                          <p className="text-[9px] text-gray-400">Reveal design only on mockup</p>
-                        </div>
-                        <Switch
-                          checked={baseImageMaskInvert}
-                          onCheckedChange={onToggleBaseImageMaskInvert}
-                          className="scale-75"
-                        />
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* Base Image Scale Slider */}
@@ -665,18 +637,6 @@ export const Summary: React.FC<SummaryProps> = ({
                     onValueChange={(val) => onBaseImageScaleChange?.(val[0])}
                     className="py-2"
                   />
-                  
-                  {/* Lock Base Image Toggle */}
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="space-y-0.5">
-                      <Label className="text-[11px] font-medium text-gray-700">Lock Base Image</Label>
-                      <p className="text-[9px] text-gray-400">Prevent base image from being moved</p>
-                    </div>
-                    <Switch
-                      checked={baseImageLocked ?? true}  // Default locked
-                      onCheckedChange={onBaseImageLockedChange}
-                    />
-                  </div>
                 </div>
               </div>
             </div>
@@ -699,8 +659,55 @@ export const Summary: React.FC<SummaryProps> = ({
 
               {isWorkspaceOpen && (
                 <div className="space-y-6 mt-6 pt-4 border-t border-gray-50">
-                  {/* 0. Layers Panel Visibility */}
+                  {/* Base Image Settings */}
                   <div className="space-y-3">
+                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base Image</Label>
+                    <div className="space-y-3 pt-1">
+                      {/* Lock Base Image */}
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] font-medium text-gray-700">Lock Base Image</Label>
+                          <p className="text-[9px] text-gray-400">Prevent base image from being moved</p>
+                        </div>
+                        <Switch
+                          checked={baseImageLocked ?? true}
+                          onCheckedChange={onBaseImageLockedChange}
+                          className="scale-75"
+                        />
+                      </div>
+
+                      {/* Use as Mask */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                        <div className="space-y-0.5">
+                          <Label className="text-[11px] font-medium text-gray-700">Use as Mask</Label>
+                          <p className="text-[9px] text-gray-400">Punch design through transparent areas</p>
+                        </div>
+                        <Switch
+                          checked={baseImageAsMask}
+                          onCheckedChange={onToggleBaseImageAsMask}
+                          className="scale-75"
+                        />
+                      </div>
+
+                      {/* Invert Mask (conditional) */}
+                      {baseImageAsMask && (
+                        <div className="flex items-center justify-between pl-4 border-l-2 border-indigo-50">
+                          <div className="space-y-0.5">
+                            <Label className="text-[11px] font-medium text-gray-700">Invert Mask</Label>
+                            <p className="text-[9px] text-gray-400">Reveal design only on mockup</p>
+                          </div>
+                          <Switch
+                            checked={baseImageMaskInvert}
+                            onCheckedChange={onToggleBaseImageMaskInvert}
+                            className="scale-75"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 0. Layers Panel Visibility */}
+                  <div className="space-y-3 pt-2 border-t border-gray-50">
                     <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Layers Panel</Label>
                     <div className="space-y-3 pt-1">
                       <div className="flex items-center justify-between pl-4 border-l-2 border-purple-50">
